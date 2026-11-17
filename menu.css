@@ -1,0 +1,11 @@
+:root{color-scheme:dark;font:16px system-ui,sans-serif;color:#edf7ff}
+[hidden]{display:none!important}
+#menu{position:fixed;inset:0;overflow:auto;display:grid;align-items:safe center;justify-items:center;background-color:#0a1019;background-image:linear-gradient(#1b283544 1px,transparent 1px),linear-gradient(90deg,#1b283544 1px,transparent 1px);background-size:40px 40px}
+.panel{box-sizing:border-box;width:min(660px,94vw);margin:24px;padding:clamp(20px,5vw,45px);background:#101923;border:1px solid #364956;border-top:3px solid #4df3ff;border-radius:8px;box-shadow:0 18px 70px #0007}
+header{display:flex;align-items:center;gap:16px;margin-bottom:28px}.mark{width:24px;height:24px;flex:none;background:#4df3ff;box-shadow:5px 5px #214c55}
+h1{font-size:clamp(24px,4vw,36px);letter-spacing:-.045em;margin:0}h2,h3{margin:18px 0 12px}
+button,input,select{font:inherit;border:1px solid #415263;border-radius:5px;background:#152330;color:inherit;padding:8px 12px}button{cursor:pointer;font-weight:650}button:hover,button:focus-visible{border-color:#4df3ff}form>button:first-of-type,#solo,#create{background:#83eef3;color:#082029}
+label{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:9px 0}input[type=color]{padding:2px;width:50px}input[type=checkbox]{accent-color:#4df3ff}
+fieldset{border:1px solid #354654;margin:20px 0;padding:10px 15px}#roster,.split{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}#roster label{justify-content:start}#byCode{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:15px}#rooms button{display:block;text-align:left;width:100%;margin-top:9px}#rooms small{display:block;margin-top:5px;color:#b9cbd4}#notice:empty{display:none}#notice{color:#ffce8a}
+#sessionHUD{position:fixed;right:12px;bottom:12px;text-align:right;background:#101923e8;padding:6px;border-radius:6px;font-size:13px}#playerInfo{display:block;white-space:pre-line}#sessionHUD button{font-size:12px}
+@media(max-width:550px){.split{grid-template-columns:1fr}input:not([type=checkbox]){max-width:48vw}}

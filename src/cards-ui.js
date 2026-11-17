@@ -316,7 +316,7 @@ function drawGameOver() {
     ctx.globalAlpha = a;
     ctx.fillStyle = '#4df3ff';
     ctx.font = 'bold 22px system-ui, sans-serif';
-    ctx.fillText('Pulsa R o haz CLIC para volver a jugar', W / 2, H / 2 + 125);
+    ctx.fillText(playMode === 'online' ? 'Usa «Salir al menú» para elegir otra partida' : 'Pulsa R o haz CLIC para volver a jugar', W / 2, H / 2 + 125);
     ctx.globalAlpha = 1;
   }
 }

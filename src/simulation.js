@@ -1,6 +1,6 @@
 'use strict';
 /* =============== UPDATE =============== */
-function update(dt) {
+function update(dt, worldStep = true) {
   for (let i = state.particles.length - 1; i >= 0; i--) {
     const pt = state.particles[i];
     pt.life -= dt;
@@ -37,29 +37,31 @@ function update(dt) {
   if (state.cardChoices) return;
   if (state.inventoryOpen) return;
 
-  state.time += dt;
+  if (worldStep) state.time += dt;
   state.levelTimer += dt;
   state.damageTimer += dt;
 
   update_regeneration(dt);
   update_abilityCooldowns(dt);
-  update_stormAndBossSchedule(dt);
-  update_movementAndWeapons(dt);
+  update_stormAndBossSchedule(dt, worldStep);
+  update_movementAndWeapons(dt, worldStep);
   update_shieldPositions(dt);
   update_playerProjectiles(dt);
-  update_enemyProjectiles(dt);
+  if (worldStep) update_enemyProjectiles(dt);
   update_projectileCancellation(dt);
   update_shieldBlocking(dt);
   update_shieldPush(dt);
   update_enemyProjectileHits(dt);
-  update_spawning(dt);
-  update_enemyAI(dt);
-  update_enemySeparation(dt);
+  if (worldStep) {
+    update_spawning(dt);
+    update_enemyAI(dt);
+    update_enemySeparation(dt);
+  }
   update_projectileHits(dt);
   update_bossHits(dt);
-  update_enemyDarts(dt);
-  update_experience(dt);
-  update_potions(dt);
+  update_enemyDarts(worldStep ? dt : 0);
+  update_experience(worldStep ? dt : 0);
+  update_potions(worldStep ? dt : 0);
   update_contactDamage(dt);
   update_drones(dt);
   update_darts(dt);
@@ -114,7 +116,7 @@ function update_abilityCooldowns(dt) {
 
 }
 
-function update_stormAndBossSchedule(dt) {
+function update_stormAndBossSchedule(dt, worldStep = true) {
   const p=state.player;
   // Thunder rain activa
   if (state.thunderRain.active) {
@@ -145,21 +147,22 @@ function update_stormAndBossSchedule(dt) {
     if (state.thunderRain.timer <= 0) state.thunderRain.active = false;
   }
 
-  if (!state.bossActive) {
+  if (!worldStep) return;
+  if (!state.bossActive && !rules.disabled.includes('boss')) {
     if (state.bossSpawnTimer > 0 && state.bossSpawnTimer < 5 && !state.bossWarningShown) {
       state.bossWarningShown = true;
       addFloat(p.x, p.y - 100, '¡JEFE EN CAMINO!', '#ff2255');
       state.shake = 10;
     }
-    state.bossSpawnTimer -= dt;
+    state.bossSpawnTimer -= dt * rules.difficulty;
     if (state.bossSpawnTimer <= 0) spawnBoss();
   }
-  checkAdaptive(dt);
+  checkAdaptive(dt * rules.difficulty);
 
 
 }
 
-function update_movementAndWeapons(dt) {
+function update_movementAndWeapons(dt, worldStep = true) {
   const p=state.player;
   // Movimiento (con dash)
   if (p.dashTimer > 0) {
@@ -234,7 +237,7 @@ function update_movementAndWeapons(dt) {
   updateLasersFiring(dt);
 
   updateLightning(dt);
-  if (state.bossActive) updateBoss(dt);
+  if (state.bossActive && worldStep) updateBoss(dt);
 
 
 }
@@ -421,7 +424,7 @@ function update_spawning(dt) {
     state.spawnTimer -= dt;
     if (state.spawnTimer <= 0) {
       spawnEnemy();
-      const interval = Math.max(0.55, 1.7 - state.time * 0.009) * state.spawnRateMult;
+      const interval = Math.max(0.55, 1.7 - state.time * rules.difficulty * 0.009) * state.spawnRateMult;
       state.spawnTimer = interval * gameRand(0.80, 1.25);
     }
     state.potionTimer -= dt;

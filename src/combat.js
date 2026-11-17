@@ -90,7 +90,7 @@ function damagePlayer(amount) {
 }
 
 function gainXp(amount) {
-  state.xp += amount;
+  state.xp += amount * rules.xp;
   state.score += Math.round(amount * 2);
   let leveled = false;
   while (state.xp >= state.xpNeeded) {

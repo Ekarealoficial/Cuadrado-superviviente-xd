@@ -148,7 +148,7 @@ function render() {
     ctx.restore();
     ctx.shadowColor = p.dashTimer > 0 ? '#22d3ee' : '#4df3ff';
     ctx.shadowBlur = 22;
-    ctx.fillStyle = blink ? 'rgba(77,243,255,0.25)' : (p.dashTimer > 0 ? '#22d3ee' : '#4df3ff');
+    ctx.fillStyle = blink ? 'rgba(255,255,255,0.25)' : (p.color || rules.color);
     const h = p.size / 2;
     ctx.fillRect(-h, -h, p.size, p.size);
     ctx.shadowBlur = 0;
@@ -157,6 +157,15 @@ function render() {
     ctx.restore();
   }
 
+  for (const other of state.peers || []) {
+    if (other.over) continue;
+    ctx.fillStyle = other.color;
+    ctx.fillRect(other.x-15, other.y-15, 30, 30);
+    ctx.fillStyle = '#fff';
+    ctx.textAlign = 'center';
+    ctx.font = 'bold 15px system-ui';
+    ctx.fillText(other.name, other.x, other.y-24);
+  }
   for (const pt of state.particles) {
     const a = clamp(pt.life / pt.maxLife, 0, 1);
     ctx.globalAlpha = a;

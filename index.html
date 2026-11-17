@@ -4,6 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Cuadrado Superviviente - Rogue</title>
+<link rel="stylesheet" href="menu.css">
 <style>
   html, body { margin:0; padding:0; height:100%; overflow:hidden; background:#08080f; }
   canvas { display:block; cursor: none; }
@@ -11,6 +12,36 @@
 </head>
 <body>
 <canvas id="game"></canvas>
+<main id="menu">
+  <section class="panel">
+    <header><span class="mark" aria-hidden="true"></span><h1>Cuadrado Superviviente</h1></header>
+    <div id="home"><button id="solo">Singleplayer</button> <button id="multi">Multijugador</button></div>
+    <form id="setup" hidden>
+      <h2 id="setupTitle">Singleplayer</h2>
+      <label id="soloColor">Color del cuadradito <input name="color" type="color" value="#4df3ff"></label>
+      <div id="roomOptions" hidden>
+        <label>Nombre de la partida <input name="roomName" maxlength="40" value="Mi partida"></label>
+        <label>Máximo de jugadores <input name="max" type="number" min="2" max="12" value="4" required></label>
+        <label><input name="privateRoom" type="checkbox"> Sala privada por código</label>
+        <label><input name="pvp" type="checkbox"> PvP · daño entre jugadores</label>
+      </div>
+      <div class="split"><label>Ritmo de dificultad <select name="difficulty"></select></label>
+      <label>Experiencia ganada <select name="xp"></select></label></div>
+      <fieldset><legend>Enemigos y jefes habilitados</legend><div id="roster"></div></fieldset>
+      <button>Continuar</button> <button type="button" data-back>Volver</button>
+    </form>
+    <div id="lobby" hidden>
+      <h2>Multijugador</h2>
+      <button id="create">Crear partida</button> <button data-back>Volver</button>
+      <form id="byCode"><label>Código de partida <input name="code" maxlength="8" required autocomplete="off"></label><button>Unirse</button></form>
+      <h3>Partidas públicas</h3><input id="search" type="search" placeholder="Buscar por nombre" aria-label="Buscar por nombre"><div id="rooms"></div>
+    </div>
+    <form id="identity" hidden><h2>Tu cuadradito</h2><label>Nombre <input name="nick" maxlength="24" required autocomplete="nickname"></label>
+      <label>Color <input name="color" type="color" value="#4df3ff"></label><button>Entrar a la partida</button> <button type="button" data-back>Volver</button></form>
+    <p id="notice" role="status"></p>
+  </section>
+</main>
+<aside id="sessionHUD" hidden><span id="playerInfo"></span> <button id="exit">Salir al menú</button></aside>
 <script defer src="src/config.js"></script>
 <script defer src="src/spatial.js"></script>
 <script defer src="src/entities.js"></script>
@@ -37,6 +68,7 @@
 <script defer src="src/cards-ui.js"></script>
 <script defer src="src/effects.js"></script>
 <script defer src="src/layout.js"></script>
+<script defer src="src/menu.js"></script>
 <script defer src="src/loop.js"></script>
 </body>
 </html>

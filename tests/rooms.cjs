@@ -1,0 +1,20 @@
+const {test}=require('node:test');
+const assert=require('node:assert/strict');
+const engine=require('../room-engine.cjs');
+const disabled='normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss'.split(' ');
+for(const pvp of [false,true])test('Combate compartido con PvP '+pvp,()=>{
+  const game=engine({difficulty:1,xp:1,pvp,disabled});
+  game.add('a',{name:'Azul',color:'#3399ff'});
+  game.add('b',{name:'Rojo',color:'#ee3333'});
+  game.input('b',{d:true},[]);
+  for(let i=0;i<15;i++)game.tick(1/30);
+  game.input('b',{},[]);
+  game.input('a',{dx:500,dy:0,fire:true},[]);
+  for(let i=0;i<100;i++)game.tick(1/30);
+  const a=game.snapshot('a'),b=game.snapshot('b');
+  assert.equal(a.time,b.time);
+  assert.equal(a.peers[0].x,b.player.x);
+  assert.equal(a.peers[0].name,'Rojo');
+  assert.equal(b.halfHearts<8,pvp);
+  assert.equal(b.enemies.length,0);
+});

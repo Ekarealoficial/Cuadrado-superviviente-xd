@@ -14,6 +14,7 @@ function getWorldMouse() {
 }
 
 window.addEventListener('keydown', e => {
+  if (playMode === 'menu' || (playMode === 'online' && handleNetKey(e))) return;
   ensureAudio();
   const k = e.key.toLowerCase();
 
@@ -62,6 +63,8 @@ canvas.addEventListener('mousemove', e => {
   mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
 });
 canvas.addEventListener('mousedown', e => {
+  if (playMode === 'menu') return;
+  if (playMode === 'online' && handleNetClick(e)) return;
   updateUILayout();
   ensureAudio();
   if (e.button === 0) {

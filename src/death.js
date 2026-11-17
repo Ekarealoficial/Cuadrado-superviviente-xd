@@ -50,7 +50,8 @@ function summonEnemies(invoker) {
     const a = (k / 4) * TAU + gameRandom() * 0.4;
     const sx = invoker.x + Math.cos(a) * 45, sy = invoker.y + Math.sin(a) * 45;
     if (pointInWall(sx, sy, currentWalls)) continue;
-    state.enemies.push(createEnemy(gameRandom() < 0.5 ? 'normal' : 'fast', sx, sy));
+    const type = gameRandom() < 0.5 ? 'normal' : 'fast';
+    if (!rules.disabled.includes(type)) state.enemies.push(createEnemy(type, sx, sy));
   }
   spawnParticles(invoker.x, invoker.y, 30, '#8b5cf6', 1.3);
   state.shake = Math.min(state.shake + 8, 14);

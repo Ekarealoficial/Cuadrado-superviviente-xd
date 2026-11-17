@@ -1,4 +1,6 @@
 'use strict';
+let playMode = 'menu';
+let rules = { difficulty: 1, xp: 1, disabled: [], color: '#4df3ff' };
 const BALANCE = Object.freeze({ bossHp: 1200, bossGrowth: 1.25, ballDamage: 0.5, cellSize: 180 });
 const initialSeed = Number(new URLSearchParams(location.search).get('seed') || 123456789) >>> 0;
 let randomState = initialSeed;

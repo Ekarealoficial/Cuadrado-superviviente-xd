@@ -1,6 +1,8 @@
 # Cuadrado superviviente
 
-Serve this directory with any static HTTP server. `index.html` loads ordered deferred scripts; no build or dependencies are required. Keep `src/` alongside the HTML when publishing.
+Con Node 18 o posterior, ejecuta `npm start` y abre `http://localhost:3000`. Para jugar en la misma red, los demás jugadores abren la dirección IP del equipo que ejecuta el servidor y el mismo puerto. Para jugar por Internet, sirve este repositorio en un alojamiento Node accesible a todos los jugadores. El servidor acepta la variable de entorno `PORT`.
+
+Singleplayer también funciona en alojamiento estático con `index.html`, `menu.css` y `src/`. Multijugador usa el servidor Node del mismo origen para descubrir salas y simular las partidas. Las salas viven en memoria y se cierran al salir el último jugador o tras 20 segundos sin conexión de todos sus miembros.
 
 Run regression tests with `npm test` (Node 18+).
 

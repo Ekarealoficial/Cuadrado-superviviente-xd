@@ -54,7 +54,7 @@ function chooseEnemyType(t) {
 
 function createEnemy(type, x, y, extra) {
   const base = ENEMY_TYPES[type];
-  const bonus = Math.min(state.time * 0.35, 40);
+  const bonus = Math.min(state.time * rules.difficulty * 0.35, 40);
   const spd = base.speed + bonus * (type === 'tank' ? 0.35 : (type === 'juggernaut' ? 0 : (type === 'shooter' || type === 'invoker' || type === 'teleporter' || type === 'dardante' ? 0.4 : 1)));
   const hp = Math.round(base.hp * state.enemyHpMult);
   const e = Object.assign(createBody({ activeDarts: 0 }), {
@@ -77,7 +77,8 @@ function createEnemy(type, x, y, extra) {
 
 function spawnEnemy() {
   if (state.enemies.length > 90) return;
-  const type = chooseEnemyType(state.time);
+  const type = chooseEnemyType(state.time * rules.difficulty);
+  if (rules.disabled.includes(type)) return;
   const p = state.player;
   const minDist = Math.max(W, H) * 0.6 / state.cam.zoom + 100;
   const dist = minDist + gameRandom() * 300;

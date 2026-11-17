@@ -1,0 +1,83 @@
+const http=require('node:http');
+const fs=require('node:fs');
+const path=require('node:path');
+const crypto=require('node:crypto');
+const engine=require('./room-engine.cjs');
+const rooms=new Map();
+const types='normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss'.split(' ');
+const rates=[0.5,1,1.5,2,3];
+function requireValue(ok,message,status=400){if(!ok)throw Object.assign(new Error(message),{status});}
+function settings(s) {
+  requireValue(s && rates.includes(s.xp) && rates.includes(s.difficulty) && Array.isArray(s.disabled),'Ajustes inválidos');
+  requireValue(Number.isInteger(s.max) && s.max>=2 && s.max<=12 && typeof s.name==='string' && s.name.trim(),'Revisa el nombre y el límite de jugadores');
+  return {name:s.name.trim().slice(0,40),max:s.max,pvp:s.pvp===true,private:s.private===true,
+    difficulty:s.difficulty,xp:s.xp,disabled:types.filter(t=>s.disabled.includes(t))};
+}
+function leave(room,token){
+  room.members.delete(token); room.game.remove(token);
+  if(!room.members.size)rooms.delete(room.code);
+}
+setInterval(()=>{
+  for(const r of rooms.values()){
+    for(const [token,seen] of r.members)if(Date.now()-seen>20000)leave(r,token);
+    if(r.members.size){
+      try{r.game.tick(1/30);}
+      catch(error){console.error('Error de simulación',error);rooms.delete(r.code);}
+    }
+  }
+},1000/30).unref();
+async function body(req){
+  let raw='';
+  for await(const part of req){raw+=part;requireValue(raw.length<8192,'Solicitud demasiado grande',413);}
+  try{return JSON.parse(raw);}catch{throw Object.assign(new Error('JSON inválido'),{status:400});}
+}
+const server=http.createServer(async(req,res)=>{
+  function json(status,data){
+    res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});
+    res.end(JSON.stringify(data,(key,value)=>key==='owner'||key==='target'?undefined:value));
+  }
+  try{
+    const url=new URL(req.url,'http://localhost');
+    if(!url.pathname.startsWith('/api/')){
+      const file=url.pathname==='/'?'index.html':url.pathname.slice(1);
+      requireValue(req.method==='GET' && /^(index\.html|menu\.css|src\/[\w-]+\.js)$/.test(file),'No encontrado',404);
+      const content=await fs.promises.readFile(path.join(__dirname,file));
+      res.setHeader('Content-Type',file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':'text/html');
+      return res.end(content);
+    }
+    if(req.method==='GET' && url.pathname==='/api/rooms'){
+      return json(200,[...rooms.values()].filter(r=>!r.settings.private).map(r=>({...r.settings,code:r.code,opened:r.opened,count:r.members.size})));
+    }
+    requireValue(req.method==='POST','Método inválido',405);
+    const data=await body(req);
+    const action=url.pathname.slice(5);
+    let room=rooms.get(String(data.code).toUpperCase());
+    if(action==='create'||action==='join'){
+      const p=data.profile;
+      requireValue(typeof p?.name==='string'&&p.name.trim()&&/^#[0-9a-f]{6}$/i.test(p.color),'Elige nombre y color');
+      if(action==='create'){
+        requireValue(rooms.size<100,'Servidor lleno',503);
+        const s=settings(data.settings);
+        let code;do{code=crypto.randomBytes(4).toString('hex').toUpperCase();}while(rooms.has(code));
+        room={settings:s,code,opened:Date.now(),members:new Map(),game:engine(s)};
+        rooms.set(code,room);
+      }
+      requireValue(room,'Código desconocido o sala cerrada',404);
+      requireValue(room.members.size<room.settings.max,'Sala llena',409);
+      const token=crypto.randomUUID();
+      room.game.add(token,{name:p.name.trim().slice(0,24),color:p.color});
+      room.members.set(token,Date.now());
+      return json(200,{code:room.code,token,settings:room.settings,state:room.game.snapshot(token)});
+    }
+    requireValue(room?.members.has(data.token),'Sesión terminada',403);
+    if(action==='leave'){leave(room,data.token);return json(200,{});}
+    requireValue(action==='step','No encontrado',404);
+    room.members.set(data.token,Date.now());
+    const input=data.input||{};
+    for(const k of ['dx','dy']) input[k]=Number.isFinite(input[k])?Math.max(-2000,Math.min(2000,input[k])):0;
+    const actions=(Array.isArray(data.actions)?data.actions:[]).filter(a=>a && (a.kind==='inventory'||Number.isInteger(a.i)&&a.i>=0&&a.i<5));
+    room.game.input(data.token,input,actions);
+    return json(200,room.game.snapshot(data.token));
+  }catch(e){json(e.status||500,{error:e.status?e.message:'Error del servidor'});}
+});
+server.listen(process.env.PORT||3000);
