@@ -1,0 +1,58 @@
+'use strict';
+/* =============== EXPLOSIONES / MUERTE =============== */
+function killEnemy(index) {
+  const e = state.enemies[index];
+  if (!e || e._dying) return;
+  e._dying = true;
+  if (e.type === 'dardante') state.enemyDarts = state.enemyDarts.filter(d => d.owner !== e);
+  spawnParticles(e.x, e.y, 20, e.color, 1.1);
+  spawnOrbs(e.x, e.y, e.xp);
+  if (state.player.greedLevel > 0 && gameRandom() < 0.15 * state.player.greedLevel) {
+    spawnOrbs(e.x + gameRand(-30, 30), e.y + gameRand(-30, 30), e.xp * 0.7);
+    addFloat(e.x, e.y - 25, '¡XP extra!', '#fbbf24');
+  }
+  state.kills++;
+  state.score += Math.round(e.maxHp * 5);
+  state.shake = Math.min(state.shake + 6, 16);
+  state.cam.zoom = Math.min(1.15, state.cam.zoom + 0.04);
+  Sfx.play('kill', 40);
+  state.enemies.splice(index, 1);
+  if (e.type === 'kamikaze') explodeKamikaze(e);
+}
+
+function explodeKamikaze(e) {
+  const radius = 100;
+  spawnParticles(e.x, e.y, 35, '#ef4444', 1.8);
+  spawnParticles(e.x, e.y, 18, '#fbbf24', 1.2);
+  state.shake = 18;
+  state.flash = 0.15;
+  state.flashRGB = '255,100,50';
+  Sfx.play('explode', 60);
+  const p = state.player;
+  const ddx = p.x - e.x, ddy = p.y - e.y;
+  if (ddx*ddx + ddy*ddy < radius*radius && p.invuln <= 0) damagePlayer(1);
+  for (let i = state.enemies.length - 1; i >= 0; i--) {
+    const other = state.enemies[i];
+    const dx = other.x - e.x, dy = other.y - e.y;
+    const d = Math.hypot(dx, dy) || 1;
+    if (d < radius) {
+      other.hp -= 2;
+      other.hitFlash = 0.15;
+      other.x += (dx/d) * 40;
+      other.y += (dy/d) * 40;
+      if (other.hp <= 0) killEnemy(i);
+    }
+  }
+}
+
+function summonEnemies(invoker) {
+  for (let k = 0; k < 4; k++) {
+    const a = (k / 4) * TAU + gameRandom() * 0.4;
+    const sx = invoker.x + Math.cos(a) * 45, sy = invoker.y + Math.sin(a) * 45;
+    if (pointInWall(sx, sy, currentWalls)) continue;
+    state.enemies.push(createEnemy(gameRandom() < 0.5 ? 'normal' : 'fast', sx, sy));
+  }
+  spawnParticles(invoker.x, invoker.y, 30, '#8b5cf6', 1.3);
+  state.shake = Math.min(state.shake + 8, 14);
+}
+
