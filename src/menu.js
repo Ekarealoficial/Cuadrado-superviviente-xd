@@ -104,17 +104,44 @@ function initializeMenu(){
     try{
       const r=await roomRequest(creating?'create':'join',{code,settings:multiplayerSettings,profile});
       rules={...r.settings,color:profile.color};state=r.state;netSession={code:r.code,token:r.token};start('online');
+      function accept(next,session){
+        state=next;state.inventorySelection=inventoryChoice;
+        currentWalls=getVisibleChunks(state.cam).concat(state.arena?.walls||[]);
+        el('playerInfo').textContent=profile.name+' · X '+Math.round(state.player.x)+'  Y '+Math.round(state.player.y)+' · Código '+session.code;
+      }
+      let streaming=false;
+      async function receive(session){
+        try{
+          const response=await fetch(multiplayerServer+'/api/stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(session)});
+          if(!response.ok||!response.body)return;
+          const reader=response.body.pipeThrough(new TextDecoderStream()).getReader();
+          let pending='';
+          while(session===netSession){
+            const part=await reader.read();if(part.done || session!==netSession)break;
+            pending+=part.value;
+            const lines=pending.split('\n');pending=lines.pop();
+            if(lines.length){streaming=true;accept(JSON.parse(lines[lines.length-1]),session);}
+          }
+          await reader.cancel();
+        }catch{}finally{streaming=false;}
+      }
+      receive(netSession);
+      let previousInput='',lastInputAt=0;
       async function sync(session){
         if(session!==netSession)return;
+        const sent=performance.now();
         const input={dx:(mouse.x-W/2)/state.cam.zoom,dy:(mouse.y-H/2)/state.cam.zoom,fire:mouse.down};
         for(const [k,arrow] of Object.entries({w:'arrowup',a:'arrowleft',s:'arrowdown',d:'arrowright'}))input[k]=Boolean(keys[k]||keys[arrow]);
         try{
-          const next=await roomRequest('step',{...session,input,actions:queuedActions.splice(0)});
+          const currentInput=JSON.stringify(input);
+          if(streaming && !queuedActions.length && currentInput===previousInput && sent-lastInputAt<1000){
+            setTimeout(()=>sync(session),16);return;
+          }
+          previousInput=currentInput;lastInputAt=sent;
+          const next=await roomRequest(streaming?'input':'step',{...session,input,actions:queuedActions.splice(0)});
           if(session!==netSession)return;
-          state=next;state.inventorySelection=inventoryChoice;
-          currentWalls=getVisibleChunks(state.cam).concat(state.arena?.walls||[]);
-          el('playerInfo').textContent=profile.name+' · X '+Math.round(state.player.x)+'  Y '+Math.round(state.player.y)+' · Código '+session.code;
-          setTimeout(()=>sync(session),50);
+          if(!streaming && next.player)accept(next,session);
+          setTimeout(()=>sync(session),Math.max(0,33-(performance.now()-sent)));
         }catch(err){if(session===netSession)end(err.message);}
       }
       sync(netSession);

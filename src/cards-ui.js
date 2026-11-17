@@ -32,6 +32,11 @@ function drawCardIcon(cx, cy, size, card, color) {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   const s = size * 0.5;
   switch (card.id) {
+    case 'frames':case 'swords':case 'gravity':case 'venom':
+      ctx.fillStyle=color;ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.font='bold '+size+'px system-ui';
+      ctx.fillText(({frames:'ϟ',swords:'⚔',gravity:'◎',venom:'☠'})[card.id],0,0);
+      break;
     case 'fire':
       ctx.beginPath();
       ctx.moveTo(-s*0.3, -s); ctx.lineTo(s*0.1, -s*0.1);

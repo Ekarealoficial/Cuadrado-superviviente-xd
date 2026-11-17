@@ -4,6 +4,7 @@ const path=require('node:path');
 const crypto=require('node:crypto');
 const engine=require('./room-engine.cjs');
 const rooms=new Map();
+const streams=new Map();
 const allowedOrigins=new Set((process.env.ALLOWED_ORIGINS||'https://ekarealoficial.github.io,http://localhost:3000').split(',').map(origin=>origin.trim()).filter(Boolean));
 const types='normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss'.split(' ');
 const rates=[0.5,1,1.5,2,3];
@@ -37,6 +38,7 @@ const server=http.createServer(async(req,res)=>{
   if(origin && allowedOrigins.has(origin)){
     res.setHeader('Access-Control-Allow-Origin',origin);
     res.setHeader('Vary','Origin');
+    res.setHeader('Access-Control-Max-Age','86400');
     res.setHeader('Access-Control-Allow-Headers','Content-Type');
     res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
   }
@@ -84,13 +86,27 @@ const server=http.createServer(async(req,res)=>{
     }
     requireValue(room?.members.has(data.token),'Sesión terminada',403);
     if(action==='leave'){leave(room,data.token);return json(200,{});}
-    requireValue(action==='step','No encontrado',404);
+    if(action==='stream'){
+      res.writeHead(200,{'Content-Type':'application/x-ndjson','Cache-Control':'no-store, no-transform','X-Accel-Buffering':'no'});
+      streams.get(data.token)?.end();
+      streams.set(data.token,res);
+      res.flushHeaders();
+      const timer=setInterval(()=>{
+        if(!room.members.has(data.token)||!rooms.has(room.code)){res.end();return;}
+        if(res.writableNeedDrain)return;
+        const snapshot=room.game.snapshot(data.token);
+        res.write(JSON.stringify(snapshot,(key,value)=>key==='owner'||key==='target'?undefined:value)+'\n');
+      },50);
+      res.on('close',()=>{clearInterval(timer);if(streams.get(data.token)===res)streams.delete(data.token);});
+      return;
+    }
+    requireValue(action==='input'||action==='step','No encontrado',404);
     room.members.set(data.token,Date.now());
     const input=data.input||{};
     for(const k of ['dx','dy']) input[k]=Number.isFinite(input[k])?Math.max(-2000,Math.min(2000,input[k])):0;
     const actions=(Array.isArray(data.actions)?data.actions:[]).filter(a=>a && (a.kind==='inventory'||Number.isInteger(a.i)&&a.i>=0&&a.i<5));
     room.game.input(data.token,input,actions);
-    return json(200,room.game.snapshot(data.token));
+    return json(200,action==='input'?{}:room.game.snapshot(data.token));
   }catch(e){json(e.status||500,{error:e.status?e.message:'Error del servidor'});}
 });
 server.listen(process.env.PORT||3000);

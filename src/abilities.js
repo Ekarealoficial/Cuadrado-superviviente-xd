@@ -3,7 +3,13 @@
 function useSlot(idx) {
   const cardId = state.slots[idx];
   if (!cardId) return;
-  if (cardId === 'blink') {
+  if (cardId === 'frames') {
+    const sc=state.specialCards.frames, p=state.player;
+    if (!sc.charges || p.frameTime>0) return;
+    sc.charges--; if(sc.cooldown<=0)sc.cooldown=sc.cooldownMax;
+    p.frameTime=10+2*(sc.totalCards-1);p.echoes=[];p.echoTimer=0;
+    p.invuln=Math.max(p.invuln,p.frameTime);
+  } else if (cardId === 'blink') {
     if (tryBlink()) Sfx.play('blink');
   } else if (cardId === 'dash') {
     if (tryDash()) Sfx.play('dashplayer');
@@ -138,7 +144,7 @@ function tryDash() {
   if (sc.charges <= 0) return false;
   const target = getWorldMouse();
   p.dashAngle = Math.atan2(target.y - p.y, target.x - p.x);
-  p.dashTimer = 0.25;
+  p.dashTimer = 0.18;
   p.invuln = Math.max(p.invuln, 0.3);
   sc.charges--;
   if (sc.cooldown <= 0) sc.cooldown = sc.cooldownMax;

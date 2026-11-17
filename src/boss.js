@@ -170,7 +170,6 @@ function updateBoss(dt) {
     }
   } else if (b.state === 'dash_windup') {
     b.timer -= dt;
-    b.dashAngle = Math.atan2(toPy, toPx);
     if (b.timer <= 0) { b.state = 'dash'; b.timer = 0.55; Sfx.play('dash', 100); }
   } else if (b.state === 'dash') {
     b.timer -= dt;

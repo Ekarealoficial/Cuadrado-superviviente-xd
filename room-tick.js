@@ -64,7 +64,7 @@
   function snapshot(id) {
     const self=party.get(id), others=[...party.values()].filter(m=>m!==self);
     return {...self.state,bullets:[...party.values()].flatMap(m=>m.state.bullets),
-      peers:others.map(m=>({...m.profile,x:m.state.player.x,y:m.state.player.y,over:m.state.over}))};
+      peers:others.map(m=>({...m.profile,field:m.state.player.field,blades:m.state.player.blades,echoes:m.state.player.echoes,x:m.state.player.x,y:m.state.player.y,over:m.state.over}))};
   }
   return {add,tick,snapshot,remove:id=>party.delete(id),input(id,input,actions){
     const member=party.get(id); member.input=input;

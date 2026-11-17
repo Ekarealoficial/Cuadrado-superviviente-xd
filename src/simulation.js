@@ -45,6 +45,7 @@ function update(dt, worldStep = true) {
   update_abilityCooldowns(dt);
   update_stormAndBossSchedule(dt, worldStep);
   update_movementAndWeapons(dt, worldStep);
+  updateCardFields(dt,worldStep);
   update_shieldPositions(dt);
   update_playerProjectiles(dt);
   if (worldStep) update_enemyProjectiles(dt);
@@ -65,6 +66,71 @@ function update(dt, worldStep = true) {
   update_contactDamage(dt);
   update_drones(dt);
   update_darts(dt);
+}
+
+function poisonHit(target, bullet) {
+  if (!bullet.venom) return;
+  target.venomDps=Math.max(target.venomDps||0,bullet.venom*state.playerDamageMult);
+  target.venomTime=Math.max(target.venomTime||0,2+bullet.venom);
+}
+
+function updateCardFields(dt,worldStep) {
+  const p=state.player;
+  if(p.gravity){
+    p.gravityCd=(p.gravityCd||0)-dt;
+    if(p.gravityCd<=0){
+      const target=getNearestTarget(p.x,p.y);
+      if(target){
+        p.field={x:target.x,y:target.y,r:75+20*p.gravity,time:1.4};
+        p.gravityCd=7;
+      }
+    }
+  }
+  if(p.field)p.field.time-=dt;
+  if(p.frameTime>0){
+    p.frameTime=Math.max(0,p.frameTime-dt);
+    p.echoTimer-=dt;
+    if(p.echoTimer<=0 && Math.hypot(p.vx,p.vy)>30){
+      p.echoes.push({x:p.x,y:p.y});p.echoTimer=.12;
+    }
+    if(!p.frameTime)p.echoes=[];
+  }
+  p.blades=[];
+  for(let i=0;i<(p.swords||0);i++){
+    const angle=state.time*3+i*TAU/p.swords;
+    p.blades.push({x:p.x+Math.cos(angle)*64,y:p.y+Math.sin(angle)*64,angle});
+  }
+  if(!p.field && !p.blades.length && !p.frameTime && !worldStep)return;
+  const targets=state.enemies.slice();
+  if(state.boss)targets.push(state.boss);
+  for(const e of targets){
+    if(e._dying)continue;
+    let damage=0;
+    if(worldStep && e.venomTime>0){
+      damage+=e.venomDps*Math.min(dt,e.venomTime);
+      e.venomTime-=dt;
+      if(e.venomTime<=0)e.venomDps=0;
+    }
+    if(p.field){
+      const f=p.field,dx=f.x-e.x,dy=f.y-e.y,d=Math.hypot(dx,dy);
+      if(d<=f.r+e.size/2){
+        if(f.time<=0)damage+=(3+2*p.gravity)*state.playerDamageMult;
+        else if(e!==state.boss && d>1){
+          const pull=Math.min(d,180*dt)/d;
+          moveWithWalls(e,dx*pull,dy*pull,currentWalls);
+        }
+      }
+    }
+    for(const blade of p.blades)if(Math.hypot(e.x-blade.x,e.y-blade.y)<e.size/2+13)
+      damage+=12*dt*state.playerDamageMult;
+    if(p.frameTime>0 && Math.hypot(p.vx,p.vy)>30 && Math.hypot(e.x-p.x,e.y-p.y)<(e.size+p.size)/2+5)
+      damage+=(14+5*state.specialCards.frames.totalCards)*dt*state.playerDamageMult;
+    if(damage){
+      e.hp-=damage;
+      if(e.hp<=0){if(e===state.boss)killBoss();else killEnemy(state.enemies.indexOf(e));}
+    }
+  }
+  if(p.field?.time<=0)p.field=null;
 }
 
 function reflectBulletOffWall(b, w) {
@@ -166,8 +232,8 @@ function update_movementAndWeapons(dt, worldStep = true) {
   const p=state.player;
   // Movimiento (con dash)
   if (p.dashTimer > 0) {
-    p.vx = Math.cos(p.dashAngle) * 1800;
-    p.vy = Math.sin(p.dashAngle) * 1800;
+    p.vx = Math.cos(p.dashAngle) * 1650;
+    p.vy = Math.sin(p.dashAngle) * 1650;
     p.invuln = Math.max(p.invuln, 0.05);
     spawnParticles(p.x, p.y, 1, '#22d3ee', 0.7);
   } else {
@@ -180,8 +246,8 @@ function update_movementAndWeapons(dt, worldStep = true) {
     if (moving) { const l = Math.hypot(dx, dy); dx /= l; dy /= l; }
     const response = moving ? 16 : 11;
     const k = 1 - Math.exp(-response * dt);
-    p.vx += (dx * p.speed - p.vx) * k;
-    p.vy += (dy * p.speed - p.vy) * k;
+    p.vx += (dx * p.speed * (p.frameTime>0 ? 4 : 1) - p.vx) * k;
+    p.vy += (dy * p.speed * (p.frameTime>0 ? 4 : 1) - p.vy) * k;
   }
   const res = moveWithWalls(p, p.vx * dt, p.vy * dt, currentWalls);
   if (res.blockedX) p.vx = 0;
@@ -196,7 +262,7 @@ function update_movementAndWeapons(dt, worldStep = true) {
         p.pendingDashes--;
         const target = getWorldMouse();
         p.dashAngle = Math.atan2(target.y - p.y, target.x - p.x);
-        p.dashTimer = 0.25;
+        p.dashTimer = 0.18;
         p.invuln = Math.max(p.invuln, 0.3);
         state.specialCards.dash.charges--;
         if (state.specialCards.dash.cooldown <= 0) state.specialCards.dash.cooldown = state.specialCards.dash.cooldownMax;
@@ -270,7 +336,8 @@ function update_playerProjectiles(dt) {
         let diff = targetAngle - currentAngle;
         while (diff > Math.PI) diff -= TAU;
         while (diff < -Math.PI) diff += TAU;
-        const newAngle = currentAngle + clamp(diff, -7.5*dt, 7.5*dt);
+        const turn = 7.5 * Math.max(1,p.homingChance) * dt;
+        const newAngle = currentAngle + clamp(diff, -turn, turn);
         const spd = Math.hypot(b.vx, b.vy);
         b.vx = Math.cos(newAngle) * spd; b.vy = Math.sin(newAngle) * spd;
       }
@@ -558,7 +625,6 @@ function update_enemyAI(dt) {
         }
       } else if (e.jState === 'charging') {
         e.jTimer -= dt;
-        e.jAngle = Math.atan2(toPy, toPx);
         if (e.jTimer <= 0) { e.jState = 'dashing'; e.jTimer = 0.6; Sfx.play('dash', 100); }
       } else if (e.jState === 'dashing') {
         e.jTimer -= dt;
@@ -627,6 +693,7 @@ function update_projectileHits(dt) {
       const ddx = b.x - e.x, ddy = b.y - e.y;
       const rr = e.size/2 + b.r;
       if (ddx*ddx + ddy*ddy < rr*rr) {
+        poisonHit(e,b);
         e.hp -= b.damage * state.playerDamageMult;
         e.hitFlash = 0.12;
         hit = true;
@@ -679,6 +746,7 @@ function update_bossHits(dt) {
       const ddx = b.x - b0.x, ddy = b.y - b0.y;
       const rr = b0.size/2 + b.r;
       if (ddx*ddx + ddy*ddy < rr*rr) {
+        poisonHit(b0,b);
         b0.hp -= b.damage * state.playerDamageMult;
         b0.hitFlash = 0.1;
         spawnParticles(b.x, b.y, 5, '#ff2255', 0.6);
@@ -704,6 +772,7 @@ function update_bossHits(dt) {
           const ddx = b.x - ball.x, ddy = b.y - ball.y;
           const rr = ball.r + b.r;
           if (ddx*ddx + ddy*ddy < rr*rr) {
+            poisonHit(state.boss,b);
             state.boss.hp -= b.damage * state.playerDamageMult * 0.5;
             state.boss.hitFlash = 0.1;
             spawnParticles(b.x, b.y, 5, '#ff2255', 0.6);

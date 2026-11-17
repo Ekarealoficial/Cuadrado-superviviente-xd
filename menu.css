@@ -9,3 +9,11 @@ label{display:flex;align-items:center;justify-content:space-between;gap:10px;mar
 fieldset{border:1px solid #354654;margin:20px 0;padding:10px 15px}#roster,.split{display:grid;grid-template-columns:1fr 1fr;gap:0 18px}#roster label{justify-content:start}#byCode{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-top:15px}#rooms button{display:block;text-align:left;width:100%;margin-top:9px}#rooms small{display:block;margin-top:5px;color:#b9cbd4}#notice:empty{display:none}#notice{color:#ffce8a}
 #sessionHUD{position:fixed;right:12px;bottom:12px;text-align:right;background:#101923e8;padding:6px;border-radius:6px;font-size:13px}#playerInfo{display:block;white-space:pre-line}#sessionHUD button{font-size:12px}
 @media(max-width:550px){.split{grid-template-columns:1fr}input:not([type=checkbox]){max-width:48vw}}
+#menu{background-color:#08080f;background-size:60px 60px;background-image:linear-gradient(#4df3ff0e 1px,transparent 1px),linear-gradient(90deg,#4df3ff0e 1px,transparent 1px)}
+.panel{background:linear-gradient(135deg,#131324,#090913);border:1px solid #4df3ff80;border-top:3px solid #4df3ff;box-shadow:0 0 36px #4df3ff1a}
+.mark{background:#4df3ff;box-shadow:0 0 18px #4df3ff;transform:rotate(-10deg)}
+h1,h2,legend{color:#eaffff;text-shadow:0 0 14px #4df3ff55}
+#home{display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:14px}
+#home button{padding:20px;border:1px solid currentColor;background:#101622;color:#4df3ff}
+#home #multi{color:#d099ff;background:#20152c}
+button:hover,button:focus-visible{box-shadow:0 0 15px #4df3ff44}fieldset{border-color:#a855f755}

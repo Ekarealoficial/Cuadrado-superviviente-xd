@@ -8,7 +8,7 @@ function killEnemy(index) {
   spawnParticles(e.x, e.y, 20, e.color, 1.1);
   spawnOrbs(e.x, e.y, e.xp);
   if (state.player.greedLevel > 0 && gameRandom() < 0.15 * state.player.greedLevel) {
-    spawnOrbs(e.x + gameRand(-30, 30), e.y + gameRand(-30, 30), e.xp * 0.7);
+    spawnOrbs(e.x + gameRand(-30, 30), e.y + gameRand(-30, 30), e.xp * 0.7 * Math.max(1,0.15*state.player.greedLevel));
     addFloat(e.x, e.y - 25, '¡XP extra!', '#fbbf24');
   }
   state.kills++;

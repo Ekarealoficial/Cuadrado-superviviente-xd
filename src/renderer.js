@@ -120,6 +120,23 @@ function render() {
   renderEntities6();
   renderEntities7();
   renderEntities8();
+  for(const body of [p,...(state.peers||[])]){
+    ctx.save();
+    if(body.field){
+      const f=body.field;ctx.fillStyle='#9a51ff30';ctx.strokeStyle='#be8dff';ctx.lineWidth=2;
+      ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,TAU);ctx.fill();ctx.stroke();
+      ctx.beginPath();ctx.arc(f.x,f.y,8,0,TAU);ctx.fillStyle='#180f29';ctx.fill();
+    }
+    ctx.globalAlpha=.22;ctx.fillStyle=body.color||rules.color;
+    for(const copy of body.echoes||[])ctx.fillRect(copy.x-15,copy.y-15,30,30);
+    ctx.globalAlpha=1;
+    for(const sword of body.blades||[]){
+      ctx.save();ctx.translate(sword.x,sword.y);ctx.rotate(sword.angle+Math.PI/2);
+      ctx.fillStyle='#b9faff';ctx.beginPath();ctx.moveTo(16,0);ctx.lineTo(-6,4);ctx.lineTo(-6,-4);ctx.fill();
+      ctx.fillStyle='#b28cff';ctx.fillRect(-9,-6,3,12);ctx.restore();
+    }
+    ctx.restore();
+  }
   // Jugador
   if (!state.over) {
     const speed = Math.hypot(p.vx, p.vy);
@@ -483,6 +500,7 @@ function renderEntities2() {
     else if (b.drone) { ctx.shadowColor = '#4dff88'; ctx.shadowBlur = 14; ctx.fillStyle = '#d9ffe3'; }
     else { ctx.shadowColor = '#9ef7ff'; ctx.shadowBlur = 14; ctx.fillStyle = '#eaffff'; }
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill();
+    if(b.venom){ctx.strokeStyle='#83ff36';ctx.lineWidth=3;ctx.beginPath();ctx.arc(b.x,b.y,b.r+3,0,TAU);ctx.stroke();}
     if (b.bounces > 0) {
       ctx.shadowBlur = 0;
       ctx.strokeStyle = 'rgba(251,191,36,0.8)'; ctx.lineWidth = 1.5;

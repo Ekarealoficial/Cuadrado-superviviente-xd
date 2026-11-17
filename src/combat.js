@@ -8,6 +8,7 @@ function spawnBullet(x, y, angle, speed, opts) {
     vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
     r: opts.radius !== undefined ? opts.radius : 4,
     life: 1.6,
+    venom: state.player.venom || 0,
     drone: !!opts.drone,
     bounces: opts.bounces || 0,
     homing: !!opts.homing,

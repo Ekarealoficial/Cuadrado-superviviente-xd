@@ -54,6 +54,7 @@ function newState() {
     inventorySlotRects: [],
     slots: [null, null, null, null, null],
     specialCards: {
+      frames:{totalCards:0,charges:0,maxCharges:0,cooldown:0,cooldownMax:55},
       blink:       { totalCards: 0, charges: 0, maxCharges: 0, cooldown: 0, cooldownMax: 35 },
       dash:        { totalCards: 0, charges: 0, maxCharges: 0, cooldown: 0, cooldownMax: 18 },
       thunderRain: { totalCards: 0, charges: 0, maxCharges: 0, cooldown: 0, cooldownMax: 45 }

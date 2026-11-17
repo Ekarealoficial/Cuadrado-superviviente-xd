@@ -7,6 +7,10 @@ const BOSS_FIRST_TIME = 150;
 
 /* =============== CARTAS =============== */
 const CARD_TYPES = [
+  ...[['gravity','Singularidad','Atrae enemigos cada 7 s y estalla. Cada copia amplía el radio y el daño.','#b787ff'],
+      ['venom','Veneno','Las balas envenenan. Cada copia aumenta el daño y la duración.','#8eff63'],
+      ['swords','Espada Espectral','Añade una espada orbital que hiere al contacto.','#bbeaff']]
+    .map(([id,name,desc,color])=>({id,name,desc,color,apply:p=>{p[id]=(p[id]||0)+1;}})),
   { id: 'fire',          name: 'Cadencia',       desc: 'Reduce el tiempo entre disparos un 15%.',                    color: '#4df3ff' },
   { id: 'multi',         name: 'Multidisparo',   desc: 'Añade una línea de disparo adicional.',                       color: '#ffc857' },
   { id: 'health',        name: 'Vitalidad',      desc: 'Aumenta vida máxima en medio corazón y te cura medio.',       color: '#ff3b6b' },
@@ -29,6 +33,7 @@ const CARD_TYPES = [
   { id: 'greed',         name: 'Codicia',        desc: '15% de probabilidad de soltar XP extra al matar. Acumulable.', color: '#fbbf24' }
 ];
 const SPECIAL_CARDS = [
+  {id:'frames',name:'Velocista a fotogramas',desc:'Velocidad ×4 e inmunidad durante 10 s. Cada copia añade 2 s y daño de contacto. Recarga: 55 s.',color:'#ff78db',apply:()=>{const sc=state.specialCards.frames;sc.totalCards++;sc.maxCharges++;sc.charges++;}},
   { id: 'blink',       name: 'Distorsión',   desc: 'Cada 35s teletranspórtate al puntero. Asigna a un slot.',   color: '#a855f7' },
   { id: 'dash',        name: 'Dash',         desc: 'Dash rápido hacia el puntero. Cargas = número de cartas.',  color: '#22d3ee' },
   { id: 'thunderRain', name: 'Lluvia Truenos',desc: 'Rayos caen sobre todos los enemigos en pantalla. 3s base.', color: '#fbbf24' }
@@ -36,90 +41,89 @@ const SPECIAL_CARDS = [
 
 // One source of truth for bounded stat upgrades and their displayed limits.
 const CARD_UPGRADES = {
- fire: {field:'fireCdBase',factor:0.85,min:0.08,label:'Intervalo entre disparos',unit:'s'},
- multi: {field:'shots',add:1,max:7,label:'Líneas frontales'},
- speed: {field:'speed',factor:1.10,max:520,label:'Velocidad'},
- back: {field:'backShots',add:1,max:6,label:'Disparos traseros'},
- magnet: {field:'magnetRange',root:true,add:80,max:800,label:'Radio de atracción'},
- bounce: {field:'bounces',add:1,max:6,label:'Rebotes'},
- homing: {field:'homingChance',add:0.30,max:1,label:'Probabilidad de guiado'},
- size: {field:'sizeLevel',add:1,max:4,label:'Nivel de tamaño'},
- rayolaser: {field:'laserCount',add:1,max:5,label:'Rayos láser'},
- lightning: {field:'lightningCount',add:1,max:6,label:'Rayos periódicos'},
- greed: {field:'greedLevel',add:1,max:10,label:'Nivel de codicia'}
+ fire: {field:'fireCdBase',factor:0.85,label:'Intervalo entre disparos',unit:'s'},
+ multi: {field:'shots',add:1,label:'Líneas frontales'},
+ speed: {field:'speed',factor:1.10,label:'Velocidad'},
+ back: {field:'backShots',add:1,label:'Disparos traseros'},
+ magnet: {field:'magnetRange',root:true,add:80,label:'Radio de atracción'},
+ bounce: {field:'bounces',add:1,label:'Rebotes'},
+ homing: {field:'homingChance',add:0.30,label:'Probabilidad de guiado'},
+ size: {field:'sizeLevel',add:1,label:'Nivel de tamaño'},
+ rayolaser: {field:'laserCount',add:1,label:'Rayos láser'},
+ lightning: {field:'lightningCount',add:1,label:'Rayos periódicos'},
+ greed: {field:'greedLevel',add:1,label:'Nivel de codicia'}
 };
 function configureCardUpgrades() {
  for(const card of CARD_TYPES) {
    const spec=CARD_UPGRADES[card.id];
    if(!spec) continue;
    card.upgrade=spec;
-   card.desc += ` ${spec.label}: límite ${spec.min ?? spec.max}${spec.unit||''}.`;
    card.apply=p=>{
      const target=spec.root?state:p;
-     target[spec.field]=clamp(target[spec.field]*(spec.factor||1)+(spec.add||0),spec.min??-Infinity,spec.max??Infinity);
+     target[spec.field]=target[spec.field]*(spec.factor||1)+(spec.add||0);
    };
  }
 }
 
 
 // Effects and metadata share the same registry.
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='fire').apply = (p,card) => { p.fireCdBase = Math.max(0.08, p.fireCdBase * 0.85); 
+[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='fire').apply = (p,card) => { p.fireCdBase = Math.max(0.08, p.fireCdBase * 0.85);
 };
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='multi').apply = (p,card) => { p.shots = Math.min(7, p.shots + 1); 
+[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='multi').apply = (p,card) => { p.shots = p.shots + 1;
 };
 [...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='health').apply = (p,card) => {
-      state.maxHalfHearts = Math.min(24, state.maxHalfHearts + 1);
+      state.maxHalfHearts = state.maxHalfHearts + 1;
       state.halfHearts = Math.min(state.maxHalfHearts, state.halfHearts + 1);
-      
+
 };
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='speed').apply = (p,card) => { p.speed = Math.min(520, p.speed * 1.10); 
+[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='speed').apply = (p,card) => { p.speed = Math.min(520, p.speed * 1.10);
 };
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='back').apply = (p,card) => { p.backShots = Math.min(6, p.backShots + 1); 
+[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='back').apply = (p,card) => { p.backShots = p.backShots + 1;
 };
 [...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='drone1').apply = (p,card) => { {
       const lines = card.id === 'drone1' ? 1 : (card.id === 'drone2' ? 2 : 3);
       state.drones.push({ lines, x: p.x, y: p.y, angle: 0, cd: 0.2 + gameRandom() * 0.3, bob: gameRandom() * TAU });
-      
+
     }
 };
 [...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='drone2').apply = (p,card) => { {
       const lines = card.id === 'drone1' ? 1 : (card.id === 'drone2' ? 2 : 3);
       state.drones.push({ lines, x: p.x, y: p.y, angle: 0, cd: 0.2 + gameRandom() * 0.3, bob: gameRandom() * TAU });
-      
+
     }
 };
 [...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='drone3').apply = (p,card) => { {
       const lines = card.id === 'drone1' ? 1 : (card.id === 'drone2' ? 2 : 3);
       state.drones.push({ lines, x: p.x, y: p.y, angle: 0, cd: 0.2 + gameRandom() * 0.3, bob: gameRandom() * TAU });
-      
+
     }
 };
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='magnet').apply = (p,card) => { state.magnetRange = Math.min(800, state.magnetRange + 80); 
+[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='magnet').apply = (p,card) => { state.magnetRange = Math.min(800, state.magnetRange + 80);
 };
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='shield').apply = (p,card) => { state.shields.push({ hp: 4, maxHp: 4, x: p.x, y: p.y, angle: 0 }); 
+[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='shield').apply = (p,card) => { state.shields.push({ hp: 4, maxHp: 4, x: p.x, y: p.y, angle: 0 });
 };
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='bounce').apply = (p,card) => { p.bounces = Math.min(6, p.bounces + 1); 
+[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='bounce').apply = (p,card) => { p.bounces = p.bounces + 1;
 };
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='homing').apply = (p,card) => { p.homingChance = Math.min(1, p.homingChance + 0.30); 
+[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='homing').apply = (p,card) => { p.homingChance = p.homingChance + 0.30;
 };
 [...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='dupli').apply = (p,card) => {
-      p.dupliCount = Math.min(5, p.dupliCount + 1);
+      p.dupliCount = p.dupliCount + 1;
       p.dupliChance = Math.min(1, p.dupliCount * 0.10);
-      
+
 };
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='size').apply = (p,card) => { p.sizeLevel = Math.min(4, p.sizeLevel + 1); 
+[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='size').apply = (p,card) => { p.sizeLevel = p.sizeLevel + 1;
 };
 [...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='dart').apply = (p,card) => {
       state.darts.push({ type: 'normal', x: p.x, y: p.y, vx: 0, vy: 0, angle: 0, state: 'follow', target: null, bob: gameRandom() * TAU });
-      
+
 };
 [...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='explosiveDart').apply = (p,card) => {
       state.darts.push({ type: 'explosive', x: p.x, y: p.y, vx: 0, vy: 0, angle: 0, state: 'follow', target: null, bob: gameRandom() * TAU });
-      
+
 };
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='rayolaser').apply = (p,card) => { p.laserCount = Math.min(5, p.laserCount + 1); 
+[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='rayolaser').apply = (p,card) => { p.laserCount = p.laserCount + 1;
 };
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='lightning').apply = (p,card) => { p.lightningCount = Math.min(6, p.lightningCount + 1); 
+[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='lightning').apply = (p,card) => { p.lightningCount = p.lightningCount + 1;
 };
 [...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='regen').apply = (p,card) => { {
       p.regenLevel++;
@@ -127,17 +131,17 @@ function configureCardUpgrades() {
       p.regenInterval = info.interval;
       p.regenAmount = info.amount;
       if (p.regenTimer <= 0) p.regenTimer = p.regenInterval;
-      
+
     }
 };
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='greed').apply = (p,card) => { p.greedLevel = Math.min(10, p.greedLevel + 1); 
+[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='greed').apply = (p,card) => { p.greedLevel = p.greedLevel + 1;
 };
 [...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='blink').apply = (p,card) => { {
       const sc = state.specialCards.blink;
       sc.totalCards++;
       sc.maxCharges++;
       sc.charges++;
-      
+
     }
 };
 [...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='dash').apply = (p,card) => { {
@@ -145,7 +149,7 @@ function configureCardUpgrades() {
       sc.totalCards++;
       sc.maxCharges++;
       sc.charges++;
-      
+
     }
 };
 [...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='thunderRain').apply = (p,card) => { {
@@ -153,6 +157,6 @@ function configureCardUpgrades() {
       sc.totalCards++;
       sc.maxCharges++;
       sc.charges++;
-      
+
     }
 };
