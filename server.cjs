@@ -4,6 +4,7 @@ const path=require('node:path');
 const crypto=require('node:crypto');
 const engine=require('./room-engine.cjs');
 const rooms=new Map();
+const allowedOrigins=new Set((process.env.ALLOWED_ORIGINS||'https://ekarealoficial.github.io,http://localhost:3000').split(',').map(origin=>origin.trim()).filter(Boolean));
 const types='normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss'.split(' ');
 const rates=[0.5,1,1.5,2,3];
 function requireValue(ok,message,status=400){if(!ok)throw Object.assign(new Error(message),{status});}
@@ -32,12 +33,24 @@ async function body(req){
   try{return JSON.parse(raw);}catch{throw Object.assign(new Error('JSON inválido'),{status:400});}
 }
 const server=http.createServer(async(req,res)=>{
+  const origin=req.headers.origin;
+  if(origin && allowedOrigins.has(origin)){
+    res.setHeader('Access-Control-Allow-Origin',origin);
+    res.setHeader('Vary','Origin');
+    res.setHeader('Access-Control-Allow-Headers','Content-Type');
+    res.setHeader('Access-Control-Allow-Methods','GET,POST,OPTIONS');
+  }
+  if(req.method==='OPTIONS'){
+    if(origin && !allowedOrigins.has(origin)){res.writeHead(403);return res.end();}
+    res.writeHead(204);return res.end();
+  }
   function json(status,data){
     res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});
     res.end(JSON.stringify(data,(key,value)=>key==='owner'||key==='target'?undefined:value));
   }
   try{
     const url=new URL(req.url,'http://localhost');
+    if(url.pathname==='/health')return json(200,{ok:true,rooms:rooms.size});
     if(!url.pathname.startsWith('/api/')){
       const file=url.pathname==='/'?'index.html':url.pathname.slice(1);
       requireValue(req.method==='GET' && /^(index\.html|menu\.css|src\/[\w-]+\.js)$/.test(file),'No encontrado',404);

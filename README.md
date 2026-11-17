@@ -2,7 +2,15 @@
 
 Con Node 18 o posterior, ejecuta `npm start` y abre `http://localhost:3000`. Para jugar en la misma red, los demás jugadores abren la dirección IP del equipo que ejecuta el servidor y el mismo puerto. Para jugar por Internet, sirve este repositorio en un alojamiento Node accesible a todos los jugadores. El servidor acepta la variable de entorno `PORT`.
 
-Singleplayer también funciona en alojamiento estático con `index.html`, `menu.css` y `src/`. Multijugador usa el servidor Node del mismo origen para descubrir salas y simular las partidas. Las salas viven en memoria y se cierran al salir el último jugador o tras 20 segundos sin conexión de todos sus miembros.
+Singleplayer también funciona en GitHub Pages. Multijugador usa el servidor Node indicado en `src/runtime-config.js` para descubrir salas y simular las partidas. Las salas viven en memoria y se cierran al salir el último jugador o tras 20 segundos sin conexión de todos sus miembros.
+
+## Activar multijugador desde GitHub Pages
+
+1. En Render, crea un Blueprint y conecta este repositorio.
+2. Render leerá `render.yaml` y creará el servicio `cuadradito-superviviente-ekareal`.
+3. Espera a que `/health` responda correctamente. La página publicada en GitHub Pages ya apunta a la URL HTTPS de ese servicio.
+
+Si Render asigna otro nombre o dominio, copia su URL pública en `src/runtime-config.js`. `ALLOWED_ORIGINS` limita el acceso web al GitHub Pages de este repositorio y al desarrollo local. En el plan gratuito, el servidor puede dormirse cuando no se usa. La primera conexión después de ese periodo tardará mientras Render lo reactiva y las salas se perderán si el proceso se reinicia.
 
 Run regression tests with `npm test` (Node 18+).
 

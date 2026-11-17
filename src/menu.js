@@ -1,5 +1,6 @@
 'use strict';
 let netSession=null, queuedActions=[], inventoryChoice=null;
+const multiplayerServer = String(window.MULTIPLAYER_SERVER_URL || '').replace(/\/$/, '');
 function handleNetKey(e){
   const k=e.key.toLowerCase();
   if(k==='e'||(k==='escape'&&state.inventoryOpen)) queuedActions.push({kind:'inventory'});
@@ -27,7 +28,7 @@ function handleNetClick(e){
 }
 async function roomRequest(action,data){
   let response;
-  try {response=await fetch('/api/'+action,data?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}:{cache:'no-store'});}
+  try {response=await fetch(multiplayerServer+'/api/'+action,data?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}:{cache:'no-store'});}
   catch {throw Error('No se pudo conectar con el servidor de salas.');}
   if(!response.headers.get('content-type')?.includes('application/json'))throw Error('El multijugador requiere abrir el juego desde su servidor Node.');
   const result=await response.json();
