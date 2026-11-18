@@ -40,6 +40,7 @@ function initializeMenu(){
   const el=id=>document.getElementById(id);
   const setup=el('setup'), identity=el('identity'), screens=['home','setup','lobby','identity'];
 
+  el('menu').addEventListener('click',ensureAudio,{once:true});
   let screen='home',creating=false,code='',listed=[], multiplayerSettings;
   function show(next){
     screen=next;

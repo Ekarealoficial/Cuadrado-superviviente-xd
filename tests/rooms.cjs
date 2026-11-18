@@ -96,5 +96,5 @@ test('Dos jugadores ven las singularidades del aviso y las reliquias tienen un s
  assert.equal(a.bossOmen.kind,'singular');assert.equal(a.cosmicZones.length,2);assert.deepEqual(a.cosmicZones,b.cosmicZones);
  a.cardRelics.push({x:a.player.x,y:a.player.y});r.tick(1/30);
  const rewards=['a','b'].map(id=>r.snapshot(id).bonusPicks).sort();
- assert.deepEqual(rewards,[0,3]);assert.equal(r.snapshot('b').cardRelics.length,0);
+ assert.deepEqual(rewards,[0,1]);assert.equal(r.snapshot('b').cardRelics.length,0);
 });

@@ -3,7 +3,7 @@
   rules = settings;
   configureCardUpgrades();
   const world = newState();
-  const shared = 'cardRelics cosmicZones extraBosses firstBossDefeatAt iceZones stopStarted stopUntil time enemies enemyBullets enemyDarts orbs potions spawnTimer potionTimer boss bossEncounters bossActive arena bossBombs bossLasers bossLaserActive bossLaserTimer bossSpawnTimer bossCycle bossOmen enemyHpMult spawnRateMult adaptiveCheckTimer'.split(' ');
+  const shared = 'bossCues bossCueId cardRelics cosmicZones extraBosses firstBossDefeatAt iceZones stopStarted stopUntil time enemies enemyBullets enemyDarts orbs potions spawnTimer potionTimer boss bossEncounters bossActive arena bossBombs bossLasers bossLaserActive bossLaserTimer bossSpawnTimer bossCycle bossOmen enemyHpMult spawnRateMult adaptiveCheckTimer'.split(' ');
   const party = new Map();
   function add(id, profile) {
     const personal = newState();
@@ -22,6 +22,7 @@
       for(const piece of world.boss.pieces||[])for(const part of piece.parts)rememberPosition(part,world.time);
       rememberPosition(world.boss,world.time);
       for(const ball of world.boss.balls)rememberPosition(ball,world.time);
+      for(const planet of world.boss.planets||[])rememberPosition(planet,world.time);
     }
     const ready = [...party.values()].filter(m=>!m.state.over);
     const focus = ready[Math.floor(world.time/3)%ready.length];

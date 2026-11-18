@@ -64,7 +64,7 @@ function collectCardRelics(){
     const r=state.cardRelics[i],p=state.player;
     if(Math.hypot(p.x-r.x,p.y-r.y)>p.size/2+17)continue;
     state.cardRelics.splice(i,1);
-    state.bonusPicks+=3;
+    state.bonusPicks++;
     if(!state.cardChoices)openCardSelection();
   }
 }

@@ -24,7 +24,8 @@ function wrapText(text, x, y, maxW, lineH) {
   if (line) ctx.fillText(line.trim(), x, yy);
 }
 
-function drawCardIcon(cx, cy, size, card, color) {
+function drawCardIcon(cx, cy, size, card, color, surface=ctx) {
+  const ctx=surface;
   ctx.save();
   ctx.translate(cx, cy);
   ctx.strokeStyle = color; ctx.fillStyle = color;
@@ -33,7 +34,7 @@ function drawCardIcon(cx, cy, size, card, color) {
   const s = size * 0.5;
   switch (card.id) {
     case 'kame': case 'activeHeal': case 'reverse': case 'plasma': case 'timeBreak':
-      neonRing(s*.84,color,2);
+      ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,s*.84,0,TAU);ctx.stroke();
       ctx.font='bold '+size*.74+'px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.fillText(({kame:'➤',activeHeal:'✚',reverse:'↶',plasma:'⬡',timeBreak:'Ⅱ'})[card.id],0,0);break;
     case 'armor':

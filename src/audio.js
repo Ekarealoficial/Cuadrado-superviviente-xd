@@ -11,9 +11,9 @@ const Sfx = {
     this.master.gain.value = 0.4;
     this.master.connect(this.ctx.destination);
   },
-  tone(freq, dur, type, vol, slideTo) {
+  tone(freq, dur, type, vol, slideTo, delay=0) {
     if (!this.ctx) return;
-    const t = this.ctx.currentTime;
+    const t = this.ctx.currentTime+delay;
     const o = this.ctx.createOscillator();
     const g = this.ctx.createGain();
     o.type = type || 'sine';
@@ -25,7 +25,7 @@ const Sfx = {
     o.connect(g); g.connect(this.master);
     o.start(t); o.stop(t + dur + 0.02);
   },
-  noise(dur, vol, cutoff) {
+  noise(dur, vol, cutoff, endCutoff) {
     if (!this.ctx) return;
     const t = this.ctx.currentTime;
     const size = Math.floor(this.ctx.sampleRate * dur);
@@ -39,7 +39,8 @@ const Sfx = {
     const src = this.ctx.createBufferSource();
     src.buffer = buf;
     const f = this.ctx.createBiquadFilter();
-    f.type = 'lowpass'; f.frequency.value = cutoff || 1000;
+    f.type = 'lowpass'; f.frequency.setValueAtTime(cutoff||1000,t);
+    if(endCutoff)f.frequency.exponentialRampToValueAtTime(endCutoff,t+dur);
     const g = this.ctx.createGain(); g.gain.value = vol;
     src.connect(f); f.connect(g); g.connect(this.master);
     src.start(t);
@@ -49,6 +50,12 @@ const Sfx = {
     const now = performance.now();
     if (throttle && this.last[name] && now - this.last[name] < throttle) return;
     this.last[name] = now;
+    const score=BOSS_SCORES[name];
+    if(score){
+      for(const note of score.notes)this.tone(...note);
+      if(score.noise)this.noise(...score.noise);
+      return;
+    }
     switch (name) {
       case 'timeCrack': this.noise(.055,.24,6400);this.tone(1350,.075,'triangle',.15,380);this.tone(95,.09,'sine',.2,42);break;
       case 'gravityPull': this.tone(105,1.25,'sine',.22,420);this.tone(160,.8,'triangle',.09,75);break;
@@ -83,3 +90,42 @@ const Sfx = {
   }
 };
 
+
+// Each score uses the audio clock for the attack and its overtones, even at low frame rates.
+const BOSS_SCORES={
+  wormZig:{notes:[[310,.12,'triangle',.18,860],[840,.14,'triangle',.14,290,.13],[340,.18,'triangle',.13,910,.27]],noise:[.18,.10,3300,850]},
+  wormAim:{notes:[[240,.19,'triangle',.16,510],[480,.14,'sine',.10,730,.07]]},
+  wormRush:{notes:[[160,.21,'sawtooth',.12,43]],noise:[.24,.23,4600,320]},
+  wormLane:{notes:[[760,.09,'sine',.15,890],[980,.14,'triangle',.13,1150,.15]]},
+  wormCut:{notes:[[1500,.14,'triangle',.16,190],[145,.23,'sine',.19,45,.04]],noise:[.22,.28,8200,660]},
+  wormFrenzy:{notes:[[95,.36,'sawtooth',.18,240],[380,.22,'triangle',.15,130,.20]],noise:[.33,.14,600,3000]},
+  wormRest:{notes:[[270,.34,'triangle',.15,65]],noise:[.32,.11,1450,200]},
+  wormBreak:{notes:[[660,.12,'triangle',.12,180]],noise:[.13,.22,5000,650]},
+  massPull:{notes:[[48,1.4,'sine',.26,102],[74,1.18,'triangle',.12,187,.12]],noise:[.58,.14,300,2200]},
+  massHold:{notes:[[122,.41,'triangle',.19,530],[171,.42,'sine',.11,680]]},
+  massEject:{notes:[[180,.4,'sine',.33,30],[680,.18,'triangle',.14,100]],noise:[.32,.26,4200,200]},
+  voidBlink:{notes:[[850,.11,'sine',.19,110],[120,.15,'triangle',.17,1040,.07]]},
+  voidBeam:{notes:[[71,.34,'sawtooth',.16,40],[350,.25,'triangle',.16,92]],noise:[.30,.19,4200,1200]},
+  solarCharge:{notes:[[540,.48,'sine',.10,1270],[820,.36,'triangle',.07,1650,.12]]},
+  solarStrike:{notes:[[930,.13,'triangle',.17,226],[120,.29,'sine',.23,38]],noise:[.22,.22,5500,420]},
+  orbitRise:{notes:[[220,.38,'sine',.16,270],[330,.38,'sine',.14,408,.10],[495,.48,'sine',.12,600,.20]]},
+  lunarAim:{notes:[[440,.27,'sine',.14],[554,.26,'sine',.12,0,.12],[659,.33,'sine',.12,0,.24]]},
+  lunarVolley:{notes:[[980,.17,'triangle',.16,390],[820,.19,'triangle',.12,270,.09]],noise:[.16,.10,2900,760]},
+  voidWell:{notes:[[146,.58,'triangle',.14,58],[221,.45,'sine',.12,69,.09]]},
+  starCollapse:{notes:[[52,1.75,'sine',.30,122],[86,1.42,'sawtooth',.10,238,.18]],noise:[.78,.16,180,2900]},
+  starNova:{notes:[[210,.75,'sine',.31,24],[880,.47,'triangle',.14,170]],noise:[.66,.32,7500,220]}
+};
+function bossCue(name,origin){
+  state.bossCues.push({id:++state.bossCueId,name,time:state.time,x:origin.x,y:origin.y});
+  if(state.bossCues.length>32)state.bossCues.shift();
+}
+let lastBossSound=0,lastBossFrame=-1;
+function presentBossCues(){
+  if(state.time<lastBossFrame || state.bossCueId<lastBossSound)lastBossSound=0;
+  lastBossFrame=state.time;
+  for(const cue of state.bossCues||[]){
+    if(cue.id<=lastBossSound)continue;
+    lastBossSound=cue.id;
+    if(state.time-cue.time<.35)Sfx.play(cue.name,100);
+  }
+}

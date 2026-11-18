@@ -15,9 +15,10 @@
 <main id="menu">
   <section class="panel">
     <header><span class="mark" aria-hidden="true"></span><h1>Cuadrado Superviviente</h1></header>
-    <button id="fullPlay" hidden>Pantalla completa · Horizontal</button>
-    <span id="fullStatus" role="status"></span>
-    <div id="home"><button id="solo">Singleplayer</button> <button id="multi">Multijugador</button> <button id="sandbox">Sandbox</button></div>
+    <div id="home">
+      <button id="solo">Singleplayer</button><button id="multi">Multijugador</button><button id="sandbox">Sandbox</button>
+      <button id="fullPlay" hidden>Pantalla completa · Horizontal</button><span id="fullStatus" role="status"></span>
+    </div>
     <form id="setup" hidden>
       <h2 id="setupTitle">Singleplayer</h2>
       <label id="soloColor">Color del cuadradito <input name="color" type="color" value="#4df3ff"></label>
@@ -48,10 +49,10 @@
   <p id="sandboxStatus" aria-live="polite"></p><div id="sandboxList"></div>
 </dialog>
 <section id="touchUI" hidden aria-label="Controles táctiles">
-  <div id="touchTools"><button id="autoFire" aria-pressed="false">Auto al apuntar</button><button id="bag">Inventario</button><button id="enemyTool">Enemigos</button><button id="cardTool">Cartas</button></div>
+  <div id="touchTools"><button id="bag">Inventario</button><button id="enemyTool">Enemigos</button><button id="cardTool">Cartas</button></div>
   <div id="touchCombat"><div class="stick move" id="moveStick" aria-label="Mover"><i></i><small>MOVER</small></div>
-    <div class="stick aim" id="aimStick" aria-label="Apuntar"><i></i><small>APUNTAR</small></div>
-    <button id="touchFire">Disparar</button><div id="touchSlots"></div></div>
+    <div class="stick aim" id="aimStick" aria-label="Apuntar y disparar"><i></i><small>DISPARAR</small></div>
+    <div id="touchSlots"></div></div>
   <section id="touchPanel" hidden aria-label="Opciones de partida"></section>
 </section>
 <aside id="sessionHUD" hidden><span id="playerInfo"></span> <button id="exit">Salir al menú</button></aside>

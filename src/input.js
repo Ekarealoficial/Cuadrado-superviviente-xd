@@ -127,7 +127,7 @@ canvas.addEventListener('mousedown', e => {
     }
   }
 });
-window.addEventListener('mouseup', e => { if (e.button === 0) mouse.down = false; });
+window.addEventListener('mouseup', e => { if (e.button === 0 && !e.sourceCapabilities?.firesTouchEvents) mouse.down = false; });
 window.addEventListener('blur', () => { mouse.down = false; for (const k in keys) keys[k] = false; });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 

@@ -37,7 +37,10 @@ function update(dt, worldStep = true, commands = null) {
   if (state.over) { state.overTimer += dt; return; }
   if (playMode !== 'online' && (state.cardChoices || state.inventoryOpen)) return;
 
-  if (worldStep) state.time += dt;
+  if (worldStep) {
+    state.time += dt;
+    while(state.bossCues.length && state.time-state.bossCues[0].time>1.25)state.bossCues.shift();
+  }
   state.levelTimer += dt;
   state.damageTimer += dt;
 
@@ -46,7 +49,10 @@ function update(dt, worldStep = true, commands = null) {
   update_stormAndBossSchedule(dt, worldStep);
   update_movementAndWeapons(dt, worldStep, commands);
   updateExpansion(dt,worldStep);
-  if(state.stopUntil<=state.time)updateCosmicZones(dt,worldStep);
+  if(state.stopUntil<=state.time){
+    updateCosmicZones(dt,worldStep);
+    for(const boss of livingBosses())if(boss.kind==='singular')planetContact(boss,p);
+  }
   collectCardRelics();
   if(state.stopUntil<=state.time)updateCardFields(dt,worldStep);
   if(state.stopUntil>state.time){

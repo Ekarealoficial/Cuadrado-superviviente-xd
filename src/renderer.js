@@ -112,12 +112,13 @@ function render() {
     ctx.restore();
   }
 
+  presentBossCues();
   drawCosmicWorld();
   drawExpansionWorld();
   renderEntities0();
   renderEntities1();
   renderEntities2();
-  renderEntities3();
+  renderEnemyShots();
   renderEntities4();
   renderEntities5();
   renderEntities6();
@@ -575,18 +576,27 @@ function renderEntities2() {
 
 
 }
-function renderEntities3() {
- const p=state.player;
-  // Balas enemigas
-  ctx.save();
-  for (const b of state.enemyBullets) {
-    ctx.shadowColor = b.tint || '#ff8c42'; ctx.shadowBlur = 14;
-    ctx.fillStyle = b.tint || '#ffd0a8';
-    ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill();
+// Reuse the same glow for every projectile of a given size and palette.
+const enemyShotSprites=new Map();
+function renderEnemyShots(){
+  for(const shot of state.enemyBullets){
+    const color=shot.tint||'#ffd0a8',key=color+'-'+shot.r;
+    let sprite=enemyShotSprites.get(key);
+    if(!sprite){
+      sprite=document.createElement('canvas');
+      const half=Math.ceil(shot.r)+12;
+      sprite.width=sprite.height=half*2;
+      const brush=sprite.getContext('2d');
+      const glow=brush.createRadialGradient(half,half,shot.r*.85,half,half,half);
+      glow.addColorStop(0,color+'96');glow.addColorStop(1,color+'00');
+      brush.fillStyle=glow;brush.fillRect(0,0,sprite.width,sprite.height);
+      brush.fillStyle=color;brush.beginPath();brush.arc(half,half,shot.r,0,TAU);brush.fill();
+      brush.fillStyle='#fff8da';brush.beginPath();
+      brush.arc(half-shot.r*.22,half-shot.r*.22,shot.r*.38,0,TAU);brush.fill();
+      enemyShotSprites.set(key,sprite);
+    }
+    ctx.drawImage(sprite,shot.x-sprite.width/2,shot.y-sprite.height/2);
   }
-  ctx.restore();
-
-
 }
 function renderEntities4(view=state,p=state.player) {
   // Drones

@@ -36,8 +36,8 @@ function spawnBoss(position,kind='boss') {
   state.bossActive = true;
   state.bossOmen = null;
   const p = state.player;
-  let aw = Math.max(1400,W / state.cam.zoom * 1.45);
-  let ah = Math.max(900,H / state.cam.zoom * 1.45);
+  let aw = 1366;
+  let ah = 768;
   let ax = p.x - aw / 2, ay = p.y - ah / 2;
   if(position){
     const right=Math.max(ax+aw,position.x+90),bottom=Math.max(ay+ah,position.y+90);

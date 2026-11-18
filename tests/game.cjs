@@ -2,8 +2,8 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm');
 function game() {
- const ctx=new Proxy({}, {get:(_,k)=>k==='measureText'?()=>({width:30}):String(k).endsWith('Gradient')?()=>({addColorStop(){}}):()=>{}});
- const sandbox={console,URLSearchParams,location:{search:'?seed=42'},performance:{now:()=>0},setTimeout:()=>{},requestAnimationFrame:()=>{},window:{innerWidth:1200,innerHeight:800,addEventListener:()=>{}},document:{getElementById:()=>({getContext:()=>ctx,addEventListener:()=>{}})}};
+ const ctx=new Proxy({}, {get:(_,k)=>k==='arc'?(_x,_y,r)=>assert.ok(Number.isFinite(r) && r>=0):k==='measureText'?()=>({width:30}):String(k).endsWith('Gradient')?()=>({addColorStop(){}}):()=>{}});
+ const sandbox={console,URLSearchParams,location:{search:'?seed=42'},performance:{now:()=>0},setTimeout:()=>{},requestAnimationFrame:()=>{},window:{innerWidth:1200,innerHeight:800,addEventListener:()=>{}},document:{createElement:()=>({getContext:()=>ctx}),getElementById:()=>({getContext:()=>ctx,addEventListener:()=>{}})}};
  vm.createContext(sandbox);
  const html=fs.readFileSync('index.html','utf8');
  for(const [,file] of html.matchAll(/src="([^"]+)"/g)) vm.runInContext(fs.readFileSync(file,'utf8'),sandbox,{filename:file});
@@ -247,20 +247,20 @@ test('Cadencia, Multidisparo y Retroceso amplían juntos el presupuesto de balas
  const run=game();run("for(const id of ['fire','multi','back','back'])applyCard(CARD_TYPES.find(c=>c.id===id))");
  assert.equal(run('playerBulletLimit(state.player)'),400);
 });
-test('Cada reliquia permite tres elecciones además de las subidas pendientes',()=>{
+test('Cada reliquia permite una elección además de las subidas pendientes',()=>{
  const run=game();run('state.level=9;state.xpNeeded=200;spawnBoss();killBoss();');
  assert.equal(run('state.cardRelics.length'),2);
  assert.ok(Math.abs(run('state.orbs.reduce((n,o)=>n+o.value,0)')-700)<1e-6);
  run('state.pendingLevelUps=1;openCardSelection();Object.assign(state.player,state.cardRelics[0]);collectCardRelics()');
- assert.equal(run('state.bonusPicks'),3);
- run('for(let i=0;i<3;i++)pickCard(state.cardChoices[0]);');
+ assert.equal(run('state.bonusPicks'),1);
+ run('pickCard(state.cardChoices[0]);');
  assert.ok(run('state.level===9 && state.pendingLevelUps===1 && state.cardChoices.length===3 && state.cardRelics.length===1'));
- run('pickCard(state.cardChoices[0]);Object.assign(state.player,state.cardRelics[0]);collectCardRelics();for(let i=0;i<3;i++)pickCard(state.cardChoices[0]);');
+ run('pickCard(state.cardChoices[0]);Object.assign(state.player,state.cardRelics[0]);collectCardRelics();pickCard(state.cardChoices[0]);');
  assert.ok(run('state.level===9 && !state.cardChoices && state.cardRelics.length===0'));
 });
 test('El Círculo absorbe y devuelve las mismas masas, emite rayos y termina antes del botín',()=>{
- const run=game();run("spawnBoss({x:220,y:50},'singular');const b=state.boss;startSingularAttack(b,'attract');const masses=state.enemyBullets.map(s=>s.damage).sort().join();for(let i=0;i<230 && b.state!=='repel';i++){updateBoss(1/60);update_enemyProjectiles(1/60)}");
- assert.equal(run('b.absorbed.length'),22);run("updateBoss(.6);");assert.equal(run("state.enemyBullets.map(s=>s.damage).sort().join()"),run('masses'));
+ const run=game();run("spawnBoss({x:220,y:50},'singular');const b=state.boss;startSingularAttack(b,'attract');for(let i=0;i<720 && b.state!=='repel';i++){updateBoss(1/60);update_enemyProjectiles(1/60)}");
+ assert.ok(run('b.orbitTime>8 && b.orbitTime<12'));assert.equal(run('b.absorbed.length'),220);run("const masses=[...b.absorbed].sort().join();updateBoss(.6);");assert.equal(run("state.enemyBullets.map(s=>s.damage).sort().join()"),run('masses'));
  run("startSingularAttack(b,'blink');const count=b.remaining+1;for(let i=0;i<count;i++)updateBoss(1);");
  assert.ok(run("count>=4 && count<=6 && state.cosmicZones.filter(z=>z.type==='beam').length===count"));
  run("b.hp=b.maxHp*.5;updateBoss(.01);startSingularAttack(b,'lunar');");
@@ -278,4 +278,17 @@ test('El triángulo solar ocupa dos veces el área del hielo y golpea sin congel
  assert.ok(Math.abs(run('area/(Math.PI*45**2)')-2)<1e-9);
  run('const hp=state.halfHearts;updateCosmicZones(.65,true);');assert.equal(run('hp'),run('state.halfHearts'));
  run('updateCosmicZones(.04,true);');assert.ok(run('hp-state.halfHearts===2 && !state.player.iceUntil && state.shake>0'));
+});
+
+test('El colapso dibuja hasta la nova con partículas de la estela ya caducadas',()=>{
+ const run=game();
+ run("playMode='sandbox';spawnBoss({x:300,y:80},'singular');const b=state.boss;b.timer=30;state.player.invuln=100;for(let i=0;i<150;i++)update(1/60)");
+ assert.ok(run('b.trail.length>10 && state.arena.w===1366 && state.arena.h===768'));
+ run('b.hp=0;finishTarget(b);for(let i=0;i<135;i++){update(1/60);render()}');
+ assert.ok(run('!state.boss && state.cardRelics.length+state.bonusPicks===2'));
+});
+test('Los planetas alcanzan al jugador lejos del núcleo',()=>{
+ const run=game();
+ run("spawnBoss({x:0,y:0},'singular');const b=state.boss;b.hp=b.maxHp/2;updateBoss(.01);const outer=b.planets.at(-1);Object.assign(state.player,{x:outer.x,y:outer.y});const hp=state.halfHearts;planetContact(b,state.player)");
+ assert.ok(run('outer.distance>300 && hp-state.halfHearts===1'));
 });

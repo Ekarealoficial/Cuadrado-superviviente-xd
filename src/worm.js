@@ -29,6 +29,7 @@ function breakWormSegment(seg){
   for(const b of livingBosses()){
     const piece=b.pieces?.find(p=>p.parts.includes(seg));
     if(!piece)continue;
+    bossCue('wormBreak',seg);
     seg._dying=true;seg.hp=0;
     const index=piece.parts.indexOf(seg),tail=piece.parts.splice(index+1);
     piece.parts.pop();
@@ -58,6 +59,7 @@ function wormWindup(piece,random){
     if((h.x<a.x+100 && Math.cos(angle)<0)||(h.x>a.x+a.w-100 && Math.cos(angle)>0))angle=Math.PI-angle;
     if((h.y<a.y+100 && Math.sin(angle)<0)||(h.y>a.y+a.h-100 && Math.sin(angle)>0))angle=-angle;
   }
+  bossCue('wormAim',h);
   piece.heading=angle;piece.mode='windup';piece.timer=random?.23:.65;
 }
 function startWormVolley(piece){
@@ -84,7 +86,7 @@ function stageWormLane(piece){
     const pos=start-sign*(38+i*WORM_LINK);
     s.prevX=s.x=piece.horizontal?pos:lane;s.prevY=s.y=piece.horizontal?lane:pos;
   });
-  piece.mode='laneAim';piece.timer=.64;
+  piece.mode='laneAim';piece.timer=.64;bossCue('wormLane',piece.parts[0]);
 }
 function wormContact(b){
   const p=state.player;
@@ -108,7 +110,7 @@ function updateWorm(b,dt){
   const a=state.arena;
   b.hp=wormHealth(b);
   if(b.phase===1 && b.hp<=b.maxHp*.3){
-    b.phase=2;
+    b.phase=2;bossCue('wormFrenzy',b);
     for(const piece of b.pieces){
       const h=piece.parts[0],dx=clamp(h.x,a.x+28,a.x+a.w-28)-h.x,dy=clamp(h.y,a.y+28,a.y+a.h-28)-h.y;
       for(const s of piece.parts){s.prevX=s.x+=dx;s.prevY=s.y+=dy;}
@@ -142,7 +144,7 @@ function updateWormPiece(piece,phase,dt,a){
         if(zig){piece.mode='curve';piece.timer=gameRand(1.7,3);}
         else{
           const attack=Math.floor(gameRandom()*3);
-          if(attack===0){piece.mode='zigzag';piece.timer=3.5;}
+          if(attack===0){bossCue('wormZig',h);piece.mode='zigzag';piece.timer=3.5;}
           if(attack===1)wormWindup(piece,false);
           if(attack===2)startWormLines(piece);
           speed=0;
@@ -151,14 +153,14 @@ function updateWormPiece(piece,phase,dt,a){
       break;
     }
     case 'windup':
-      if(piece.timer<=0){piece.mode='rush';piece.timer=phase===2?.25:.48;Sfx.play('dash',80);}
+      if(piece.timer<=0){piece.mode='rush';piece.timer=phase===2?.25:.48;bossCue('wormRush',h);}
       break;
     case 'rush':
       speed=1450;
       if(piece.timer<=0){
         speed=0;
         if(phase===2 && --piece.dashes>0)wormWindup(piece,true);
-        else{piece.mode=phase===2?'rest':'curve';piece.timer=phase===2?3.2:2.4;}
+        else{if(phase===2)bossCue('wormRest',h);piece.mode=phase===2?'rest':'curve';piece.timer=phase===2?3.2:2.4;}
       }
       break;
     case 'rest':
@@ -171,7 +173,7 @@ function updateWormPiece(piece,phase,dt,a){
       break;
     }
     case 'laneAim':
-      if(piece.timer<=0){piece.mode='pass';piece.timer=0;}
+      if(piece.timer<=0){bossCue('wormCut',h);piece.mode='pass';piece.timer=0;}
       break;
     case 'pass': {
       const length=piece.horizontal?a.w:a.h;
