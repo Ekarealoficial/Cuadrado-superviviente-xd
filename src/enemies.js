@@ -17,12 +17,14 @@ const ENEMY_TYPES = {
 };
 
 // Transfers part of a donor's scheduled spawns over a 20-second transition.
-const rotations={normal:[30,'splitter',.55],fast:[50,'tackler',.65],
-  shooter:[70,'cannon',.65],invoker:[90,'frostMage',.7]};
+const rotations={normal:[5,'splitter',.55],fast:[15,'tackler',.65],
+  shooter:[25,'cannon',.65],invoker:[35,'frostMage',.7]};
 function chooseEnemyType(t){
   const donor=baseEnemyType(t),swap=rotations[donor];
-  if(swap && t>=swap[0] && !rules.disabled.includes(swap[1]) &&
-      gameRandom()<swap[2]*Math.min(1,(1+t-swap[0])/20))return swap[1];
+  if(state.firstBossDefeatAt == null) return donor==='dardante'?'shooter':donor;
+  const elapsed = t - state.firstBossDefeatAt * rules.difficulty;
+  if(swap && elapsed>=swap[0] && !rules.disabled.includes(swap[1]) &&
+      gameRandom()<swap[2]*Math.min(1,(1+elapsed-swap[0])/20))return swap[1];
   return donor;
 }
 function baseEnemyType(t) {

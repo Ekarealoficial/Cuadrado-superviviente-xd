@@ -38,8 +38,9 @@ const CARD_TYPES = [
   { id: 'regen',         name: 'Regeneración',   desc: 'Recupera medio corazón cada 50s. Acumulable: -1s al intervalo.', color: '#4ade80' },
   { id: 'greed',         name: 'Codicia',        desc: '15% de probabilidad de soltar XP extra al matar. Acumulable.', color: '#fbbf24' }
 ];
+const KAME_DPS=285;
 const expansionCards=[
-  ['kame','Kamekameka','Rayo de 0,45 s. Cada copia añade una carga.',24,'#53dfff'],
+  ['kame','Kamekameka','Rayo de '+KAME_DPS+' de daño/s durante 0,45 s. Cada copia añade una carga.',24,'#53dfff'],
   ['activeHeal','Regeneración activa','Cura 1 ❤ y +½ por copia. Con vida llena otorga corazones azules.',32,'#68b4ff'],
   ['reverse','Inversión','Convierte proyectiles en aliados guiados y dardos en explosivos. +1 carga por copia.',28,'#ff76ec'],
   ['plasma','Barrera de plasma','Durante 6 s repele enemigos y balas. Cada copia aumenta radio y daño.',36,'#86ffaf'],

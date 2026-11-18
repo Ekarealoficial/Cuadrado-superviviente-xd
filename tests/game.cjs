@@ -2,7 +2,7 @@ const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const fs=require('node:fs'),vm=require('node:vm');
 function game() {
- const ctx=new Proxy({}, {get:(_,k)=>k==='measureText'?()=>({width:30}):()=>{}});
+ const ctx=new Proxy({}, {get:(_,k)=>k==='measureText'?()=>({width:30}):String(k).endsWith('Gradient')?()=>({addColorStop(){}}):()=>{}});
  const sandbox={console,URLSearchParams,location:{search:'?seed=42'},performance:{now:()=>0},setTimeout:()=>{},requestAnimationFrame:()=>{},window:{innerWidth:1200,innerHeight:800,addEventListener:()=>{}},document:{getElementById:()=>({getContext:()=>ctx,addEventListener:()=>{}})}};
  vm.createContext(sandbox);
  const html=fs.readFileSync('index.html','utf8');
@@ -155,8 +155,10 @@ test('Sandbox mantiene el mapa sin oleadas y admite enemigos junto al jefe manua
 });
 test('Las rotaciones sustituyen al donante y respetan la lista desactivada',()=>{
  const run=game();
- for(const [donor,id,time] of [['normal','splitter',30],['fast','tackler',50],['shooter','cannon',70],['invoker','frostMage',90]]){
+ for(const [donor,id,time] of [['normal','splitter',105],['fast','tackler',115],['shooter','cannon',125],['invoker','frostMage',135]]){
    run("baseEnemyType=()=>'"+donor+"';gameRandom=()=>0;rules.disabled=[]");
+   assert.equal(run('state.firstBossDefeatAt=null;chooseEnemyType(999)'),donor);
+   run('state.firstBossDefeatAt=100');
    assert.equal(run('chooseEnemyType('+ (time-1)+')'),donor);
    assert.equal(run('chooseEnemyType('+time+')'),id);
    assert.equal(run("rules.disabled=['"+id+"'];chooseEnemyType(200)"),donor);
@@ -180,4 +182,27 @@ test('Cargas, vida azul, inversión, plasma y tiempo roto',()=>{
  run("activateExpansion('plasma');state.enemyBullets=[{x:40,y:0,vx:-90,vy:0,r:5}];repelPlasma();state.player.invuln=0;damagePlayer(2);render()");
  assert.equal(run('state.enemyBullets[0].vx'),90);assert.equal(run('state.blueHealth'),2);
  assert.equal(run('damagePlayer(1,true);state.blueHealth'),1);
+});
+test('Dos jefes independientes comparten la arena y Duplibala funciona contra cuerpo y bola',()=>{
+  const run=game();
+  run("spawnBoss({x:180,y:0});spawnBoss({x:-210,y:0});const [a,b]=livingBosses();update_movementAndWeapons(.01);render()");
+  assert.ok(run('a.timer<3 && b.timer<3 && state.arena'));
+  run("const ball=b.balls[0];ball.state='flying';ball.x=50;ball.y=140;spawnBullet(50,140,0,400,{dupli:1,damage:10});update_projectileHits()");
+  assert.equal(run('state.bullets.length'),2);assert.equal(run('b.maxHp-b.hp'),5);
+  run('state.bullets=[];spawnBullet(a.x-90,a.y,0,350,{dupli:1,damage:a.hp});update_projectileHits()');
+  assert.equal(run('state.bullets.length'),2);assert.ok(run('state.boss===b && state.bossActive && state.arena'));
+  run("baseEnemyType=()=>'dardante'");assert.equal(run('chooseEnemyType(300)'),'dardante');
+  run("killBoss(b)");assert.ok(run('state.arena===null && !state.bossActive && state.kills===2'));
+});
+test('Sandbox retira mejoras, especiales activos y equipo conservando el mundo',()=>{
+ const run=game();
+ run("playMode='sandbox';state.player.x=150;spawnBoss();for(const c of [...CARD_TYPES,...SPECIAL_CARDS])applyCard(c);activateExpansion('timeBreak');clearSandboxCards()");
+ assert.ok(run('state.player.x===150 && state.boss && state.player.shots===1 && !state.drones.length && !state.shields.length && !state.stopUntil && Object.values(state.specialCards).every(s=>s.totalCards===0)'));
+});
+test('El cristal quita medio corazón una vez al caer y Kamekameka inflige 285 por segundo',()=>{
+ const run=game();run('state.iceZones=[{x:0,y:0,age:0}];const hp=state.halfHearts;updateExpansion(.64,true)');
+ assert.equal(run('state.halfHearts'),run('hp'));run('updateExpansion(.02,true);state.player.invuln=0;updateExpansion(.02,true)');
+ assert.equal(run('hp-state.halfHearts'),1);
+ run("spawnBoss({x:210,y:0});state.player.beam=[{a:0,end:.45}];updateExpansion(.1,true)");
+ assert.equal(run('state.boss.maxHp-state.boss.hp'),28.5);
 });

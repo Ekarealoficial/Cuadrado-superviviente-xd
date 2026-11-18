@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Cuadrado Superviviente - Rogue</title>
 <link rel="stylesheet" href="menu.css">
 <style>
@@ -15,6 +15,8 @@
 <main id="menu">
   <section class="panel">
     <header><span class="mark" aria-hidden="true"></span><h1>Cuadrado Superviviente</h1></header>
+    <button id="fullPlay" hidden>Pantalla completa · Horizontal</button>
+    <span id="fullStatus" role="status"></span>
     <div id="home"><button id="solo">Singleplayer</button> <button id="multi">Multijugador</button> <button id="sandbox">Sandbox</button></div>
     <form id="setup" hidden>
       <h2 id="setupTitle">Singleplayer</h2>
@@ -45,6 +47,13 @@
   <div class="sandboxHeader"><h2 id="sandboxTitle"></h2><button type="button" id="sandboxClose">Cerrar</button></div>
   <p id="sandboxStatus" aria-live="polite"></p><div id="sandboxList"></div>
 </dialog>
+<section id="touchUI" hidden aria-label="Controles táctiles">
+  <div id="touchTools"><button id="bag">Inventario</button><button id="enemyTool">Enemigos</button><button id="cardTool">Cartas</button></div>
+  <div id="touchCombat"><div class="stick move" id="moveStick" aria-label="Mover"><i></i><small>MOVER</small></div>
+    <div class="stick aim" id="aimStick" aria-label="Apuntar"><i></i><small>APUNTAR</small></div>
+    <button id="touchFire">Disparar</button><div id="touchSlots"></div></div>
+  <section id="touchPanel" hidden aria-label="Opciones de partida"></section>
+</section>
 <aside id="sessionHUD" hidden><span id="playerInfo"></span> <button id="exit">Salir al menú</button></aside>
 <script defer src="src/config.js"></script>
 <script defer src="src/spatial.js"></script>
@@ -78,6 +87,7 @@
 <script defer src="src/sandbox.js"></script>
 <script defer src="src/menu.js"></script>
 <script defer src="src/presentation.js"></script>
+<script defer src="src/touch.js"></script>
 <script defer src="src/loop.js"></script>
 </body>
 </html>

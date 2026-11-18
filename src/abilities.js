@@ -150,7 +150,7 @@ function tryDash() {
   sc.charges--;
   if (sc.cooldown <= 0) sc.cooldown = sc.cooldownMax;
   // Efecto de inicio
-  spawnParticles(p.x, p.y, 12, '#22d3ee', 1);
+  spawnParticles(p.x, p.y, 12, p.color || rules.color, 1);
   return true;
 }
 

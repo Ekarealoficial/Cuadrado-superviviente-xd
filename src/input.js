@@ -69,7 +69,7 @@ canvas.addEventListener('mousemove', e => {
   mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
 });
 canvas.addEventListener('mousedown', e => {
-  if (playMode === 'menu') return;
+  if (playMode === 'menu' || (mobileDevice && e.sourceCapabilities?.firesTouchEvents)) return;
   if (playMode === 'sandbox' && e.button===2 && !state.inventoryOpen){
     const rect=canvas.getBoundingClientRect();
     mouse.x=(e.clientX-rect.left)*W/rect.width;mouse.y=(e.clientY-rect.top)*H/rect.height;
@@ -113,8 +113,7 @@ canvas.addEventListener('mousedown', e => {
       return;
     }
     mouse.down = true;
-    if (playMode === 'sandbox' && handleSandboxKey(e,k)) return;
-  if (playMode === 'online') { pendingTap = true; previewTap = true; }
+    if (playMode === 'online') { pendingTap = true; previewTap = true; }
   } else if (e.button === 2) {
     if (state.inventoryOpen) {
       for (let i = 0; i < state.inventorySlotRects.length; i++) {

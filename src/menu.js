@@ -144,7 +144,8 @@ function initializeMenu(){
       }
       function controls(frames,now){
         const p=state.player;
-        return {frames,width:W,height:H,stamp:now,angle:p.angle,dx:(mouse.x-W/2)/state.cam.zoom,
+        const target=getWorldMouse();
+        return {frames,width:W,height:H,stamp:now,angle:p.angle,reach:Math.hypot(target.x-p.x,target.y-p.y),dx:(mouse.x-W/2)/state.cam.zoom,
           dy:(mouse.y-H/2)/state.cam.zoom,fire:mouse.down,
           w:!!(keys.w||keys.arrowup),a:!!(keys.a||keys.arrowleft),
           s:!!(keys.s||keys.arrowdown),d:!!(keys.d||keys.arrowright)};

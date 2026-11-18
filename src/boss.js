@@ -1,5 +1,16 @@
 'use strict';
 /* =============== BOSS =============== */
+function livingBosses() {
+  return state.boss ? [state.boss, ...(state.extraBosses || [])] : [];
+}
+function bossFor(target) {
+  return livingBosses().find(b => b === target || b.balls.includes(target));
+}
+function finishTarget(target) {
+  if (target.balls) killBoss(target);
+  else killEnemy(state.enemies.indexOf(target));
+}
+
 function spawnBoss(position) {
   state.bossEncounters = (state.bossEncounters || 0) + 1;
   const bossHp = Math.round(BALANCE.bossHp * Math.pow(BALANCE.bossGrowth, state.bossEncounters - 1) * state.enemyHpMult);
@@ -14,6 +25,12 @@ function spawnBoss(position) {
     ax=Math.min(ax,position.x-90);ay=Math.min(ay,position.y-90);
     aw=right-ax;ah=bottom-ay;
   }
+  if (state.boss && state.arena) {
+    const old = state.arena;
+    const right = Math.max(ax+aw,old.x+old.w), bottom = Math.max(ay+ah,old.y+old.h);
+    ax = Math.min(ax,old.x); ay = Math.min(ay,old.y);
+    aw = right-ax; ah = bottom-ay;
+  }
   state.arena = {
     x: ax, y: ay, w: aw, h: ah,
     walls: [
@@ -23,7 +40,7 @@ function spawnBoss(position) {
       { x: ax + aw, y: ay - 60, w: 60, h: ah + 120, isArena: true }
     ]
   };
-  state.boss = {
+  const boss = {
     x: position?.x ?? p.x, y: position?.y ?? ay + 200,
     size: 180,
     hp: bossHp, maxHp: bossHp,
@@ -34,13 +51,11 @@ function spawnBoss(position) {
       { side: 'right',  x: 0, y: 0, r: 36, state: 'attached', vx: 0, vy: 0, life: 0 }
     ]
   };
+  if (state.boss) state.extraBosses.push(boss);
+  else state.boss = boss;
   if(!position){
     state.enemies = [];state.enemyDarts = [];state.enemyBullets = [];state.potions = [];
   }
-  state.bossBombs = [];
-  state.bossLasers = [];
-  state.bossLaserActive = false;
-  state.bossLaserTimer = 0;
   addFloat(p.x, p.y - 100, '¡JEFE!', '#ff2255');
   state.shake = 25;
   state.flash = 0.5;
@@ -48,9 +63,10 @@ function spawnBoss(position) {
   Sfx.play('bossroar');
 }
 
-function killBoss() {
-  if (!state.boss) return;
-  const b = state.boss;
+function killBoss(b = state.boss) {
+  if (!b || b._dying || !livingBosses().includes(b)) return;
+  b._dying = true;
+  state.firstBossDefeatAt ??= state.time;
   spawnParticles(b.x, b.y, 80, '#ff2255', 2);
   spawnParticles(b.x, b.y, 40, '#ffffff', 1.5);
   state.shake = 40;
@@ -58,13 +74,19 @@ function killBoss() {
   state.flashRGB = '255,60,100';
   state.score += 5000;
   recordKill(b);
+  dropGreedBonus(b,25*6);
   addFloat(b.x, b.y - 60, '¡JEFE DERROTADO!', '#ffd54a');
   Sfx.play('bossdie');
   for (let i = 0; i < 25; i++) spawnOrbs(b.x + gameRand(-150, 150), b.y + gameRand(-150, 150), 6);
   for (let i = 0; i < 3; i++) {
     state.potions.push({ x: b.x + gameRand(-100, 100), y: b.y + gameRand(-100, 100), type: 'large', value: 2, life: 60, maxLife: 60, bob: gameRandom() * TAU });
   }
-  state.boss = null;
+  if (b === state.boss) state.boss = state.extraBosses.shift() || null;
+  else state.extraBosses.splice(state.extraBosses.indexOf(b),1);
+  if (state.boss) {
+    state.bossLaserActive = livingBosses().some(other => other.phase >= 3);
+    return;
+  }
   state.bossActive = false;
   state.arena = null;
   state.bossBombs = [];
@@ -94,8 +116,7 @@ function explodeBossBomb(bomb) {
   }
 }
 
-function startBossAttack(type) {
-  const b = state.boss;
+function startBossAttack(type, b = state.boss) {
   const p = state.player;
   if (type === 'dash') {
     b.state = 'dash_windup';
@@ -132,17 +153,17 @@ function startBossAttack(type) {
     state.bossLaserTimer = 1.2;
   }
 }
-function getBossIdleTime() {
-  if (state.boss.phase >= 3) return 0.9;
-  if (state.boss.phase >= 2) return 1.3;
+function getBossIdleTime(b) {
+  if (b.phase >= 3) return 0.9;
+  if (b.phase >= 2) return 1.3;
   return 1.9;
 }
 
-function updateBoss(dt) {
-  const b = state.boss;
+function updateBoss(dt, b = state.boss) {
   if (!b) return;
   const p = state.player;
 
+  b.hitFlash=Math.max(0,b.hitFlash-dt);
   if (b.hp < b.maxHp * 0.5 && b.phase < 2) {
     b.phase = 2;
     b.balls.push({ side: 'top', x: b.x, y: b.y, r: 36, state: 'attached', vx: 0, vy: 0, life: 0 });
@@ -170,7 +191,7 @@ function updateBoss(dt) {
     if (b.timer <= 0) {
       const attacks = ['dash', 'bombs', 'balls'];
       if (b.phase >= 3) attacks.push('laser');
-      startBossAttack(attacks[Math.floor(gameRandom() * attacks.length)]);
+      startBossAttack(attacks[Math.floor(gameRandom() * attacks.length)], b);
     }
   } else if (b.state === 'dash_windup') {
     b.timer -= dt;
@@ -183,10 +204,10 @@ function updateBoss(dt) {
       const rr = (b.size/2 + p.size/2);
       if (visibleContact(b,p,rr)) damagePlayer(2);
     }
-    if (b.timer <= 0) { b.state = 'idle'; b.timer = getBossIdleTime(); }
+    if (b.timer <= 0) { b.state = 'idle'; b.timer = getBossIdleTime(b); }
   } else if (b.state === 'attack') {
     b.timer -= dt;
-    if (b.timer <= 0) { b.state = 'idle'; b.timer = getBossIdleTime(); }
+    if (b.timer <= 0) { b.state = 'idle'; b.timer = getBossIdleTime(b); }
   }
 
   b.x = clamp(b.x, state.arena.x + b.size/2, state.arena.x + state.arena.w - b.size/2);
@@ -205,6 +226,7 @@ function updateBoss(dt) {
       if (ball.x + ball.r > state.arena.x + state.arena.w) { ball.x = state.arena.x + state.arena.w - ball.r; ball.vx = -Math.abs(ball.vx); }
       if (ball.y - ball.r < state.arena.y) { ball.y = state.arena.y + ball.r; ball.vy = Math.abs(ball.vy); }
       if (ball.y + ball.r > state.arena.y + state.arena.h) { ball.y = state.arena.y + state.arena.h - ball.r; ball.vy = -Math.abs(ball.vy); }
+      if (blockBossBall(ball)) continue;
       if (p.invuln <= 0) {
         const rr = ball.r + p.size/2;
         if (visibleContact(ball,p,rr)) damagePlayer(1);
@@ -219,6 +241,7 @@ function updateBoss(dt) {
     }
   }
 
+  if (b !== state.boss) return;
   for (let i = state.bossBombs.length - 1; i >= 0; i--) {
     const bomb = state.bossBombs[i];
     if (bomb.exploded) {
@@ -265,3 +288,13 @@ function updateBoss(dt) {
   }
 }
 
+
+function blockBossBall(ball) {
+  if (ball.state !== 'flying') return false;
+  const shield=state.shields.find(sh=>Math.hypot(ball.x-sh.x,ball.y-sh.y)<ball.r+14);
+  if (!shield) return false;
+  shield.hp--; ball.state='returning';
+  spawnParticles(shield.x,shield.y,10,'#4df3ff'); Sfx.play('shieldblock',40);
+  if(shield.hp<=0)state.shields.splice(state.shields.indexOf(shield),1);
+  return true;
+}

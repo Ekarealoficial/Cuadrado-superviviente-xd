@@ -28,3 +28,41 @@ button:hover,button:focus-visible{box-shadow:0 0 15px #4df3ff44}fieldset{border-
 #sandboxList h3{grid-column:1/-1;margin:10px 0 3px}
 #sandboxList button{text-align:left;border-left-width:4px}
 #sandboxList button[aria-pressed=true]{background:#234052}
+
+body.mobile{position:relative;overflow:hidden;container-type:inline-size;-webkit-tap-highlight-color:transparent}
+body.rotated{width:100dvh;height:100dvw;transform-origin:0 0;transform:translateX(100dvw) rotate(90deg)}
+.mobile #game{display:block;touch-action:none}
+.mobile #menu{padding:8px;box-sizing:border-box}
+.mobile #menu .panel{width:min(620px,96%);margin:10px auto;padding:18px 22px}
+.mobile header{margin-bottom:14px}
+#fullPlay{width:100%;margin:0 0 12px;border-color:#71eadc;color:#affff4;background:#122a32}
+#fullStatus:not(:empty){display:block;margin-bottom:8px;font-size:12px}
+.mobile #sessionHUD{z-index:3;right:max(8px,env(safe-area-inset-right));top:max(5px,env(safe-area-inset-top));bottom:auto;padding:3px 5px;max-width:26%;font-size:10px}
+.mobile #sessionHUD button{min-height:32px}
+.mobile #sandboxPanel{z-index:6;padding:14px;width:90%;max-height:86%}
+.rotated #sandboxPanel[open]{position:absolute;inset:0;height:fit-content;box-shadow:0 0 0 200vmax #050510bf}
+#touchUI{position:absolute;inset:0;pointer-events:none;user-select:none;-webkit-user-select:none;--stick:clamp(78px,19vmin,112px);--edge:max(13px,env(safe-area-inset-left));--floor:max(12px,env(safe-area-inset-bottom))}
+#touchUI button,#touchUI .stick{pointer-events:auto;touch-action:none}
+#touchTools{position:absolute;top:max(7px,env(safe-area-inset-top));left:50%;transform:translateX(-50%);display:flex;gap:4px}
+#touchTools button{font-size:11px;padding:6px;min-height:36px}
+.stick{position:absolute;width:var(--stick);height:var(--stick);bottom:var(--floor);border-radius:50%;border:1px solid #67d6e8b0;background:radial-gradient(circle,#21465768 25%,#08132080 26%,#172d3988 66%,#68def14a 68%);display:grid;place-items:center;color:#a8f4ff}
+.stick i{width:37%;height:37%;border-radius:50%;background:#2b5669c9;border:1px solid currentColor}
+.stick small{position:absolute;bottom:7%;font:bold 9px system-ui;letter-spacing:.12em}
+.stick.move{left:var(--edge)}.stick.aim{right:max(13px,env(safe-area-inset-right));color:#e5b5ff;border-color:#ce91faaa}
+#touchFire{position:absolute;right:max(16px,env(safe-area-inset-right));bottom:calc(var(--floor) + var(--stick) + 9px);height:45px;border-radius:22px;color:#ffdb9b;border-color:#ffb350;background:#35251de0}
+#touchFire.pressed,.stick.pressed i{box-shadow:0 0 16px currentColor}
+#touchSlots{position:absolute;left:50%;bottom:var(--floor);transform:translateX(-50%);display:flex;gap:4px}
+#touchSlots button{min-width:44px;min-height:44px;padding:3px;border-color:currentColor;background:#141427d9;font-size:12px}
+#touchSlots button:disabled{opacity:.55}
+#touchPanel{box-sizing:border-box;pointer-events:auto;touch-action:pan-y;position:absolute;z-index:4;inset:5% 10%;margin:auto;max-width:680px;height:fit-content;max-height:90%;overflow:auto;background:#101322f7;border:1px solid #61d9ee;border-radius:9px;padding:14px;box-shadow:0 0 0 200vmax #03040bbf}
+#touchPanel h2{margin:0 0 8px;color:#a9faff}
+#touchPanel button{touch-action:manipulation;margin:3px;min-height:42px;border-left-width:3px}
+#touchPanel button small{display:block;font-weight:400;color:#cddae3}
+#touchPanel button[aria-pressed=true]{outline:2px solid #93f2ff}
+.equipRow{display:flex;flex-wrap:wrap}
+@container (max-width:570px){
+ #touchTools{top:65px}
+ #touchSlots{bottom:calc(var(--floor) + var(--stick) + 65px)}
+ .mobile #sessionHUD{max-width:42%}
+ #touchPanel{inset:4%}
+}

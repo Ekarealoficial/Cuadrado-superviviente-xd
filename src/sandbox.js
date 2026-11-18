@@ -1,7 +1,7 @@
 'use strict';
 let sandboxEnemy='normal', sandboxTab=null;
 function sandboxHint(){
-  document.getElementById('playerInfo').textContent='U · Enemigos   I · Cartas   |   Clic derecho · '+ENEMY_NAMES[sandboxEnemy];
+  document.getElementById('playerInfo').textContent=(mobileDevice?'Toca el mapa · ':'U · Enemigos   I · Cartas   |   Clic derecho · ')+ENEMY_NAMES[sandboxEnemy];
 }
 function closeSandboxPanel(){
   document.getElementById('sandboxPanel').close();
@@ -14,7 +14,7 @@ function openSandboxPanel(tab){
   mouse.down=false;
   for(const key in keys)keys[key]=false;
   document.getElementById('sandboxTitle').textContent=tab==='enemies'?'Invocar enemigo':'Obtener cartas';
-  status.textContent=tab==='enemies'?'Selecciona un enemigo y colócalo con clic derecho.':'Cada clic concede una copia. Sal con I o Esc.';
+  status.textContent=tab==='enemies'?(mobileDevice?'Selecciona un enemigo y toca el mapa.':'Selecciona un enemigo y colócalo con clic derecho.'):'Selecciona una carta para obtener una copia.';
   list.replaceChildren();
   function button(label,color,action){
     const b=document.createElement('button');
@@ -28,6 +28,9 @@ function openSandboxPanel(tab){
       }).setAttribute('aria-pressed',String(sandboxEnemy===id));
     }
   }else{
+    button('Quitar todas mis cartas','#ff7799',()=>{
+      clearSandboxCards();openSandboxPanel('cards');status.textContent='Cartas y efectos retirados.';
+    });
     for(const [title,cards] of [['Normales',CARD_TYPES],['Especiales',SPECIAL_CARDS]]){
       const h=document.createElement('h3');h.textContent=title;list.append(h);
       for(const card of cards){
@@ -40,7 +43,7 @@ function openSandboxPanel(tab){
       }
     }
   }
-  if(!dialog.open)dialog.showModal();
+  if(!dialog.open){if(rotatedPlay)dialog.show();else dialog.showModal();}
   list.scrollTop=0;
 }
 function handleSandboxKey(e,k){
@@ -57,7 +60,20 @@ function placeSandboxEnemy(){
   if(state.over || state.cardChoices || state.inventoryOpen || sandboxTab)return;
   const pos=getWorldMouse();
   if(sandboxEnemy==='boss'){
-    if(state.boss){addFloat(pos.x,pos.y,'Ya hay un jefe activo','#ff7799');return;}
     spawnBoss(pos);
   }else state.enemies.push(createEnemy(sandboxEnemy,pos.x,pos.y));
+}
+
+function clearSandboxCards(){
+  const base=newState(),p=state.player;
+  for(const key of ['drones','darts','shields','bullets','magnetRange','maxHalfHearts',
+      'laserCharging','laserChargeTime','lasersFiring','lightningStrikes','specialCards',
+      'slots','inventorySelection','stopStarted','stopUntil','blueHealth','thunderRain']){
+    state[key]=base[key];
+  }
+  state.halfHearts=Math.min(state.halfHearts,state.maxHalfHearts);
+  state.player={...base.player,x:p.x,y:p.y,angle:p.angle,color:p.color,iceUntil:p.iceUntil};
+  for(const e of state.enemies.concat(livingBosses())){
+    delete e.venomTime;delete e.venomDps;delete e.slow;delete e.slowUntil;delete e.plasmaHit;
+  }
 }

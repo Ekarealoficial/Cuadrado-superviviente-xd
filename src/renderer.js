@@ -182,10 +182,11 @@ function render() {
     ctx.fillRect(0, 0, W, H);
   }
 
-  drawHUD();
-  if (state.cardChoices) drawCards();
-  if (state.inventoryOpen) drawInventory();
-  if (state.over) drawGameOver();
+  drawTimeFractures();
+  if(mobileDevice)drawTouchHUD();else drawHUD();
+  if (!mobileDevice && state.cardChoices) drawCards();
+  if (!mobileDevice && state.inventoryOpen) drawInventory();
+  if (!mobileDevice && state.over) drawGameOver();
   drawCrosshair();
 }
 
@@ -198,7 +199,7 @@ function drawPlayerBody(p) {
       for (let i = 1; i <= 3; i++) {
         const t = i * 0.045;
         ctx.globalAlpha = 0.18 / i;
-        ctx.fillStyle = p.dashTimer > 0 ? '#22d3ee' : '#4df3ff';
+        ctx.fillStyle = p.color || rules.color;
         ctx.fillRect(p.x - p.vx*t - p.size/2, p.y - p.vy*t - p.size/2, p.size, p.size);
       }
       ctx.globalAlpha = 1;
@@ -208,7 +209,7 @@ function drawPlayerBody(p) {
     ctx.translate(p.x, p.y);
     ctx.save();
     ctx.rotate(p.angle);
-    ctx.shadowColor = p.dashTimer > 0 ? '#22d3ee' : '#4df3ff';
+    ctx.shadowColor = p.color || rules.color;
     ctx.shadowBlur = 12;
     ctx.fillStyle = '#d9fdff';
     ctx.fillRect(p.size/2 - 6, -4, 18, 8);
@@ -217,7 +218,7 @@ function drawPlayerBody(p) {
       ctx.fillRect(-p.size/2 - 12, -4, 18, 8);
     }
     ctx.restore();
-    ctx.shadowColor = p.dashTimer > 0 ? '#22d3ee' : '#4df3ff';
+    ctx.shadowColor = p.color || rules.color;
     ctx.shadowBlur = 22;
     ctx.fillStyle = blink ? 'rgba(255,255,255,0.25)' : (p.color || rules.color);
     const h = p.size / 2;
@@ -405,8 +406,7 @@ function renderEntities0() {
 function renderEntities1() {
  const p=state.player;
   // Boss
-  if (state.boss) {
-    const b = state.boss;
+  for (const b of livingBosses()) {
     for (const ball of b.balls) {
       if (ball.state === 'attached') {
         ctx.strokeStyle = 'rgba(255, 100, 130, 0.55)';

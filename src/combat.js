@@ -112,7 +112,7 @@ function damagePlayer(amount, piercesPlasma=false) {
     state.shake = 30;
     state.cam.zoom = 0.85;
     state.lasersFiring = [];
-    spawnParticles(p.x, p.y, 60, '#4df3ff', 1.4);
+    spawnParticles(p.x, p.y, 60, p.color || rules.color, 1.4);
   }
 }
 

@@ -64,7 +64,6 @@ function update(dt, worldStep = true, commands = null) {
     update_enemySeparation(dt);
   }
   update_projectileHits(dt);
-  update_bossHits(dt);
   update_enemyDarts(worldStep ? dt : 0);
   update_experience(worldStep ? dt : 0);
   update_potions(worldStep ? dt : 0);
@@ -94,10 +93,10 @@ function projectileImpact(target, bullet, factor = 1) {
     e.hitFlash = .15;
     if (e.hp <= 0) killEnemy(state.enemies.indexOf(e));
   }
-  const boss = state.boss;
-  if (boss && boss !== target && Math.hypot(boss.x-bullet.x,boss.y-bullet.y) <= 80+boss.size/2) {
+  for (const boss of livingBosses()) {
+    if (boss === target || Math.hypot(boss.x-bullet.x,boss.y-bullet.y)>80+boss.size/2) continue;
     boss.hp -= damage;
-    if (boss.hp <= 0) killBoss();
+    if (boss.hp <= 0) killBoss(boss);
   }
 }
 function moveTime(entity,dt) {
@@ -141,8 +140,7 @@ function updateCardFields(dt,worldStep) {
     p.blades.push({x:p.x+Math.cos(angle)*64,y:p.y+Math.sin(angle)*64,angle});
   }
   if(!p.field && !p.blades.length && !p.frameTime && !worldStep)return;
-  const targets=state.enemies.slice();
-  if(state.boss)targets.push(state.boss);
+  const targets=state.enemies.concat(livingBosses());
   for(const e of targets){
     if(e._dying)continue;
     let damage=0;
@@ -151,7 +149,7 @@ function updateCardFields(dt,worldStep) {
       if (e.hp <= 0) {
         const active = state;
         state = poisonOwners.get(e) || active;
-        if (e === state.boss) killBoss(); else killEnemy(state.enemies.indexOf(e));
+        finishTarget(e);
         state = active;
         continue;
       }
@@ -162,7 +160,7 @@ function updateCardFields(dt,worldStep) {
       const f=p.field,dx=f.x-e.x,dy=f.y-e.y,d=Math.hypot(dx,dy);
       if(d<=f.r+e.size/2){
         if(f.time<=0)damage+=(3+2*p.gravity)*attackMultiplier(e);
-        else if(e!==state.boss && d>1){
+        else if(d>1){
           const pull=Math.min(d,180*dt)/d;
           moveWithWalls(e,dx*pull,dy*pull,currentWalls);
         }
@@ -178,7 +176,7 @@ function updateCardFields(dt,worldStep) {
     }
     if(damage){
       e.hp-=damage;
-      if(e.hp<=0){if(e===state.boss)killBoss();else killEnemy(state.enemies.indexOf(e));}
+      if(e.hp<=0)finishTarget(e);
     }
   }
   if(p.field?.time<=0){
@@ -255,12 +253,13 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
           if (e.hp <= 0) killEnemy(i);
         }
       }
-      if (state.boss && isOnScreen(state.boss.x, state.boss.y)) {
-        state.lightningStrikes.push({ x: state.boss.x, y: state.boss.y, timer: 0.3, maxTimer: 0.3 });
-        state.boss.hp -= 3 * attackMultiplier(state.boss);
-        state.boss.hitFlash = 0.15;
+      for (const boss of livingBosses()) {
+        if (!isOnScreen(boss.x,boss.y)) continue;
+        state.lightningStrikes.push({ x: boss.x, y: boss.y, timer: 0.3, maxTimer: 0.3 });
+        boss.hp -= 3 * attackMultiplier(boss);
+        boss.hitFlash = 0.15;
         anyHit = true;
-        if (state.boss.hp <= 0) killBoss();
+        if (boss.hp <= 0) killBoss(boss);
       }
       if (anyHit) Sfx.play('lightning', 120);
     }
@@ -283,6 +282,7 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
 }
 
 function movementDirection() {
+  if(touchMove.x || touchMove.y)return touchMove;
   return {
     x: Number(!!(keys.d || keys.arrowright)) - Number(!!(keys.a || keys.arrowleft)),
     y: Number(!!(keys.s || keys.arrowdown)) - Number(!!(keys.w || keys.arrowup))
@@ -296,7 +296,7 @@ function movePlayer(p,dt,dx,dy,walls) {
     p.vy = Math.sin(p.dashAngle) * 1650;
   } else {
     const moving = (dx !== 0 || dy !== 0);
-    if (moving) { const l = Math.hypot(dx, dy); dx /= l; dy /= l; }
+    if (moving) { const l = Math.max(1,Math.hypot(dx, dy)); dx /= l; dy /= l; }
     const response = moving ? 16 : 11;
     const k = 1 - Math.exp(-response * dt);
     p.vx += (dx * p.speed * (p.frameTime>0 ? 4 : 1) - p.vx) * k;
@@ -319,7 +319,7 @@ function applyControl(dt, direction, command) {
   }
   if (p.dashTimer > 0) {
     p.invuln = Math.max(p.invuln, 0.05);
-    spawnParticles(p.x, p.y, 1, '#22d3ee', 0.7);
+    spawnParticles(p.x, p.y, 1, p.color || rules.color, 0.7);
   }
   // Fin del dash
   if (p.dashTimer > 0) {
@@ -334,7 +334,7 @@ function applyControl(dt, direction, command) {
         p.invuln = Math.max(p.invuln, 0.3);
         state.specialCards.dash.charges--;
         if (state.specialCards.dash.cooldown <= 0) state.specialCards.dash.cooldown = state.specialCards.dash.cooldownMax;
-        spawnParticles(p.x, p.y, 12, '#22d3ee', 1);
+        spawnParticles(p.x, p.y, 12, p.color || rules.color, 1);
       } else {
         p.pendingDashes = 0;
       }
@@ -377,7 +377,7 @@ function update_movementAndWeapons(dt, worldStep = true, commands = null) {
   updateLasersFiring(dt);
 
   updateLightning(dt);
-  if (state.bossActive && worldStep) updateBoss(dt);
+  if (worldStep && state.bossActive) for (const boss of livingBosses()) updateBoss(dt,boss);
 
 
 }
@@ -762,126 +762,59 @@ function update_enemySeparation(dt) {
 
 }
 
-function update_projectileHits(dt) {
-  const p=state.player;
-  // Bala jugador vs enemigo
-  enemyGrid.rebuild(state.enemies);
-  for (let i = state.bullets.length - 1; i >= 0; i--) {
-    const b = state.bullets[i];
-    let hit = false, bounceKept = false;
-    const dx=b.x-(b.prevX??b.x),dy=b.y-(b.prevY??b.y);
-    const range=45+b.r+Math.hypot(dx,dy)/2+(b.viewDelay||0)*1800;
-    let first=Infinity, victim, center;
-    for(const e of enemyGrid.query(b.x-dx/2,b.y-dy/2,range)){
-      if(e._dying)continue;
-      const pos=combatPosition(e,b.viewDelay);
-      const t=bulletEntry(b,pos,e.size/2+b.r);
-      if(t<first){first=t;victim=e;center=pos;}
-    }
-    if(victim){
-        const e=victim;
-        b.x-=dx*(1-first);b.y-=dy*(1-first);
-        const ddx=b.x-center.x,ddy=b.y-center.y;
-        projectileImpact(e, b);
-        e.hitFlash = 0.12;
-        hit = true;
-        spawnParticles(b.x, b.y, 5, e.color, 0.6);
-        if (e.hp <= 0) killEnemy(state.enemies.indexOf(e));
-        else Sfx.play('hit', 25);
-        const d = Math.sqrt(ddx*ddx + ddy*ddy) || 1;
-        const nx = ddx/d, ny = ddy/d;
-        if (b.dupli > 0) {
-          const dot = b.vx*nx + b.vy*ny;
-          b.vx -= 2*dot*nx; b.vy -= 2*dot*ny;
-          b.x = e.x + nx*(e.size/2 + b.r + 1);
-          b.y = e.y + ny*(e.size/2 + b.r + 1);
-          const newDupli = b.dupli - 1;
-          b.dupli = newDupli;
-          const spd = Math.hypot(b.vx, b.vy);
-          const origAngle = Math.atan2(b.vy, b.vx);
-          const copyAngle = origAngle + (gameRandom() < 0.5 ? 0.4 : -0.4);
-          spawnBullet(b.x, b.y, copyAngle, spd, {
-            drone: b.drone, bounces: b.bounces, homing: b.homing,
-            dupli: newDupli, damage: b.damage, radius: b.r
-          });
-          spawnParticles(b.x, b.y, 4, '#ff4dd2', 0.7);
-          bounceKept = true;
-        } else if (b.bounces > 0) {
-          b.bounces--;
-          const dot = b.vx*nx + b.vy*ny;
-          b.vx -= 2*dot*nx; b.vy -= 2*dot*ny;
-          b.x = e.x + nx*(e.size/2 + b.r + 1);
-          b.y = e.y + ny*(e.size/2 + b.r + 1);
-          spawnParticles(b.x, b.y, 4, '#fbbf24', 0.6);
-          bounceKept = true;
-        }
-    }
-    if (hit && !bounceKept) state.bullets.splice(i, 1);
+function reboundFromTarget(shot, surface, center, radius) {
+  if (!shot.dupli && !shot.bounces) return false;
+  let dx=shot.x-center.x, dy=shot.y-center.y;
+  if (!dx && !dy) { dx=-shot.vx || (shot.vy ? 0 : 1); dy=-shot.vy; }
+  const length=Math.hypot(dx,dy), nx=dx/length, ny=dy/length;
+  const dot=Math.min(0,shot.vx*nx+shot.vy*ny);
+  shot.vx-=2*dot*nx; shot.vy-=2*dot*ny;
+  shot.x=shot.prevX=surface.x+nx*(radius+1);
+  shot.y=shot.prevY=surface.y+ny*(radius+1);
+  if (shot.dupli>0) {
+    shot.dupli--;
+    const offset=gameRandom()<.5 ? .4 : -.4;
+    const angle=Math.atan2(shot.vy,shot.vx)+offset;
+    spawnBullet(shot.x,shot.y,angle,Math.hypot(shot.vx,shot.vy),{
+      drone:shot.drone,bounces:shot.bounces,homing:shot.homing,dupli:shot.dupli,
+      damage:shot.damage,radius:shot.r,viewDelay:shot.viewDelay
+    });
+    spawnParticles(shot.x,shot.y,4,'#ff4dd2',.7);
+  } else {
+    shot.bounces--;
+    spawnParticles(shot.x,shot.y,4,'#fbbf24',.6);
   }
-
-
+  return true;
 }
 
-function update_bossHits(dt) {
-  const p=state.player;
-  // Balas vs boss
-  if (state.boss) {
-    const b0 = state.boss;
-    for (let i = state.bullets.length - 1; i >= 0; i--) {
-      const b = state.bullets[i];
-      const center=combatPosition(b0,b.viewDelay);
-        const ddx = b.x - center.x, ddy = b.y - center.y;
-      const rr = b0.size/2 + b.r;
-      if (bulletEntry(b,center,rr)!==Infinity) {
-        projectileImpact(b0, b);
-        b0.hitFlash = 0.1;
-        spawnParticles(b.x, b.y, 5, '#ff2255', 0.6);
-        if (b.bounces > 0) {
-          b.bounces--;
-          const d = Math.sqrt(ddx*ddx + ddy*ddy) || 1;
-          const nx = ddx/d, ny = ddy/d;
-          const dot = b.vx*nx + b.vy*ny;
-          b.vx -= 2*dot*nx; b.vy -= 2*dot*ny;
-          b.x = b0.x + nx * (b0.size/2 + b.r + 1);
-          b.y = b0.y + ny * (b0.size/2 + b.r + 1);
-        } else {
-          state.bullets.splice(i, 1);
-        }
-        if (b0.hp <= 0) { killBoss(); break; }
-      }
+function update_projectileHits() {
+  enemyGrid.rebuild(state.enemies);
+  const bosses=livingBosses();
+  for (let i=state.bullets.length-1;i>=0;i--) {
+    const shot=state.bullets[i];
+    const dx=shot.x-(shot.prevX??shot.x),dy=shot.y-(shot.prevY??shot.y);
+    const range=45+shot.r+Math.hypot(dx,dy)/2+(shot.viewDelay||0)*1800;
+    let first=Infinity, victim, surface, center, radius;
+    function consider(body,owner,r) {
+      if (owner._dying) return;
+      const pos=combatPosition(body,shot.viewDelay);
+      const t=bulletEntry(shot,pos,r+shot.r);
+      if (t<first) { first=t;victim=owner;surface=body;center=pos;radius=r+shot.r; }
     }
-    if (state.boss) {
-      for (const ball of state.boss.balls) {
-        if (ball.state === 'attached') continue;
-        for (let i = state.bullets.length - 1; i >= 0; i--) {
-          const b = state.bullets[i];
-          const center=combatPosition(ball,b.viewDelay);
-        const ddx = b.x - center.x, ddy = b.y - center.y;
-          const rr = ball.r + b.r;
-          if (bulletEntry(b,center,rr)!==Infinity) {
-            projectileImpact(state.boss, b, 0.5);
-            state.boss.hitFlash = 0.1;
-            spawnParticles(b.x, b.y, 5, '#ff2255', 0.6);
-            if (b.bounces > 0) {
-              b.bounces--;
-              const d = Math.sqrt(ddx*ddx + ddy*ddy) || 1;
-              const nx = ddx/d, ny = ddy/d;
-              const dot = b.vx*nx + b.vy*ny;
-              b.vx -= 2*dot*nx; b.vy -= 2*dot*ny;
-              b.x = ball.x + nx * (ball.r + b.r + 1);
-              b.y = ball.y + ny * (ball.r + b.r + 1);
-            } else {
-              state.bullets.splice(i, 1);
-            }
-            if (state.boss && state.boss.hp <= 0) { killBoss(); break; }
-          }
-        }
-        if (!state.boss) break;
-      }
+    for(const e of enemyGrid.query(shot.x-dx/2,shot.y-dy/2,range)) consider(e,e,e.size/2);
+    for(const boss of bosses){
+      consider(boss,boss,boss.size/2);
+      for(const ball of boss.balls)if(ball.state!=='attached')consider(ball,boss,ball.r);
     }
+    if (!victim) continue;
+    shot.x-=dx*(1-first);shot.y-=dy*(1-first);
+    projectileImpact(victim,shot,victim===surface?1:BALANCE.ballDamage);
+    victim.hitFlash=.12;
+    spawnParticles(shot.x,shot.y,5,victim.color,.6);
+    if(victim.hp<=0)finishTarget(victim);
+    else Sfx.play('hit',25);
+    if(!reboundFromTarget(shot,surface,center,radius))state.bullets.splice(i,1);
   }
-
-
 }
 
 function update_enemyDarts(dt) {
@@ -1060,7 +993,7 @@ function update_darts(dt) {
       const ddx = d.x - d.target.x, ddy = d.y - d.target.y;
       const rr = targetRadius + 6;
       if (ddx*ddx + ddy*ddy < rr*rr) {
-        const targetIsBoss = isBossOrBall(d.target);
+        const owner = bossFor(d.target);
         if (d.type === 'explosive') {
           const radius = 90;
           spawnParticles(d.x, d.y, 30, '#fb7185', 1.5);
@@ -1075,23 +1008,19 @@ function update_darts(dt) {
               if (e2.hp <= 0) killEnemy(j);
             }
           }
-          if (state.boss) {
-            const edx = state.boss.x - d.x, edy = state.boss.y - d.y;
-            if (edx*edx + edy*edy < radius*radius) {
-              state.boss.hp -= 3 * attackMultiplier(state.boss);
-              if (state.boss.hp <= 0) killBoss();
+          for (const boss of livingBosses()) {
+            const direct = boss === owner;
+            if (direct || Math.hypot(boss.x-d.x,boss.y-d.y)<radius+boss.size/2) {
+              const factor=direct && d.target!==boss ? BALANCE.ballDamage : 1;
+              expansionHit(boss,3*factor);
             }
           }
           state.darts.splice(i, 1);
           i--;
           continue;
         } else {
-          if (targetIsBoss) {
-            if (state.boss) {
-              state.boss.hp -= (d.target === state.boss ? 1 : BALANCE.ballDamage) * attackMultiplier(state.boss);
-              state.boss.hitFlash = 0.12;
-              if (state.boss.hp <= 0) killBoss();
-            }
+          if (owner) {
+            expansionHit(owner,d.target===owner?1:BALANCE.ballDamage);
           } else {
             const idx = state.enemies.indexOf(d.target);
             if (idx !== -1) {

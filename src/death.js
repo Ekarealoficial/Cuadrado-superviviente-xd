@@ -7,10 +7,7 @@ function killEnemy(index) {
   if (e.type === 'dardante') state.enemyDarts = state.enemyDarts.filter(d => d.owner !== e);
   spawnParticles(e.x, e.y, 20, e.color, 1.1);
   spawnOrbs(e.x, e.y, e.xp);
-  if (state.player.greedLevel > 0 && gameRandom() < 0.15 * state.player.greedLevel) {
-    spawnOrbs(e.x + gameRand(-30, 30), e.y + gameRand(-30, 30), e.xp * 0.7 * Math.max(1,0.15*state.player.greedLevel));
-    addFloat(e.x, e.y - 25, '¡XP extra!', '#fbbf24');
-  }
+  dropGreedBonus(e,e.xp);
   recordKill(e);
   state.score += Math.round(e.maxHp * 5);
   state.shake = Math.min(state.shake + 6, 16);
@@ -66,3 +63,9 @@ function summonEnemies(invoker) {
   state.shake = Math.min(state.shake + 8, 14);
 }
 
+function dropGreedBonus(e,xp) {
+  if (state.player.greedLevel > 0 && gameRandom() < 0.15 * state.player.greedLevel) {
+    spawnOrbs(e.x + gameRand(-30, 30), e.y + gameRand(-30, 30), xp * 0.7 * Math.max(1,0.15*state.player.greedLevel));
+    addFloat(e.x, e.y - 25, '¡XP extra!', '#fbbf24');
+  }
+}

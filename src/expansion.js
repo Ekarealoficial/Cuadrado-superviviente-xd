@@ -1,4 +1,6 @@
 'use strict';
+const ICE_FALL=.65, ICE_BURST=.26;
+const iceVictims=new WeakMap();
 function updateExpansionEnemy(e,p,dt,travel,d){
   if(!['cannon','tackler','frostMage'].includes(e.type))return false;
   const a=Math.atan2(p.y-e.y,p.x-e.x);
@@ -37,7 +39,7 @@ function updateExpansionEnemy(e,p,dt,travel,d){
         const r=i?gameRand(60,140):0,ang=start+i*TAU/3;
         state.iceZones.push({x:p.x+r*Math.cos(ang),y:p.y+r*Math.sin(ang),age:0});
       }
-      e.shootCd=5.5;
+      e.shootCd=3.6;
     }
   }
   if(d>Math.max(W,H)+900)state.enemies.splice(state.enemies.indexOf(e),1);
@@ -55,7 +57,7 @@ function invertProjectiles(){
     spawnBullet(bomb.x,bomb.y,p.angle,520,{homing:true,radius:12,damage:5});
     state.bossBombs.splice(state.bossBombs.indexOf(bomb),1);
   }
-  for(const ball of state.boss?.balls||[])if(ball.state==='flying' && visible(ball)){
+  for(const boss of livingBosses())for(const ball of boss.balls)if(ball.state==='flying' && visible(ball)){
     spawnBullet(ball.x,ball.y,Math.atan2(-ball.vy,-ball.vx),600,{homing:true,radius:16,damage:7});
     ball.state='returning';
   }
@@ -83,14 +85,17 @@ function activateExpansion(id){
     else state.halfHearts=Math.min(state.maxHalfHearts,state.halfHearts+n+1);
   }else if(id==='reverse')invertProjectiles();
   else if(id==='plasma')p.plasma={r:62+12*(n-1),damage:5+3*(n-1),end:state.time+6};
-  else state.stopUntil=Math.max(state.stopUntil,state.time+2+n);
+  else {
+    const end=state.time+2+n;
+    if(end>state.stopUntil){state.stopStarted=state.time;state.stopUntil=end;}
+  }
   spawnParticles(p.x,p.y,22,SPECIAL_CARDS.find(c=>c.id===id).color);
   Sfx.play(id==='kame'?'laser':'blink',80);
 }
 function expansionHit(e,damage){
   if(e._dying)return;
   e.hp-=damage*attackMultiplier(e);e.hitFlash=.14;
-  if(e.hp<=0){if(e===state.boss)killBoss();else killEnemy(state.enemies.indexOf(e));}
+  if(e.hp<=0)finishTarget(e);
 }
 function updateExpansion(dt,worldStep){
   const p=state.player;
@@ -102,26 +107,36 @@ function updateExpansion(dt,worldStep){
   if(p.beam){
     p.beam=p.beam.filter(b=>b.end>state.time);
     for(const beam of p.beam){
-      const targets=state.enemies.slice();if(state.boss)targets.push(state.boss);
-      for(const e of targets)if(laserHits(e.x,e.y,e.size/2,p.x,p.y,beam.a,32,1100))expansionHit(e,95*dt);
+      const hit=(e,r)=>laserHits(e.x,e.y,r,p.x,p.y,beam.a,32,1100);
+      for(const e of state.enemies.slice())if(hit(e,e.size/2))expansionHit(e,KAME_DPS*dt);
+      for(const boss of livingBosses()){
+        if(hit(boss,boss.size/2))expansionHit(boss,KAME_DPS*dt);
+        else if(boss.balls.some(ball=>ball.state!=='attached' && hit(ball,ball.r)))
+          expansionHit(boss,KAME_DPS*dt*BALANCE.ballDamage);
+      }
     }
   }
   if(worldStep){
     for(const z of state.iceZones)z.age+=dt;
-    state.iceZones=state.iceZones.filter(z=>z.age<2.45);
+    state.iceZones=state.iceZones.filter(z=>z.age<ICE_FALL+ICE_BURST);
   }
-  for(const z of state.iceZones)if(z.age>=2 && z.age<2.13 && Math.hypot(z.x-p.x,z.y-p.y)<45+p.size/2 && !p.plasma)
-    p.iceUntil=state.time+1.25;
+  for(const z of state.iceZones){
+    if(z.age<ICE_FALL || z.age>=ICE_FALL+.09 || p.plasma || Math.hypot(z.x-p.x,z.y-p.y)>=45+p.size/2)continue;
+    const hit=iceVictims.get(z)||new WeakSet();
+    if(hit.has(p))continue;
+    hit.add(p);iceVictims.set(z,hit);
+    p.iceUntil=state.time+1.25;damagePlayer(1);
+  }
 }
 function repelPlasma(){
   const p=state.player,s=p.plasma;if(!s)return;
-  for(const e of state.boss?[...state.enemies,state.boss]:state.enemies.slice()){
+  for(const e of state.enemies.concat(livingBosses())){
     const dx=e.x-p.x,dy=e.y-p.y,d=Math.hypot(dx,dy),r=s.r+e.size/2;
     if(d>=r)continue;
     e.x=p.x+(d?dx/d:1)*r;e.y=p.y+(d?dy/d:0)*r;
     if(!(e.plasmaHit>state.time)){e.plasmaHit=state.time+.35;expansionHit(e,s.damage);}
   }
-  for(const b of [...state.enemyBullets,...(state.boss?.balls||[]).filter(ball=>ball.state==='flying')]){
+  for(const b of [...state.enemyBullets,...livingBosses().flatMap(b=>b.balls).filter(ball=>ball.state==='flying')]){
     reflectPlasmaShot(p,s,b);
   }
 }

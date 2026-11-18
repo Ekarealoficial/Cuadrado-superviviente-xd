@@ -46,8 +46,7 @@ function getNearestTarget(x, y) {
     const dd = (e.x - x)**2 + (e.y - y)**2;
     if (dd < nearestD2) { nearestD2 = dd; nearest = e; }
   }
-  if (state.boss) {
-    const b = state.boss;
+  for (const b of livingBosses()) {
     const dd = (b.x - x)**2 + (b.y - y)**2;
     if (dd < nearestD2) { nearestD2 = dd; nearest = b; }
     for (const ball of b.balls) {
@@ -59,9 +58,7 @@ function getNearestTarget(x, y) {
   return nearest;
 }
 function isBossOrBall(obj) {
-  if (!state.boss) return false;
-  if (obj === state.boss) return true;
-  return state.boss.balls.indexOf(obj) !== -1;
+  return Boolean(bossFor(obj));
 }
 
 

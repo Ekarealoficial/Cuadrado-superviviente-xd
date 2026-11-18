@@ -211,7 +211,7 @@ function drawHUD() {
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 15px system-ui, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-    ctx.fillText('JEFE  (FASE ' + state.boss.phase + ')', W / 2, by - 6);
+    ctx.fillText((state.extraBosses?.length ? livingBosses().length+' JEFES · ' : 'JEFE · ') + 'FASE ' + state.boss.phase, W / 2, by - 6);
   }
 
   ctx.save();

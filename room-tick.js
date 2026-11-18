@@ -3,7 +3,7 @@
   rules = settings;
   configureCardUpgrades();
   const world = newState();
-  const shared = 'iceZones stopUntil time enemies enemyBullets enemyDarts orbs potions spawnTimer potionTimer boss bossEncounters bossActive arena bossBombs bossLasers bossLaserActive bossLaserTimer bossSpawnTimer bossWarningShown enemyHpMult spawnRateMult adaptiveCheckTimer'.split(' ');
+  const shared = 'extraBosses firstBossDefeatAt iceZones stopStarted stopUntil time enemies enemyBullets enemyDarts orbs potions spawnTimer potionTimer boss bossEncounters bossActive arena bossBombs bossLasers bossLaserActive bossLaserTimer bossSpawnTimer bossWarningShown enemyHpMult spawnRateMult adaptiveCheckTimer'.split(' ');
   const party = new Map();
   function add(id, profile) {
     const personal = newState();
@@ -35,8 +35,9 @@
       mouse.y = H/2 + (input.dy || 0);
       if (Number.isFinite(input.angle)) {
         const p = state.player;
-        mouse.x = W/2 + (p.x - state.cam.x + 1000*Math.cos(input.angle))*state.cam.zoom;
-        mouse.y = H/2 + (p.y - state.cam.y + 1000*Math.sin(input.angle))*state.cam.zoom;
+        const reach=Number.isFinite(input.reach)?clamp(input.reach,0,4096):1000;
+        mouse.x = W/2 + (p.x - state.cam.x + reach*Math.cos(input.angle))*state.cam.zoom;
+        mouse.y = H/2 + (p.y - state.cam.y + reach*Math.sin(input.angle))*state.cam.zoom;
       }
       mouse.down = Boolean(input.fire || member.tap);
       member.tap = false;
@@ -79,6 +80,7 @@
       if(world.stopUntil<=world.time && world.boss && member!==focus && !state.over && state.player.invuln<=0){
         const p=state.player,b=world.boss;
         const near=(object,radius)=>Math.hypot(p.x-object.x,p.y-object.y)<radius;
+        for(const ball of b.balls)blockBossBall(ball);
         if(b.state==='dash' && visibleContact(b,p,(b.size+p.size)/2))damagePlayer(2);
         else if(b.balls.some(ball=>ball.state==='flying' && visibleContact(ball,p,ball.r+p.size/2))
           || world.bossBombs.some(bomb=>bomb.exploded && bomb.fadeTimer===0 && near(bomb,100))
@@ -141,7 +143,7 @@
       for (const c of input.frames.slice(0,48)) {
         if (!Array.isArray(c) || (c.length!==6 && c.length!==7) || !Number.isSafeInteger(c[0]) || c[0]<=last ||
             !Number.isFinite(c[1]) || c[1]<=0 || c[1]>.05 ||
-            ![-1,0,1].includes(c[2]) || ![-1,0,1].includes(c[3]) || !Number.isFinite(c[4])) continue;
+            !Number.isFinite(c[2]) || Math.abs(c[2])>1 || !Number.isFinite(c[3]) || Math.abs(c[3])>1 || !Number.isFinite(c[4])) continue;
 
         member.queue.push(c); last=c[0];
       }
