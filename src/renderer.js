@@ -4,10 +4,11 @@ function render() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#08080f';
   ctx.fillRect(0, 0, W, H);
+  const shake=Math.max(state.shake,fractureShake());
   let sx = 0, sy = 0;
-  if (state.shake > 0.2) {
-    sx = (Math.random() * 2 - 1) * state.shake;
-    sy = (Math.random() * 2 - 1) * state.shake;
+  if (shake > 0.2) {
+    sx = (Math.random() * 2 - 1) * shake;
+    sy = (Math.random() * 2 - 1) * shake;
   }
   const cam = state.cam;
   ctx.save();
@@ -182,6 +183,7 @@ function render() {
     ctx.fillRect(0, 0, W, H);
   }
 
+  drawBossOmen();
   drawTimeFractures();
   if(mobileDevice)drawTouchHUD();else drawHUD();
   if (!mobileDevice && state.cardChoices) drawCards();
@@ -407,6 +409,7 @@ function renderEntities1() {
  const p=state.player;
   // Boss
   for (const b of livingBosses()) {
+    if(b.pieces){drawWorm(b);continue;}
     for (const ball of b.balls) {
       if (ball.state === 'attached') {
         ctx.strokeStyle = 'rgba(255, 100, 130, 0.55)';

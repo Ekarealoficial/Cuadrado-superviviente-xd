@@ -3,7 +3,7 @@ const vm = require('node:vm');
 const path = require('node:path');
 
 // One isolated copy of the existing game logic per room.
-const files = ['config','spatial','entities','bootstrap','audio','cards-data','state','input','abilities','world','collision','enemies','combat','cards','laser','death','boss','difficulty','lightning','expansion','simulation','effects'];
+const files = ['config','spatial','entities','bootstrap','audio','cards-data','state','input','abilities','world','collision','enemies','combat','cards','laser','death','worm','boss','difficulty','lightning','expansion','simulation','effects'];
 const scripts = files.map(name => new vm.Script(fs.readFileSync(path.join(__dirname,'src',name+'.js'),'utf8'), {filename:name+'.js'}));
 const roomScript = new vm.Script(fs.readFileSync(path.join(__dirname,'room-tick.js'),'utf8'));
 module.exports = function engine(settings) {

@@ -31,17 +31,17 @@ function updateLasersFiring(dt) {
           if (e.hp <= 0) killEnemy(j);
         }
       }
-      for (const b of livingBosses()) {
+      for (const b of bossTargets()) {
         if (laserHits(b.x, b.y, b.size / 2, p.x, p.y, angle, lf.width, range)) {
           b.hp -= lf.damage * dt * attackMultiplier(b);
           b.hitFlash = 0.05;
-          if (b.hp <= 0) { killBoss(b); continue; }
+          if (b.hp <= 0) { finishTarget(b); continue; }
         }
         for (const ball of b.balls) {
           if (ball.state === 'attached') continue;
           if (laserHits(ball.x, ball.y, ball.r, p.x, p.y, angle, lf.width, range)) {
             b.hp -= lf.damage * dt * attackMultiplier(ball) * 0.5;
-            if (b.hp <= 0) { killBoss(b); break; }
+            if (b.hp <= 0) { finishTarget(b); break; }
           }
         }
       }

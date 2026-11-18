@@ -48,7 +48,7 @@
   <p id="sandboxStatus" aria-live="polite"></p><div id="sandboxList"></div>
 </dialog>
 <section id="touchUI" hidden aria-label="Controles táctiles">
-  <div id="touchTools"><button id="bag">Inventario</button><button id="enemyTool">Enemigos</button><button id="cardTool">Cartas</button></div>
+  <div id="touchTools"><button id="autoFire" aria-pressed="false">Auto al apuntar</button><button id="bag">Inventario</button><button id="enemyTool">Enemigos</button><button id="cardTool">Cartas</button></div>
   <div id="touchCombat"><div class="stick move" id="moveStick" aria-label="Mover"><i></i><small>MOVER</small></div>
     <div class="stick aim" id="aimStick" aria-label="Apuntar"><i></i><small>APUNTAR</small></div>
     <button id="touchFire">Disparar</button><div id="touchSlots"></div></div>
@@ -71,12 +71,14 @@
 <script defer src="src/cards.js"></script>
 <script defer src="src/laser.js"></script>
 <script defer src="src/death.js"></script>
+<script defer src="src/worm.js"></script>
 <script defer src="src/boss.js"></script>
 <script defer src="src/difficulty.js"></script>
 <script defer src="src/lightning.js"></script>
 <script defer src="src/expansion.js"></script>
 <script defer src="src/simulation.js"></script>
 <script defer src="src/expansion-art.js"></script>
+<script defer src="src/boss-art.js"></script>
 <script defer src="src/renderer.js"></script>
 <script defer src="src/hud.js"></script>
 <script defer src="src/inventory.js"></script>

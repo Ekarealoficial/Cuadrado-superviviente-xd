@@ -48,8 +48,9 @@ body.rotated{width:100dvh;height:100dvw;transform-origin:0 0;transform:translate
 .stick{position:absolute;width:var(--stick);height:var(--stick);bottom:var(--floor);border-radius:50%;border:1px solid #67d6e8b0;background:radial-gradient(circle,#21465768 25%,#08132080 26%,#172d3988 66%,#68def14a 68%);display:grid;place-items:center;color:#a8f4ff}
 .stick i{width:37%;height:37%;border-radius:50%;background:#2b5669c9;border:1px solid currentColor}
 .stick small{position:absolute;bottom:7%;font:bold 9px system-ui;letter-spacing:.12em}
-.stick.move{left:var(--edge)}.stick.aim{right:max(13px,env(safe-area-inset-right));color:#e5b5ff;border-color:#ce91faaa}
-#touchFire{position:absolute;right:max(16px,env(safe-area-inset-right));bottom:calc(var(--floor) + var(--stick) + 9px);height:45px;border-radius:22px;color:#ffdb9b;border-color:#ffb350;background:#35251de0}
+.stick.move{right:max(13px,env(safe-area-inset-right))}.stick.aim{left:var(--edge);color:#e5b5ff;border-color:#ce91faaa}
+#autoFire[aria-pressed=true]{background:#225847;border-color:#8affcd;color:#cdffed}
+#touchFire{position:absolute;left:var(--edge);bottom:calc(var(--floor) + var(--stick) + 9px);height:45px;border-radius:22px;color:#ffdb9b;border-color:#ffb350;background:#35251de0}
 #touchFire.pressed,.stick.pressed i{box-shadow:0 0 16px currentColor}
 #touchSlots{position:absolute;left:50%;bottom:var(--floor);transform:translateX(-50%);display:flex;gap:4px}
 #touchSlots button{min-width:44px;min-height:44px;padding:3px;border-color:currentColor;background:#141427d9;font-size:12px}

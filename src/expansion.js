@@ -109,7 +109,7 @@ function updateExpansion(dt,worldStep){
     for(const beam of p.beam){
       const hit=(e,r)=>laserHits(e.x,e.y,r,p.x,p.y,beam.a,32,1100);
       for(const e of state.enemies.slice())if(hit(e,e.size/2))expansionHit(e,KAME_DPS*dt);
-      for(const boss of livingBosses()){
+      for(const boss of bossTargets()){
         if(hit(boss,boss.size/2))expansionHit(boss,KAME_DPS*dt);
         else if(boss.balls.some(ball=>ball.state!=='attached' && hit(ball,ball.r)))
           expansionHit(boss,KAME_DPS*dt*BALANCE.ballDamage);
@@ -130,7 +130,7 @@ function updateExpansion(dt,worldStep){
 }
 function repelPlasma(){
   const p=state.player,s=p.plasma;if(!s)return;
-  for(const e of state.enemies.concat(livingBosses())){
+  for(const e of state.enemies.concat(bossTargets())){
     const dx=e.x-p.x,dy=e.y-p.y,d=Math.hypot(dx,dy),r=s.r+e.size/2;
     if(d>=r)continue;
     e.x=p.x+(d?dx/d:1)*r;e.y=p.y+(d?dy/d:0)*r;

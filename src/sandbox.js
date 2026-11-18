@@ -22,7 +22,7 @@ function openSandboxPanel(tab){
     list.append(b);return b;
   }
   if(tab==='enemies'){
-    for(const id of [...Object.keys(ENEMY_TYPES),'boss']){
+    for(const id of [...Object.keys(ENEMY_TYPES),...Object.keys(BOSS_NAMES)]){
       button(ENEMY_NAMES[id],ENEMY_TYPES[id]?.color||'#ff2255',()=>{
         sandboxEnemy=id;sandboxHint();closeSandboxPanel();
       }).setAttribute('aria-pressed',String(sandboxEnemy===id));
@@ -59,8 +59,8 @@ function handleSandboxKey(e,k){
 function placeSandboxEnemy(){
   if(state.over || state.cardChoices || state.inventoryOpen || sandboxTab)return;
   const pos=getWorldMouse();
-  if(sandboxEnemy==='boss'){
-    spawnBoss(pos);
+  if(Object.hasOwn(BOSS_NAMES,sandboxEnemy)){
+    spawnBoss(pos,sandboxEnemy);
   }else state.enemies.push(createEnemy(sandboxEnemy,pos.x,pos.y));
 }
 
@@ -73,7 +73,7 @@ function clearSandboxCards(){
   }
   state.halfHearts=Math.min(state.halfHearts,state.maxHalfHearts);
   state.player={...base.player,x:p.x,y:p.y,angle:p.angle,color:p.color,iceUntil:p.iceUntil};
-  for(const e of state.enemies.concat(livingBosses())){
+  for(const e of state.enemies.concat(bossTargets())){
     delete e.venomTime;delete e.venomDps;delete e.slow;delete e.slowUntil;delete e.plasmaHit;
   }
 }

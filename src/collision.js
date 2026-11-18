@@ -46,7 +46,7 @@ function getNearestTarget(x, y) {
     const dd = (e.x - x)**2 + (e.y - y)**2;
     if (dd < nearestD2) { nearestD2 = dd; nearest = e; }
   }
-  for (const b of livingBosses()) {
+  for (const b of bossTargets()) {
     const dd = (b.x - x)**2 + (b.y - y)**2;
     if (dd < nearestD2) { nearestD2 = dd; nearest = b; }
     for (const ball of b.balls) {

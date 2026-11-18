@@ -46,7 +46,7 @@ function newState() {
     pendingLevelUps: 0,
     boss: null, extraBosses: [], firstBossDefeatAt: null, bossActive: false, arena: null,
     bossBombs: [], bossLasers: [], bossLaserActive: false, bossLaserTimer: 0,
-    bossSpawnTimer: BOSS_FIRST_TIME, bossWarningShown: false,
+    bossSpawnTimer: BOSS_FIRST_TIME, bossCycle: [], bossOmen: null,
     playerDamageMult: 1.0, enemyHpMult: 1.0, spawnRateMult: 1.0,
     recentKills: [], levelTimer: 0, damageTimer: 0, adaptiveCheckTimer: 0,
     inventoryOpen: false,

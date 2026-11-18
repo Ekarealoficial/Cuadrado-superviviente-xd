@@ -1,5 +1,5 @@
 'use strict';
-const ENEMY_NAMES={tackler:'Tacleador',splitter:'Divisor',cannon:'Cañón',frostMage:'Hechicero helado',normal:'Normal',fast:'Veloz',tank:'Tanque',shooter:'Tirador',invoker:'Invocador',teleporter:'Teletransportador',kamikaze:'Kamikaze',dardante:'Dardante',juggernaut:'Juggernaut',boss:'Jefe de la arena'};
+const ENEMY_NAMES={tackler:'Tacleador',splitter:'Divisor',cannon:'Cañón',frostMage:'Hechicero helado',normal:'Normal',fast:'Veloz',tank:'Tanque',shooter:'Tirador',invoker:'Invocador',teleporter:'Teletransportador',kamikaze:'Kamikaze',dardante:'Dardante',juggernaut:'Juggernaut',...BOSS_NAMES};
 let netSession=null, queuedActions=[], inventoryChoice=null;
 const multiplayerServer = String(window.MULTIPLAYER_SERVER_URL || '').replace(/\/$/, '');
 function handleNetKey(e){

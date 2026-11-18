@@ -188,6 +188,7 @@ function drawHUD() {
   }
 
   if (state.boss) {
+    const worm=state.boss.kind==='worm';
     const bw = Math.min(W - 100, 600);
     const bx = (W - bw) / 2;
     const by = 100;
@@ -197,21 +198,22 @@ function drawHUD() {
     ctx.fillStyle = '#3a0010';
     ctx.fillRect(bx, by, bw, bh);
     const grad = ctx.createLinearGradient(bx, 0, bx + bw, 0);
-    grad.addColorStop(0, '#ff2255');
-    grad.addColorStop(1, '#ff7700');
+    grad.addColorStop(0, worm?'#158552':'#ff2255');
+    grad.addColorStop(1, worm?'#6affe1':'#ff7700');
     ctx.fillStyle = grad;
     ctx.fillRect(bx, by, bw * (state.boss.hp / state.boss.maxHp), bh);
-    ctx.strokeStyle = '#ff5577'; ctx.lineWidth = 2;
+    ctx.strokeStyle = state.boss.color; ctx.lineWidth = 2;
     ctx.strokeRect(bx, by, bw, bh);
     ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1;
     ctx.beginPath();
-    ctx.moveTo(bx + bw * 0.5, by); ctx.lineTo(bx + bw * 0.5, by + bh);
-    ctx.moveTo(bx + bw * 0.33, by); ctx.lineTo(bx + bw * 0.33, by + bh);
+    for(const mark of worm?[.30]:[.33,.50]){
+      ctx.moveTo(bx+bw*mark,by);ctx.lineTo(bx+bw*mark,by+bh);
+    }
     ctx.stroke();
     ctx.fillStyle = '#fff';
     ctx.font = 'bold 15px system-ui, sans-serif';
     ctx.textAlign = 'center'; ctx.textBaseline = 'bottom';
-    ctx.fillText((state.extraBosses?.length ? livingBosses().length+' JEFES · ' : 'JEFE · ') + 'FASE ' + state.boss.phase, W / 2, by - 6);
+    ctx.fillText((state.extraBosses?.length ? livingBosses().length+' JEFES · ' : (BOSS_NAMES[state.boss.kind||'boss']+' · ')) + 'FASE ' + state.boss.phase, W / 2, by - 6);
   }
 
   ctx.save();

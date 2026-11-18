@@ -2,7 +2,7 @@
 /* =============== BALAS =============== */
 function spawnBullet(x, y, angle, speed, opts, list = state.bullets) {
   opts = opts || {};
-  if (list.length >= MAX_BULLETS) return;
+  if (list.length >= playerBulletLimit(state.player)) return;
   list.push({
     x, y,
     vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
@@ -35,9 +35,9 @@ function shoot(n, commandId = 0, preview = null) {
     },list);
     if (!preview) spawnParticles(x,y,2,lane<0?'#c77dff':'#9ef7ff',.5);
   }
-  for (let i=p.shots-n;i<p.shots && list.length<MAX_BULLETS;i++)
+  for (let i=p.shots-n;i<p.shots && list.length<playerBulletLimit(p);i++)
     line(p.angle+(i-(p.shots-1)/2)*.12,900,i);
-  for (let i=0;i<p.backShots && list.length<MAX_BULLETS;i++)
+  for (let i=0;i<p.backShots && list.length<playerBulletLimit(p);i++)
     line(p.angle+Math.PI+(i-(p.backShots-1)/2)*.12,810,-1-i);
   if (!preview) state.shake = Math.min(state.shake + .6, 4);
   Sfx.play('shoot',30);

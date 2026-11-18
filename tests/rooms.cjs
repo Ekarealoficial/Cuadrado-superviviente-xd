@@ -70,3 +70,21 @@ test('Tiempo roto y hechizos se comparten entre los miembros de la sala',()=>{
  for(let i=0;i<92;i++)r.tick(1/30);
  assert.ok(r.snapshot('b').enemyBullets[0].x>90);
 });
+test('La sala comparte aviso, segmentos y fase del Gusano Esmeralda',()=>{
+ const r=engine({difficulty:3,xp:1,disabled,pvp:false});
+ for(const id of ['a','b'])r.add(id,{name:id,color:'#abe'});
+ for(let i=0;i<905;i++)r.tick(1/30);
+ const omen=r.snapshot('a').bossOmen;
+ assert.equal(omen.kind,'worm');assert.deepEqual(r.snapshot('b').bossOmen,omen);
+ for(let i=0;i<600;i++)r.tick(1/30);
+ const boss=r.snapshot('a').boss;assert.equal(boss.kind,'worm');
+ assert.ok(150/3-omen.start>19.95 && 150/3-omen.start<=20.01);
+ const segment=boss.pieces[0].parts[6];
+ segment.hp=0;segment.venomTime=1;segment.venomDps=1;
+ r.tick(1/30);
+ for(const p of boss.pieces)for(const s of p.parts)s.hp=s.maxHp*.2;
+ r.tick(1/30);
+ const observed=r.snapshot('b').boss;
+ assert.equal(observed.phase,2);assert.equal(observed.pieces.length,2);
+ assert.ok(observed.pieces.every(p=>p.mode==='windup' && p.dashes>=10 && p.dashes<=15));
+});

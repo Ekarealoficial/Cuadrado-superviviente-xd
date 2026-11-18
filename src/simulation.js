@@ -93,10 +93,10 @@ function projectileImpact(target, bullet, factor = 1) {
     e.hitFlash = .15;
     if (e.hp <= 0) killEnemy(state.enemies.indexOf(e));
   }
-  for (const boss of livingBosses()) {
+  for (const boss of bossTargets()) {
     if (boss === target || Math.hypot(boss.x-bullet.x,boss.y-bullet.y)>80+boss.size/2) continue;
     boss.hp -= damage;
-    if (boss.hp <= 0) killBoss(boss);
+    if (boss.hp <= 0) finishTarget(boss);
   }
 }
 function moveTime(entity,dt) {
@@ -140,7 +140,7 @@ function updateCardFields(dt,worldStep) {
     p.blades.push({x:p.x+Math.cos(angle)*64,y:p.y+Math.sin(angle)*64,angle});
   }
   if(!p.field && !p.blades.length && !p.frameTime && !worldStep)return;
-  const targets=state.enemies.concat(livingBosses());
+  const targets=state.enemies.concat(bossTargets());
   for(const e of targets){
     if(e._dying)continue;
     let damage=0;
@@ -253,13 +253,13 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
           if (e.hp <= 0) killEnemy(i);
         }
       }
-      for (const boss of livingBosses()) {
+      for (const boss of bossTargets()) {
         if (!isOnScreen(boss.x,boss.y)) continue;
         state.lightningStrikes.push({ x: boss.x, y: boss.y, timer: 0.3, maxTimer: 0.3 });
         boss.hp -= 3 * attackMultiplier(boss);
         boss.hitFlash = 0.15;
         anyHit = true;
-        if (boss.hp <= 0) killBoss(boss);
+        if (boss.hp <= 0) finishTarget(boss);
       }
       if (anyHit) Sfx.play('lightning', 120);
     }
@@ -267,14 +267,15 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
   }
 
   if (!worldStep) return;
-  if (playMode!=='sandbox' && !state.bossActive && !rules.disabled.includes('boss')) {
-    if (state.bossSpawnTimer > 0 && state.bossSpawnTimer < 5 && !state.bossWarningShown) {
-      state.bossWarningShown = true;
-      addFloat(p.x, p.y - 100, '¡JEFE EN CAMINO!', '#ff2255');
-      state.shake = 10;
+  if (playMode!=='sandbox' && !state.bossActive) {
+    const rate=rules.difficulty;
+    state.bossSpawnTimer-=dt*rate;
+    if(!state.bossOmen && state.bossSpawnTimer<=20*rate){
+      const kind=pickEncounter();
+      if(kind)state.bossOmen={kind,start:state.time};
+      else state.bossSpawnTimer=180;
     }
-    state.bossSpawnTimer -= dt * rules.difficulty;
-    if (state.bossSpawnTimer <= 0) spawnBoss();
+    if(state.bossSpawnTimer<=0 && state.bossOmen)spawnBoss(null,state.bossOmen.kind);
   }
   checkAdaptive(dt * rules.difficulty);
 
@@ -789,7 +790,7 @@ function reboundFromTarget(shot, surface, center, radius) {
 
 function update_projectileHits() {
   enemyGrid.rebuild(state.enemies);
-  const bosses=livingBosses();
+  const bosses=bossTargets();
   for (let i=state.bullets.length-1;i>=0;i--) {
     const shot=state.bullets[i];
     const dx=shot.x-(shot.prevX??shot.x),dy=shot.y-(shot.prevY??shot.y);
@@ -1008,7 +1009,7 @@ function update_darts(dt) {
               if (e2.hp <= 0) killEnemy(j);
             }
           }
-          for (const boss of livingBosses()) {
+          for (const boss of bossTargets()) {
             const direct = boss === owner;
             if (direct || Math.hypot(boss.x-d.x,boss.y-d.y)<radius+boss.size/2) {
               const factor=direct && d.target!==boss ? BALANCE.ballDamage : 1;

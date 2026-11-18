@@ -3,7 +3,7 @@
   rules = settings;
   configureCardUpgrades();
   const world = newState();
-  const shared = 'extraBosses firstBossDefeatAt iceZones stopStarted stopUntil time enemies enemyBullets enemyDarts orbs potions spawnTimer potionTimer boss bossEncounters bossActive arena bossBombs bossLasers bossLaserActive bossLaserTimer bossSpawnTimer bossWarningShown enemyHpMult spawnRateMult adaptiveCheckTimer'.split(' ');
+  const shared = 'extraBosses firstBossDefeatAt iceZones stopStarted stopUntil time enemies enemyBullets enemyDarts orbs potions spawnTimer potionTimer boss bossEncounters bossActive arena bossBombs bossLasers bossLaserActive bossLaserTimer bossSpawnTimer bossCycle bossOmen enemyHpMult spawnRateMult adaptiveCheckTimer'.split(' ');
   const party = new Map();
   function add(id, profile) {
     const personal = newState();
@@ -19,6 +19,7 @@
     for(const group of [world.enemies,world.enemyBullets,world.enemyDarts])
       for(const e of group)rememberPosition(e,world.time);
     if(world.boss){
+      for(const piece of world.boss.pieces||[])for(const part of piece.parts)rememberPosition(part,world.time);
       rememberPosition(world.boss,world.time);
       for(const ball of world.boss.balls)rememberPosition(ball,world.time);
     }
@@ -80,6 +81,7 @@
       if(world.stopUntil<=world.time && world.boss && member!==focus && !state.over && state.player.invuln<=0){
         const p=state.player,b=world.boss;
         const near=(object,radius)=>Math.hypot(p.x-object.x,p.y-object.y)<radius;
+        if(b.pieces)wormContact(b);
         for(const ball of b.balls)blockBossBall(ball);
         if(b.state==='dash' && visibleContact(b,p,(b.size+p.size)/2))damagePlayer(2);
         else if(b.balls.some(ball=>ball.state==='flying' && visibleContact(ball,p,ball.r+p.size/2))

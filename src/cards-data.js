@@ -2,7 +2,10 @@
 const CHUNK_SIZE = 800;
 const START_HALF_HEARTS = 8;
 const START_MAGNET = 200;
-const MAX_BULLETS = 200;
+const BASE_BULLET_LIMIT = 200;
+function playerBulletLimit(p){
+  return BASE_BULLET_LIMIT + 50 * (p.fireUpgrades || 0);
+}
 const BOSS_FIRST_TIME = 150;
 
 /* =============== CARTAS =============== */
@@ -17,7 +20,7 @@ const CARD_TYPES = [
       ['venom','Veneno','Las balas envenenan. Cada copia aumenta el daño y la duración.','#8eff63'],
       ['swords','Espada Espectral','Añade una espada orbital que hiere al contacto.','#bbeaff']]
     .map(([id,name,desc,color])=>({id,name,desc,color,apply:p=>{p[id]=(p[id]||0)+1;}})),
-  { id: 'fire',          name: 'Cadencia',       desc: 'Reduce el tiempo entre disparos un 15%.',                    color: '#4df3ff' },
+  { id: 'fire',          name: 'Cadencia',       desc: 'Reduce el intervalo entre disparos un 15% y permite 50 balas activas más.',                    color: '#4df3ff' },
   { id: 'multi',         name: 'Multidisparo',   desc: 'Añade una línea de disparo adicional.',                       color: '#ffc857' },
   { id: 'health',        name: 'Vitalidad',      desc: 'Aumenta vida máxima en medio corazón y te cura medio.',       color: '#ff3b6b' },
   { id: 'speed',         name: 'Agilidad',       desc: 'Aumenta tu velocidad un 10%.',                                color: '#8fff9e' },
@@ -77,6 +80,7 @@ function configureCardUpgrades() {
    if(!spec) continue;
    card.upgrade=spec;
    card.apply=p=>{
+     if(card.id==='fire')p.fireUpgrades=(p.fireUpgrades||0)+1;
      const target=spec.root?state:p;
      target[spec.field]=target[spec.field]*(spec.factor||1)+(spec.add||0);
    };

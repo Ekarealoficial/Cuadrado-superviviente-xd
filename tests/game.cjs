@@ -206,3 +206,40 @@ test('El cristal quita medio corazón una vez al caer y Kamekameka inflige 285 p
  run("spawnBoss({x:210,y:0});state.player.beam=[{a:0,end:.45}];updateExpansion(.1,true)");
  assert.equal(run('state.boss.maxHp-state.boss.hp'),28.5);
 });
+test('El aviso reserva un jefe veinte segundos antes en cada dificultad y agota el catálogo',()=>{
+ const run=game();
+ for(const rate of [.5,1,3]){
+   run('state=newState();rules.difficulty='+rate+';state.bossSpawnTimer=20*rules.difficulty+.1;update_stormAndBossSchedule(.01)');
+   assert.equal(run('state.bossOmen'),null);
+   run('update_stormAndBossSchedule(.2);const announced'+String(rate).replace('.','_')+'=state.bossOmen.kind;state.bossSpawnTimer=.001;update_stormAndBossSchedule(.01)');
+   assert.equal(run('state.boss.kind'),run('announced'+String(rate).replace('.','_')));
+ }
+ run('state.bossCycle=[];const order=Array.from({length:10},pickEncounter)');
+ assert.ok(run('order.every((id,i)=>!i || id!==order[i-1])'));
+ assert.equal(run("rules.disabled=['worm'];pickEncounter()"),'boss');
+ assert.equal(run("rules.disabled=['worm','boss'];pickEncounter()"),null);
+});
+test('Una bala corta el gusano en dos y la victoria llega al eliminar la última bola',()=>{
+ const run=game();run("spawnBoss({x:0,y:100},'worm');const worm=state.boss,body=worm.pieces[0].parts,s=body[7];spawnBullet(s.x,s.y,0,900,{damage:s.hp});update_projectileHits()");
+ assert.equal(run('worm.pieces.length'),2);
+ assert.ok(run('worm.pieces.every(p=>p.parts.length===7) && body[0].maxHp>body[1].maxHp && state.kills===0'));
+ run("const [left,right]=worm.pieces;wormWindup(left,false);startWormLines(right);const angle=left.heading;state.player.x=500;updateBoss(.1);render()");
+ assert.ok(run("left.heading===angle && left.mode==='windup' && right.mode==='exit'"));
+ run('for(const s of bossTargets().slice(1)){s.hp=0;finishTarget(s);}');
+ assert.ok(run('state.boss===worm && state.arena'));run('const lastSegment=bossTargets()[0];lastSegment.hp=0;finishTarget(lastSegment)');
+ assert.ok(run('state.boss===null && state.kills===1 && state.arena===null'));
+});
+test('Tres carriles, diez a quince estampidas por trozo y descanso en fase dos',()=>{
+ const run=game();run("spawnBoss({x:40,y:20},'worm');const worm=state.boss,piece=worm.pieces[0];startWormLines(piece);const lanes=new Set();for(let i=0;i<1500;i++){if(piece.mode==='pass')lanes.add(piece.lanes[piece.lane]);updateBoss(1/60);if(piece.mode==='curve')break;}");
+ assert.equal(run('lanes.size'),3);
+ run('finishTarget(piece.parts[5]);for(const s of bossTargets())s.hp=s.maxHp*.29;updateBoss(.01);const counts=worm.pieces.map(()=>0),lastModes=[];for(let i=0;i<700;i++){updateBoss(1/60);worm.pieces.forEach((p,k)=>{if(p.mode==="rush" && lastModes[k]!=="rush")counts[k]++;lastModes[k]=p.mode});if(worm.pieces.every(p=>p.mode==="rest"))break;}');
+ assert.ok(run('worm.phase===2 && counts.length===2 && counts.every(n=>n>=10 && n<=15) && worm.pieces.every(p=>p.mode==="rest")'));
+});
+test('Cadencia aumenta el límite por jugador y Tiempo roto conserva cada grieta entre golpes',()=>{
+ const run=game();assert.equal(run('playerBulletLimit(state.player)'),200);
+ run("applyCard(CARD_TYPES.find(c=>c.id==='fire'));for(let i=0;i<270;i++)spawnBullet(0,0,0,400,{})");
+ assert.equal(run('state.bullets.length'),250);
+ run('state.stopStarted=1;state.stopUntil=4;state.time=1;fractureShake();const pattern=fracture.paths;state.time+=.001;fractureShake()');
+ assert.equal(run('fracture.step'),0);run('state.time=4;fractureShake();render()');
+ assert.ok(run('fracture.paths===pattern && fracture.step===fracture.times.length-1 && fracture.paths.every(ray=>ray.at(-1).at===1)'));
+});

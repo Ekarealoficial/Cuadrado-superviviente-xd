@@ -7,7 +7,7 @@ function updateLightning(dt) {
   if (p.lightningCd > 0) return;
   p.lightningCd = 5;
   for (let n = 0; n < p.lightningCount; n++) {
-    const bosses = livingBosses();
+    const bosses = bossTargets();
     const targets = bosses.length && (!state.enemies.length || gameRandom()<.5) ? bosses : state.enemies;
     if (!targets.length) break;
     const {x:tx,y:ty} = targets[Math.floor(gameRandom()*targets.length)];
@@ -27,7 +27,7 @@ function updateLightning(dt) {
       if (bdx*bdx + bdy*bdy < radius*radius) {
         boss.hp -= 3 * attackMultiplier(boss);
         boss.hitFlash = 0.15;
-        if (boss.hp <= 0) killBoss(boss);
+        if (boss.hp <= 0) finishTarget(boss);
       }
     }
     spawnParticles(tx, ty, 20, '#fde047', 1.2);

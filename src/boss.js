@@ -3,22 +3,41 @@
 function livingBosses() {
   return state.boss ? [state.boss, ...(state.extraBosses || [])] : [];
 }
+function bossTargets() {
+  return livingBosses().flatMap(b => b.pieces ? b.pieces.flatMap(piece => piece.parts) : [b]);
+}
 function bossFor(target) {
+  if(target?.wormSegment)return target._dying ? null : target;
   return livingBosses().find(b => b === target || b.balls.includes(target));
 }
 function finishTarget(target) {
-  if (target.balls) killBoss(target);
+  if (target.wormSegment) breakWormSegment(target);
+  else if (target.balls) killBoss(target);
   else killEnemy(state.enemies.indexOf(target));
 }
 
-function spawnBoss(position) {
+function pickEncounter() {
+  let pool=Object.keys(BOSS_NAMES).filter(id=>!rules.disabled.includes(id));
+  if(!pool.length)return null;
+  let unused=pool.filter(id=>!state.bossCycle.includes(id));
+  if(!unused.length){
+    const last=state.bossCycle.at(-1);
+    state.bossCycle=[];
+    unused=pool.length>1?pool.filter(id=>id!==last):pool;
+  }
+  const id=unused[Math.floor(gameRandom()*unused.length)];
+  state.bossCycle.push(id);
+  return id;
+}
+
+function spawnBoss(position,kind='boss') {
   state.bossEncounters = (state.bossEncounters || 0) + 1;
   const bossHp = Math.round(BALANCE.bossHp * Math.pow(BALANCE.bossGrowth, state.bossEncounters - 1) * state.enemyHpMult);
   state.bossActive = true;
-  state.bossWarningShown = false;
+  state.bossOmen = null;
   const p = state.player;
-  let aw = W / state.cam.zoom * 0.95;
-  let ah = H / state.cam.zoom * 0.95;
+  let aw = Math.max(1400,W / state.cam.zoom * 1.45);
+  let ah = Math.max(900,H / state.cam.zoom * 1.45);
   let ax = p.x - aw / 2, ay = p.y - ah / 2;
   if(position){
     const right=Math.max(ax+aw,position.x+90),bottom=Math.max(ay+ah,position.y+90);
@@ -40,7 +59,8 @@ function spawnBoss(position) {
       { x: ax + aw, y: ay - 60, w: 60, h: ah + 120, isArena: true }
     ]
   };
-  const boss = {
+  const boss = kind==='worm' ? createWorm(position || {x:p.x,y:ay+180},bossHp) : {
+    kind,
     x: position?.x ?? p.x, y: position?.y ?? ay + 200,
     size: 180,
     hp: bossHp, maxHp: bossHp,
@@ -56,7 +76,7 @@ function spawnBoss(position) {
   if(!position){
     state.enemies = [];state.enemyDarts = [];state.enemyBullets = [];state.potions = [];
   }
-  addFloat(p.x, p.y - 100, '¡JEFE!', '#ff2255');
+  addFloat(p.x, p.y - 100, BOSS_NAMES[kind].toUpperCase(), boss.color);
   state.shake = 25;
   state.flash = 0.5;
   state.flashRGB = '255,60,100';
@@ -67,7 +87,7 @@ function killBoss(b = state.boss) {
   if (!b || b._dying || !livingBosses().includes(b)) return;
   b._dying = true;
   state.firstBossDefeatAt ??= state.time;
-  spawnParticles(b.x, b.y, 80, '#ff2255', 2);
+  spawnParticles(b.x, b.y, 80, b.color, 2);
   spawnParticles(b.x, b.y, 40, '#ffffff', 1.5);
   state.shake = 40;
   state.flash = 0.6;
@@ -163,6 +183,11 @@ function updateBoss(dt, b = state.boss) {
   if (!b) return;
   const p = state.player;
 
+  if (b.pieces) {
+    updateWorm(b,dt);
+    if(b===state.boss)updateArenaHazards(dt);
+    return;
+  }
   b.hitFlash=Math.max(0,b.hitFlash-dt);
   if (b.hp < b.maxHp * 0.5 && b.phase < 2) {
     b.phase = 2;
@@ -241,7 +266,10 @@ function updateBoss(dt, b = state.boss) {
     }
   }
 
-  if (b !== state.boss) return;
+  if (b === state.boss) updateArenaHazards(dt);
+}
+function updateArenaHazards(dt){
+  const p=state.player;
   for (let i = state.bossBombs.length - 1; i >= 0; i--) {
     const bomb = state.bossBombs[i];
     if (bomb.exploded) {

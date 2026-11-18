@@ -31,37 +31,61 @@ function drawExpansionEnemy(e,r){
   }
   ctx.restore();
 }
-// Screen-space fractures meet at the same instant as the simulation resumes.
+let fracture=null;
+function makeFracture(start,end){
+  const rng=makeRng(hash2D(Math.round(start*1000),Math.round(end*1000)));
+  const paths=[],times=[0],steps=Math.max(5,Math.min(40,Math.ceil((end-start)*2.8)));
+  let duration=0;
+  for(let i=0;i<steps;i++){duration+=.4+rng();times.push(duration);}
+  for(let i=1;i<times.length;i++)times[i]/=duration;
+  const count=6+Math.floor(rng()*4),rotation=rng()*TAU;
+  for(let j=0;j<count;j++){
+    const angle=rotation+TAU*(j+rng()*.84)/count,dx=Math.cos(angle),dy=Math.sin(angle);
+    const edge=.51/Math.max(Math.abs(dx),Math.abs(dy)),n=7+Math.floor(rng()*6);
+    const points=[{x:dx*edge,y:dy*edge,at:0}];
+    let bend=0,at=rng()*.17;
+    for(let k=1;k<=n;k++){
+      const t=k/n;
+      bend=.6*bend+(rng()-.5)*.11;
+      const offset=Math.sin(t*Math.PI)*bend,x=dx*edge*(1-t)-dy*offset,y=dy*edge*(1-t)+dx*offset;
+      at+=.45+rng();
+      points.push({x,y,at,branch:k<n && rng()<.45?{x:x+(rng()-.5)*.11,y:y+(rng()-.5)*.13}:null});
+    }
+    for(const p of points)p.at/=at;
+    paths.push(points);
+  }
+  return {start,end,paths,times,step:-1};
+}
+function fractureShake(){
+  const end=state.stopUntil,start=state.stopStarted||0,left=end-state.time;
+  if(!end || left<-.18){fracture=null;return 0;}
+  if(!fracture || fracture.start!==start || fracture.end!==end)fracture=makeFracture(start,end);
+  const progress=clamp(1-left/(end-start||1),0,1);
+  let step=fracture.step;
+  while(step+1<fracture.times.length && fracture.times[step+1]<=progress)step++;
+  if(step!==fracture.step){fracture.step=step;Sfx.play('timeCrack');}
+  const elapsed=state.time-(start+fracture.times[step]*(end-start));
+  return (3+progress*5)*clamp(1-elapsed/.13,0,1);
+}
 function drawTimeFractures(){
-  const end=state.stopUntil,left=end-state.time;
-  if(!end || left<=-.18)return;
-  const progress=clamp(1-left/Math.max(.01,end-(state.stopStarted||0)),0,1);
-  const reach=.05+.95*progress,fade=clamp(1+left/.18,0,1);
-  const short=Math.min(W,H);
+  if(!fracture)return;
+  const left=fracture.end-state.time,fade=clamp(1+left/.18,0,1);
+  const reach=fracture.times[fracture.step];
   ctx.save();ctx.translate(W/2,H/2);
   ctx.fillStyle='#332649';ctx.globalAlpha=.12*fade;ctx.fillRect(-W/2,-H/2,W,H);
-  ctx.globalAlpha=.65*fade;ctx.shadowColor='#ffc46b';ctx.shadowBlur=5;
+  ctx.globalAlpha=.75*fade;ctx.shadowColor='#ffc46b';ctx.shadowBlur=6;
   ctx.strokeStyle='#ffdf9a';ctx.lineWidth=1.35;ctx.beginPath();
-  for(let ray=0;ray<8;ray++){
-    const a=(ray+.31)*TAU/8,dx=Math.cos(a),dy=Math.sin(a);
-    const edge=Math.min(W/(2*Math.abs(dx)),H/(2*Math.abs(dy)));
-    let x=dx*edge,y=dy*edge;ctx.moveTo(x,y);
-    for(let k=1;k<=8;k++){
-      const t=k/8, ripple=Math.sin(k*12.3+ray*2.7)*Math.sin(Math.PI*t)*short*.05;
-      const nx=dx*edge*(1-t)-dy*ripple,ny=dy*edge*(1-t)+dx*ripple;
-      const fraction=clamp(8*reach-k+1,0,1);
-      ctx.lineTo(x+(nx-x)*fraction,y+(ny-y)*fraction);
-      if(fraction<1)break;
-      if(k%3===2){
-        ctx.lineTo(nx-dy*short*.036+dx*short*.025,ny+dx*short*.036+dy*short*.025);
-        ctx.moveTo(nx,ny);
-      }
-      x=nx;y=ny;
+  for(const points of fracture.paths){
+    const origin=points[0];ctx.moveTo(origin.x*W,origin.y*H);
+    for(const p of points.slice(1)){
+      if(p.at>reach)break;
+      ctx.lineTo(p.x*W,p.y*H);
+      if(p.branch){ctx.lineTo(p.branch.x*W,p.branch.y*H);ctx.moveTo(p.x*W,p.y*H);}
     }
   }
-  ctx.stroke();ctx.globalAlpha=fade;ctx.textAlign='center';
-  ctx.font='bold 13px system-ui';ctx.fillStyle='#fff2c9';
-  if(left>0)ctx.fillText(left.toFixed(1)+' s',0,-short*.12);
+  ctx.stroke();ctx.globalAlpha=fade;ctx.textAlign='center';ctx.fillStyle='#fff2c9';
+  ctx.font='bold 13px system-ui';
+  if(left>0)ctx.fillText(left.toFixed(1)+' s',0,-Math.min(W,H)*.12);
   ctx.restore();
 }
 function drawExpansionWorld(){

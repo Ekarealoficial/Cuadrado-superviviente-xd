@@ -29,6 +29,7 @@ function prepareMotion(old,next,now){
     (next[group]||[]).forEach((e,i)=>track(group,e,i));
   }
   if(next.boss){
+    for(const piece of next.boss.pieces||[])for(const seg of piece.parts)track('worm',seg,seg.segmentId);
     track('boss',next.boss,0);
     next.boss.balls.forEach((e,i)=>track('ball',e,i));
   }
@@ -130,7 +131,7 @@ function predictLocalFrame(now,dt){
       const travel=Math.hypot(b.x-b.prevX,b.y-b.prevY);
       const targets=enemyGrid.query(b.x,b.y,45+b.r+travel);
       if(state.boss){
-        targets.push(state.boss,...state.boss.balls.filter(ball=>ball.state!=='attached'));
+        targets.push(...bossTargets(),...state.boss.balls.filter(ball=>ball.state!=='attached'));
       }
       if(targets.some(e=>bulletEntry(b,e,(e.size?e.size/2:e.r)+b.r)!==Infinity))b.life=0;
     }
