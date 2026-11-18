@@ -35,8 +35,7 @@ function update(dt, worldStep = true) {
   if (state.bossActive && state.arena) currentWalls = currentWalls.concat(state.arena.walls);
 
   if (state.over) { state.overTimer += dt; return; }
-  if (state.cardChoices) return;
-  if (state.inventoryOpen) return;
+  if (playMode !== 'online' && (state.cardChoices || state.inventoryOpen)) return;
 
   if (worldStep) state.time += dt;
   state.levelTimer += dt;
@@ -69,9 +68,42 @@ function update(dt, worldStep = true) {
   update_darts(dt);
 }
 
+function projectileImpact(target, bullet, factor = 1) {
+  const p = state.player;
+  poisonHit(target, bullet);
+  if (p.frost) {
+    target.slow = Math.max(target.slowUntil > state.time ? target.slow : 0, Math.min(1, p.frost / 10));
+    target.slowUntil = state.time + 2;
+  }
+  const damage = bullet.damage * attackMultiplier() * factor;
+  target.hp -= damage;
+  if (!p.explosive || gameRandom() >= stackingChance(.15, p.explosive)) return;
+  spawnParticles(bullet.x, bullet.y, 22, '#ff9c52', 1.4);
+  Sfx.play('explode', 80);
+  target.hp -= damage;
+  for (const e of state.enemies.slice()) {
+    if (e === target || e._dying || Math.hypot(e.x-bullet.x,e.y-bullet.y) > 80+e.size/2) continue;
+    e.hp -= damage;
+    e.hitFlash = .15;
+    if (e.hp <= 0) killEnemy(state.enemies.indexOf(e));
+  }
+  const boss = state.boss;
+  if (boss && boss !== target && Math.hypot(boss.x-bullet.x,boss.y-bullet.y) <= 80+boss.size/2) {
+    boss.hp -= damage;
+    if (boss.hp <= 0) killBoss();
+  }
+}
+function moveTime(entity,dt) {
+  return entity.slowUntil > state.time ? dt * (1 - entity.slow) : dt;
+}
+const poisonOwners = new WeakMap();
 function poisonHit(target, bullet) {
   if (!bullet.venom) return;
-  target.venomDps=Math.max(target.venomDps||0,bullet.venom*state.playerDamageMult);
+  const dps = bullet.venom * attackMultiplier();
+  if (!(target.venomTime > 0) || dps >= target.venomDps) {
+    target.venomDps = dps;
+    poisonOwners.set(target, state);
+  }
   target.venomTime=Math.max(target.venomTime||0,2+bullet.venom);
 }
 
@@ -108,14 +140,21 @@ function updateCardFields(dt,worldStep) {
     if(e._dying)continue;
     let damage=0;
     if(worldStep && e.venomTime>0){
-      damage+=e.venomDps*Math.min(dt,e.venomTime);
+      e.hp-=e.venomDps*Math.min(dt,e.venomTime);
+      if (e.hp <= 0) {
+        const active = state;
+        state = poisonOwners.get(e) || active;
+        if (e === state.boss) killBoss(); else killEnemy(state.enemies.indexOf(e));
+        state = active;
+        continue;
+      }
       e.venomTime-=dt;
       if(e.venomTime<=0)e.venomDps=0;
     }
     if(p.field){
       const f=p.field,dx=f.x-e.x,dy=f.y-e.y,d=Math.hypot(dx,dy);
       if(d<=f.r+e.size/2){
-        if(f.time<=0)damage+=(3+2*p.gravity)*state.playerDamageMult;
+        if(f.time<=0)damage+=(3+2*p.gravity)*attackMultiplier();
         else if(e!==state.boss && d>1){
           const pull=Math.min(d,180*dt)/d;
           moveWithWalls(e,dx*pull,dy*pull,currentWalls);
@@ -123,9 +162,9 @@ function updateCardFields(dt,worldStep) {
       }
     }
     for(const blade of p.blades)if(Math.hypot(e.x-blade.x,e.y-blade.y)<e.size/2+13)
-      damage+=12*dt*state.playerDamageMult;
+      damage+=12*dt*attackMultiplier();
     if(p.frameTime>0 && Math.hypot(p.vx,p.vy)>30 && Math.hypot(e.x-p.x,e.y-p.y)<(e.size+p.size)/2+5){
-      damage+=(14+5*state.specialCards.frames.totalCards)*dt*state.playerDamageMult;
+      damage+=(14+5*state.specialCards.frames.totalCards)*dt*attackMultiplier();
       e.hitFlash=.12;
       if(!p.impact || state.time-p.impact.born>.14)
         p.impact={x:(p.x+e.x)/2,y:(p.y+e.y)/2,born:state.time};
@@ -203,7 +242,7 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
         const e = state.enemies[i];
         if (isOnScreen(e.x, e.y)) {
           state.lightningStrikes.push({ x: e.x, y: e.y, timer: 0.3, maxTimer: 0.3 });
-          e.hp -= 3 * state.playerDamageMult;
+          e.hp -= 3 * attackMultiplier();
           e.hitFlash = 0.15;
           anyHit = true;
           if (e.hp <= 0) killEnemy(i);
@@ -211,7 +250,7 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
       }
       if (state.boss && isOnScreen(state.boss.x, state.boss.y)) {
         state.lightningStrikes.push({ x: state.boss.x, y: state.boss.y, timer: 0.3, maxTimer: 0.3 });
-        state.boss.hp -= 3 * state.playerDamageMult;
+        state.boss.hp -= 3 * attackMultiplier();
         state.boss.hitFlash = 0.15;
         anyHit = true;
         if (state.boss.hp <= 0) killBoss();
@@ -236,20 +275,18 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
 
 }
 
-function update_movementAndWeapons(dt, worldStep = true) {
-  const p=state.player;
+function movementDirection() {
+  return {
+    x: Number(!!(keys.d || keys.arrowright)) - Number(!!(keys.a || keys.arrowleft)),
+    y: Number(!!(keys.s || keys.arrowdown)) - Number(!!(keys.w || keys.arrowup))
+  };
+}
+function movePlayer(p,dt,dx,dy,walls) {
   // Movimiento (con dash)
   if (p.dashTimer > 0) {
     p.vx = Math.cos(p.dashAngle) * 1650;
     p.vy = Math.sin(p.dashAngle) * 1650;
-    p.invuln = Math.max(p.invuln, 0.05);
-    spawnParticles(p.x, p.y, 1, '#22d3ee', 0.7);
   } else {
-    let dx = 0, dy = 0;
-    if (keys['a'] || keys['arrowleft'])  dx -= 1;
-    if (keys['d'] || keys['arrowright']) dx += 1;
-    if (keys['w'] || keys['arrowup'])    dy -= 1;
-    if (keys['s'] || keys['arrowdown'])  dy += 1;
     const moving = (dx !== 0 || dy !== 0);
     if (moving) { const l = Math.hypot(dx, dy); dx /= l; dy /= l; }
     const response = moving ? 16 : 11;
@@ -257,10 +294,20 @@ function update_movementAndWeapons(dt, worldStep = true) {
     p.vx += (dx * p.speed * (p.frameTime>0 ? 4 : 1) - p.vx) * k;
     p.vy += (dy * p.speed * (p.frameTime>0 ? 4 : 1) - p.vy) * k;
   }
-  const res = moveWithWalls(p, p.vx * dt, p.vy * dt, currentWalls);
+  const res = moveWithWalls(p, p.vx * dt, p.vy * dt, walls);
   if (res.blockedX) p.vx = 0;
   if (res.blockedY) p.vy = 0;
 
+}
+
+function update_movementAndWeapons(dt, worldStep = true) {
+  const p=state.player;
+  const direction = movementDirection();
+  movePlayer(p,dt,direction.x,direction.y,currentWalls);
+  if (p.dashTimer > 0) {
+    p.invuln = Math.max(p.invuln, 0.05);
+    spawnParticles(p.x, p.y, 1, '#22d3ee', 0.7);
+  }
   // Fin del dash
   if (p.dashTimer > 0) {
     p.dashTimer -= dt;
@@ -519,6 +566,8 @@ function update_enemyAI(dt) {
   const despawnDist = Math.max(W, H) * 1.0 + 900;
   for (let i = state.enemies.length - 1; i >= 0; i--) {
     const e = state.enemies[i];
+    if (!e) continue;
+    const travel = moveTime(e,dt);
     const toPx = p.x - e.x, toPy = p.y - e.y;
     const distToPlayer = Math.hypot(toPx, toPy) || 1;
 
@@ -545,7 +594,7 @@ function update_enemyAI(dt) {
       const mlen = Math.hypot(mvx, mvy);
       if (mlen > 0.001) { mvx /= mlen; mvy /= mlen; }
       e.wob += dt * 3.2;
-      moveWithWalls(e, mvx * e.speed * dt, mvy * e.speed * dt, currentWalls);
+      moveWithWalls(e, mvx * e.speed * travel, mvy * e.speed * travel, currentWalls);
       e.shootCd -= dt;
       if (e.shootCd <= 0 && distToPlayer < 560) {
         let hasLos = true;
@@ -569,13 +618,13 @@ function update_enemyAI(dt) {
       mvx += -dirY * Math.sin(e.wob) * 0.4;
       mvy += dirX * Math.sin(e.wob) * 0.4;
       const ml = Math.hypot(mvx, mvy) || 1;
-      moveWithWalls(e, (mvx/ml) * e.speed * dt, (mvy/ml) * e.speed * dt, currentWalls);
+      moveWithWalls(e, (mvx/ml) * e.speed * travel, (mvy/ml) * e.speed * travel, currentWalls);
       e.shootCd -= dt;
       if (e.shootCd <= 0) { summonEnemies(e); e.shootCd = 5 + gameRandom() * 2; Sfx.play('teleport', 150); }
     } else if (e.type === 'teleporter') {
       const dirX = toPx / distToPlayer, dirY = toPy / distToPlayer;
       e.wob += dt * 4;
-      moveWithWalls(e, dirX * e.speed * dt, dirY * e.speed * dt, currentWalls);
+      moveWithWalls(e, dirX * e.speed * travel, dirY * e.speed * travel, currentWalls);
       e.shootCd -= dt;
       if (e.shootCd <= 0) {
         for (let attempt = 0; attempt < 8; attempt++) {
@@ -594,7 +643,7 @@ function update_enemyAI(dt) {
       }
     } else if (e.type === 'kamikaze') {
       const dirX = toPx / distToPlayer, dirY = toPy / distToPlayer;
-      moveWithWalls(e, dirX * e.speed * dt, dirY * e.speed * dt, currentWalls);
+      moveWithWalls(e, dirX * e.speed * travel, dirY * e.speed * travel, currentWalls);
       if (distToPlayer < 55) { killEnemy(i); continue; }
     } else if (e.type === 'dardante') {
       const dirX = toPx / distToPlayer, dirY = toPy / distToPlayer;
@@ -606,7 +655,7 @@ function update_enemyAI(dt) {
       mvx += -dirY * Math.sin(e.wob) * 0.5;
       mvy += dirX * Math.sin(e.wob) * 0.5;
       const ml = Math.hypot(mvx, mvy) || 1;
-      moveWithWalls(e, (mvx/ml) * e.speed * dt, (mvy/ml) * e.speed * dt, currentWalls);
+      moveWithWalls(e, (mvx/ml) * e.speed * travel, (mvy/ml) * e.speed * travel, currentWalls);
       e.shootCd -= dt;
       const activeCount = e.activeDarts || 0;
       if (e.shootCd <= 0 && activeCount < 4 && distToPlayer < 500) {
@@ -636,7 +685,7 @@ function update_enemyAI(dt) {
         if (e.jTimer <= 0) { e.jState = 'dashing'; e.jTimer = 0.6; Sfx.play('dash', 100); }
       } else if (e.jState === 'dashing') {
         e.jTimer -= dt;
-        const res2 = moveWithWalls(e, Math.cos(e.jAngle) * 1800 * dt, Math.sin(e.jAngle) * 1800 * dt, currentWalls);
+        const res2 = moveWithWalls(e, Math.cos(e.jAngle) * 1800 * travel, Math.sin(e.jAngle) * 1800 * travel, currentWalls);
         if (!e.jHit && p.invuln <= 0) {
           const ddx = p.x - e.x, ddy = p.y - e.y;
           const rr = (e.size + p.size) * 0.5;
@@ -654,7 +703,7 @@ function update_enemyAI(dt) {
       let nx = ax - ay * perp, ny = ay + ax * perp;
       const nl = Math.hypot(nx, ny) || 1;
       nx /= nl; ny /= nl;
-      moveWithWalls(e, nx * e.speed * dt, ny * e.speed * dt, currentWalls);
+      moveWithWalls(e, nx * e.speed * travel, ny * e.speed * travel, currentWalls);
     }
     if (e.hitFlash > 0) e.hitFlash -= dt;
     if (distToPlayer > despawnDist) state.enemies.splice(i, 1);
@@ -701,8 +750,7 @@ function update_projectileHits(dt) {
       const ddx = b.x - e.x, ddy = b.y - e.y;
       const rr = e.size/2 + b.r;
       if (ddx*ddx + ddy*ddy < rr*rr) {
-        poisonHit(e,b);
-        e.hp -= b.damage * state.playerDamageMult;
+        projectileImpact(e, b);
         e.hitFlash = 0.12;
         hit = true;
         spawnParticles(b.x, b.y, 5, e.color, 0.6);
@@ -754,8 +802,7 @@ function update_bossHits(dt) {
       const ddx = b.x - b0.x, ddy = b.y - b0.y;
       const rr = b0.size/2 + b.r;
       if (ddx*ddx + ddy*ddy < rr*rr) {
-        poisonHit(b0,b);
-        b0.hp -= b.damage * state.playerDamageMult;
+        projectileImpact(b0, b);
         b0.hitFlash = 0.1;
         spawnParticles(b.x, b.y, 5, '#ff2255', 0.6);
         if (b.bounces > 0) {
@@ -780,8 +827,7 @@ function update_bossHits(dt) {
           const ddx = b.x - ball.x, ddy = b.y - ball.y;
           const rr = ball.r + b.r;
           if (ddx*ddx + ddy*ddy < rr*rr) {
-            poisonHit(state.boss,b);
-            state.boss.hp -= b.damage * state.playerDamageMult * 0.5;
+            projectileImpact(state.boss, b, 0.5);
             state.boss.hitFlash = 0.1;
             spawnParticles(b.x, b.y, 5, '#ff2255', 0.6);
             if (b.bounces > 0) {
@@ -991,7 +1037,7 @@ function update_darts(dt) {
             const e2 = state.enemies[j];
             const edx = e2.x - d.x, edy = e2.y - d.y;
             if (edx*edx + edy*edy < radius*radius) {
-              e2.hp -= 3 * state.playerDamageMult;
+              e2.hp -= 3 * attackMultiplier();
               e2.hitFlash = 0.15;
               if (e2.hp <= 0) killEnemy(j);
             }
@@ -999,7 +1045,7 @@ function update_darts(dt) {
           if (state.boss) {
             const edx = state.boss.x - d.x, edy = state.boss.y - d.y;
             if (edx*edx + edy*edy < radius*radius) {
-              state.boss.hp -= 3 * state.playerDamageMult;
+              state.boss.hp -= 3 * attackMultiplier();
               if (state.boss.hp <= 0) killBoss();
             }
           }
@@ -1009,14 +1055,14 @@ function update_darts(dt) {
         } else {
           if (targetIsBoss) {
             if (state.boss) {
-              state.boss.hp -= (d.target === state.boss ? 1 : BALANCE.ballDamage) * state.playerDamageMult;
+              state.boss.hp -= (d.target === state.boss ? 1 : BALANCE.ballDamage) * attackMultiplier();
               state.boss.hitFlash = 0.12;
               if (state.boss.hp <= 0) killBoss();
             }
           } else {
             const idx = state.enemies.indexOf(d.target);
             if (idx !== -1) {
-              d.target.hp -= 1 * state.playerDamageMult;
+              d.target.hp -= 1 * attackMultiplier();
               d.target.hitFlash = 0.12;
               if (d.target.hp <= 0) killEnemy(idx);
             }

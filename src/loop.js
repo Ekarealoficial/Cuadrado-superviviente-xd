@@ -8,7 +8,7 @@ function loop(now) {
   if (dt > 0.05) dt = 0.05;
   if (playMode !== 'menu') {
     if (playMode === 'solo') update(dt);
-    else animateMotion(now);
+    else { animateMotion(now); predictLocalFrame(now,dt); }
     updateUILayout();
     render();
   }

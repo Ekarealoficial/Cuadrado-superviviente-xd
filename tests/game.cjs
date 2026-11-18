@@ -41,3 +41,39 @@ test('El veneno dura más y causa daño progresivo',()=>{
   run("const target=createEnemy('tank',0,0);state.enemies.push(target);poisonHit(target,{venom:2});updateCardFields(.5,true)");
   assert.equal(run('target.hp'),6);assert.equal(run('target.venomTime'),3.5);
 });
+test('Vampirismo cambia de ciclo a las 16 y 32 copias',()=>{
+  for(const [n,kills,heal] of [[1,15,1],[15,1,1],[16,16,2],[17,15,2],[32,16,3]]){
+    const run=game();
+    run('state.halfHearts=2;state.player.vampirism='+n+';for(let i=1;i<'+kills+';i++)recordKill()');
+    assert.equal(run('state.halfHearts'),2);
+    assert.equal(run('recordKill();state.halfHearts'),2+heal);
+  }
+});
+test('Probabilidades compuestas, crítico por ciclos y furia según la vida',()=>{
+  const run=game();
+  assert.ok(Math.abs(run('stackingChance(.15,3)')-.3375)<1e-10);
+  assert.equal(run('stackingChance(.1,20)'),1);
+  run('gameRandom=()=>.09');
+  for(const [n,mult] of [[1,2],[18,2],[19,3],[37,4]]){
+    assert.equal(run('state.player.critical='+n+';attackMultiplier()'),mult);
+  }
+  assert.equal(run('gameRandom=()=>.11;state.player.critical=19;attackMultiplier()'),1);
+  assert.equal(run('state.player.fury=2;state.halfHearts=4;attackMultiplier()'),1.5);
+  assert.equal(run('state.player.armor=2;damagePlayer(1);state.halfHearts'),4);
+});
+test('La explosión alcanza vecinos y congelación se extingue a los dos segundos',()=>{
+  const run=game();
+  run("const a=createEnemy('tank',100,0),b=createEnemy('tank',135,0),c=createEnemy('tank',300,0);state.enemies=[a,b,c];state.player.explosive=10;state.player.frost=3;projectileImpact(a,{x:100,y:0,damage:1})");
+  assert.equal(run('a.maxHp-a.hp'),2);
+  assert.equal(run('b.maxHp-b.hp'),1);
+  assert.equal(run('c.maxHp-c.hp'),0);
+  assert.equal(run('moveTime(a,1)'),.7);
+  assert.equal(run('state.time=2;moveTime(a,1)'),1);
+});
+test('El primer cuadro local mueve, apunta y dispara antes de una respuesta de red',()=>{
+  const run=game();
+  run("playMode='online';keys.d=true;mouse.y=H;mouse.down=true;predictLocalFrame(16,.016);render()");
+  assert.ok(run('state.player.x>0 && state.player.angle>1 && previewShots.length===1 && !state.bullets.length'));
+  run('const next=JSON.parse(JSON.stringify(state));next.selfId=2;next.player.volley=1;next.bullets=[{...previewShots[0],shooterId:2,netId:1}];prepareMotion(state,next,50)');
+  assert.equal(run('previewShots.length'),0);
+});

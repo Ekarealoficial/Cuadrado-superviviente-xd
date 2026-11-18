@@ -53,7 +53,7 @@ function killBoss() {
   state.flash = 0.6;
   state.flashRGB = '255,60,100';
   state.score += 5000;
-  state.kills++;
+  recordKill();
   addFloat(b.x, b.y - 60, '¡JEFE DERROTADO!', '#ffd54a');
   Sfx.play('bossdie');
   for (let i = 0; i < 25; i++) spawnOrbs(b.x + gameRand(-150, 150), b.y + gameRand(-150, 150), 6);
@@ -160,8 +160,8 @@ function updateBoss(dt) {
   const dist = Math.hypot(toPx, toPy) || 1;
 
   if (b.state === 'idle') {
-    b.x += (toPx / dist) * 60 * dt;
-    b.y += (toPy / dist) * 60 * dt;
+    b.x += (toPx / dist) * 60 * moveTime(b,dt);
+    b.y += (toPy / dist) * 60 * moveTime(b,dt);
     b.timer -= dt;
     if (b.timer <= 0) {
       const attacks = ['dash', 'bombs', 'balls'];
@@ -173,8 +173,8 @@ function updateBoss(dt) {
     if (b.timer <= 0) { b.state = 'dash'; b.timer = 0.55; Sfx.play('dash', 100); }
   } else if (b.state === 'dash') {
     b.timer -= dt;
-    b.x += Math.cos(b.dashAngle) * 1600 * dt;
-    b.y += Math.sin(b.dashAngle) * 1600 * dt;
+    b.x += Math.cos(b.dashAngle) * 1600 * moveTime(b,dt);
+    b.y += Math.sin(b.dashAngle) * 1600 * moveTime(b,dt);
     if (p.invuln <= 0) {
       const ddx = p.x - b.x, ddy = p.y - b.y;
       const rr = (b.size/2 + p.size/2);

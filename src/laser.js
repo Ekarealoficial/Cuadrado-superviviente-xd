@@ -26,7 +26,7 @@ function updateLasersFiring(dt) {
       for (let j = state.enemies.length - 1; j >= 0; j--) {
         const e = state.enemies[j];
         if (laserHits(e.x, e.y, e.size / 2, p.x, p.y, angle, lf.width, range)) {
-          e.hp -= lf.damage * dt * state.playerDamageMult;
+          e.hp -= lf.damage * dt * attackMultiplier();
           e.hitFlash = 0.05;
           if (e.hp <= 0) killEnemy(j);
         }
@@ -34,14 +34,14 @@ function updateLasersFiring(dt) {
       if (state.boss) {
         const b = state.boss;
         if (laserHits(b.x, b.y, b.size / 2, p.x, p.y, angle, lf.width, range)) {
-          b.hp -= lf.damage * dt * state.playerDamageMult;
+          b.hp -= lf.damage * dt * attackMultiplier();
           b.hitFlash = 0.05;
           if (b.hp <= 0) killBoss();
         }
         for (const ball of b.balls) {
           if (ball.state === 'attached') continue;
           if (laserHits(ball.x, ball.y, ball.r, p.x, p.y, angle, lf.width, range)) {
-            b.hp -= lf.damage * dt * state.playerDamageMult * 0.5;
+            b.hp -= lf.damage * dt * attackMultiplier() * 0.5;
             if (b.hp <= 0) { killBoss(); break; }
           }
         }

@@ -3,7 +3,7 @@ let netSession=null, queuedActions=[], inventoryChoice=null;
 const multiplayerServer = String(window.MULTIPLAYER_SERVER_URL || '').replace(/\/$/, '');
 function handleNetKey(e){
   const k=e.key.toLowerCase();
-  if(k==='e'||(k==='escape'&&state.inventoryOpen)) queuedActions.push({kind:'inventory'});
+  if(k==='e'||(k==='escape'&&state.inventoryOpen)){ if(!e.repeat)queuedActions.push({kind:'inventory'}); }
   else if(/^[1-5]$/.test(k)) queuedActions.push({kind:state.cardChoices?'pick':'slot',i:Number(k)-1});
   else if(k!=='r')return false;
   e.preventDefault();return true;
@@ -103,7 +103,7 @@ function initializeMenu(){
     const profile={name:identity.elements.nick.value.trim(),color:identity.elements.color.value};
     try{
       const r=await roomRequest(creating?'create':'join',{code,settings:multiplayerSettings,profile});
-      motion=[];receivedAt=0;
+      resetPresentation();
       rules={...r.settings,color:profile.color};state=r.state;netSession={code:r.code,token:r.token};start('online');
       function accept(next,session){
         prepareMotion(state,next,performance.now());
@@ -128,22 +128,30 @@ function initializeMenu(){
         }catch{}finally{streaming=false;}
       }
       receive(netSession);
+      let inFlight=0;
       let previousInput='',lastInputAt=0;
       async function sync(session){
         if(session!==netSession)return;
         const sent=performance.now();
-        const input={dx:(mouse.x-W/2)/state.cam.zoom,dy:(mouse.y-H/2)/state.cam.zoom,fire:mouse.down};
+        const aim=getWorldMouse();
+        const angle=Math.atan2(aim.y-state.player.y,aim.x-state.player.x);
+        const input={angle:Math.round(angle*1000)/1000,dx:(mouse.x-W/2)/state.cam.zoom,dy:(mouse.y-H/2)/state.cam.zoom,fire:mouse.down};
         for(const [k,arrow] of Object.entries({w:'arrowup',a:'arrowleft',s:'arrowdown',d:'arrowright'}))input[k]=Boolean(keys[k]||keys[arrow]);
         try{
           const currentInput=JSON.stringify(input);
-          if(streaming && !queuedActions.length && currentInput===previousInput && sent-lastInputAt<1000){
+          if(streaming && !pendingTap && !queuedActions.length && currentInput===previousInput && sent-lastInputAt<1000){
             setTimeout(()=>sync(session),16);return;
           }
           previousInput=currentInput;lastInputAt=sent;
+          input.stamp=sent; input.tap=pendingTap; pendingTap=false;
+          const pipeline = streaming && !queuedActions.length && inFlight<3;
+          inFlight++;
+          if(pipeline)setTimeout(()=>sync(session),25);
           const next=await roomRequest(streaming?'input':'step',{...session,input,actions:queuedActions.splice(0)});
           if(session!==netSession)return;
+          inFlight--;
           if(!streaming && next.player)accept(next,session);
-          setTimeout(()=>sync(session),Math.max(0,33-(performance.now()-sent)));
+          if(!pipeline)setTimeout(()=>sync(session),Math.max(0,33-(performance.now()-sent)));
         }catch(err){if(session===netSession)end(err.message);}
       }
       sync(netSession);

@@ -149,47 +149,14 @@ function render() {
     }
     ctx.restore();
   }
-  // Jugador
-  if (!state.over) {
-    const speed = Math.hypot(p.vx, p.vy);
-    if (speed > 60) {
-      for (let i = 1; i <= 3; i++) {
-        const t = i * 0.045;
-        ctx.globalAlpha = 0.18 / i;
-        ctx.fillStyle = p.dashTimer > 0 ? '#22d3ee' : '#4df3ff';
-        ctx.fillRect(p.x - p.vx*t - p.size/2, p.y - p.vy*t - p.size/2, p.size, p.size);
-      }
-      ctx.globalAlpha = 1;
-    }
-    const blink = p.invuln > 0 && Math.floor(p.invuln * 18) % 2 === 0;
-    ctx.save();
-    ctx.translate(p.x, p.y);
-    ctx.save();
-    ctx.rotate(p.angle);
-    ctx.shadowColor = p.dashTimer > 0 ? '#22d3ee' : '#4df3ff';
-    ctx.shadowBlur = 12;
-    ctx.fillStyle = '#d9fdff';
-    ctx.fillRect(p.size/2 - 6, -4, 18, 8);
-    if (p.backShots > 0) {
-      ctx.fillStyle = '#c77dff'; ctx.shadowColor = '#c77dff';
-      ctx.fillRect(-p.size/2 - 12, -4, 18, 8);
-    }
-    ctx.restore();
-    ctx.shadowColor = p.dashTimer > 0 ? '#22d3ee' : '#4df3ff';
-    ctx.shadowBlur = 22;
-    ctx.fillStyle = blink ? 'rgba(255,255,255,0.25)' : (p.color || rules.color);
-    const h = p.size / 2;
-    ctx.fillRect(-h, -h, p.size, p.size);
-    ctx.shadowBlur = 0;
-    ctx.fillStyle = 'rgba(255,255,255,0.85)';
-    ctx.fillRect(-5, -5, 10, 10);
-    ctx.restore();
-  }
-
+  if (!state.over) drawPlayerBody(p);
   for (const other of state.peers || []) {
     if (other.over) continue;
-    ctx.fillStyle = other.color;
-    ctx.fillRect(other.x-15, other.y-15, 30, 30);
+    if (other.drones) {
+      renderEntities4(other,other); renderEntities5(other,other); renderEntities6(other,other);
+      renderEntities7(other,other); renderEntities8(other,other);
+    }
+    drawPlayerBody(other);
     ctx.fillStyle = '#fff';
     ctx.textAlign = 'center';
     ctx.font = 'bold 15px system-ui';
@@ -235,6 +202,44 @@ function render() {
 }
 
 const heardCardEffects={};
+  // Jugador
+function drawPlayerBody(p) {
+    if (!Number.isFinite(p.size)) p = {...p,size:30,vx:0,vy:0,angle:0};
+    const speed = Math.hypot(p.vx, p.vy);
+    if (speed > 60) {
+      for (let i = 1; i <= 3; i++) {
+        const t = i * 0.045;
+        ctx.globalAlpha = 0.18 / i;
+        ctx.fillStyle = p.dashTimer > 0 ? '#22d3ee' : '#4df3ff';
+        ctx.fillRect(p.x - p.vx*t - p.size/2, p.y - p.vy*t - p.size/2, p.size, p.size);
+      }
+      ctx.globalAlpha = 1;
+    }
+    const blink = p.invuln > 0 && Math.floor(p.invuln * 18) % 2 === 0;
+    ctx.save();
+    ctx.translate(p.x, p.y);
+    ctx.save();
+    ctx.rotate(p.angle);
+    ctx.shadowColor = p.dashTimer > 0 ? '#22d3ee' : '#4df3ff';
+    ctx.shadowBlur = 12;
+    ctx.fillStyle = '#d9fdff';
+    ctx.fillRect(p.size/2 - 6, -4, 18, 8);
+    if (p.backShots > 0) {
+      ctx.fillStyle = '#c77dff'; ctx.shadowColor = '#c77dff';
+      ctx.fillRect(-p.size/2 - 12, -4, 18, 8);
+    }
+    ctx.restore();
+    ctx.shadowColor = p.dashTimer > 0 ? '#22d3ee' : '#4df3ff';
+    ctx.shadowBlur = 22;
+    ctx.fillStyle = blink ? 'rgba(255,255,255,0.25)' : (p.color || rules.color);
+    const h = p.size / 2;
+    ctx.fillRect(-h, -h, p.size, p.size);
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    ctx.fillRect(-5, -5, 10, 10);
+    ctx.restore();
+  }
+
 function drawCardFeedback(body){
   const own=body===state.player;
   function sound(name,event){
@@ -292,7 +297,7 @@ function renderEntities0() {
     const r = e.size / 2;
     ctx.save();
     ctx.shadowColor = e.color; ctx.shadowBlur = 18;
-    ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : e.color;
+    ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : e.slowUntil > state.time ? '#85eaff' : e.color;
     ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, TAU); ctx.fill();
     ctx.shadowBlur = 0;
     if (e.type === 'shooter') {
@@ -536,7 +541,7 @@ function renderEntities2() {
  const p=state.player;
   // Balas jugador
   ctx.save();
-  for (const b of state.bullets) {
+  for (const b of (playMode==='online' && previewShots.length ? state.bullets.concat(previewShots) : state.bullets)) {
     if (b.dupli > 0) { ctx.shadowColor = '#ff4dd2'; ctx.shadowBlur = 16; ctx.fillStyle = '#ffd1f0'; }
     else if (b.homing) { ctx.shadowColor = '#a855f7'; ctx.shadowBlur = 16; ctx.fillStyle = '#e9d5ff'; }
     else if (b.drone) { ctx.shadowColor = '#4dff88'; ctx.shadowBlur = 14; ctx.fillStyle = '#d9ffe3'; }
@@ -577,11 +582,10 @@ function renderEntities3() {
 
 
 }
-function renderEntities4() {
- const p=state.player;
+function renderEntities4(view=state,p=state.player) {
   // Drones
-  if (!state.over) {
-    for (const d of state.drones) {
+  if (!view.over) {
+    for (const d of view.drones) {
       ctx.save();
       ctx.translate(d.x, d.y);
       ctx.save();
@@ -604,11 +608,10 @@ function renderEntities4() {
 
 
 }
-function renderEntities5() {
- const p=state.player;
+function renderEntities5(view=state,p=state.player) {
   // Dardos jugador
-  if (!state.over) {
-    for (const d of state.darts) {
+  if (!view.over) {
+    for (const d of view.darts) {
       ctx.save();
       ctx.translate(d.x, d.y); ctx.rotate(d.angle + Math.PI/2);
       if (d.type === 'explosive') {
@@ -630,11 +633,10 @@ function renderEntities5() {
 
 
 }
-function renderEntities6() {
- const p=state.player;
+function renderEntities6(view=state,p=state.player) {
   // Escudos
-  if (!state.over) {
-    for (const sh of state.shields) {
+  if (!view.over) {
+    for (const sh of view.shields) {
       const hpRatio = sh.hp / sh.maxHp;
       ctx.save();
       ctx.translate(sh.x, sh.y);
@@ -653,11 +655,10 @@ function renderEntities6() {
 
 
 }
-function renderEntities7() {
- const p=state.player;
+function renderEntities7(view=state,p=state.player) {
   // LÁSER: CARGA
-  if (state.laserCharging) {
-    const t = state.laserChargeTime;
+  if (view.laserCharging) {
+    const t = view.laserChargeTime;
     const width = 20 + t * 25;
     const range = 2000;
     const angle = p.angle;
@@ -694,10 +695,9 @@ function renderEntities7() {
 
 
 }
-function renderEntities8() {
- const p=state.player;
+function renderEntities8(view=state,p=state.player) {
   // Rayos activos
-  for (const lf of state.lasersFiring) {
+  for (const lf of view.lasersFiring) {
     for (let k = 0; k < lf.count; k++) {
       const angle = p.angle + lf.sweep + (k / lf.count) * TAU;
       const range = 2000;

@@ -18,6 +18,11 @@ window.addEventListener('keydown', e => {
   ensureAudio();
   const k = e.key.toLowerCase();
 
+  if (playMode === 'online') {
+    keys[k] = true;
+    if (['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)) e.preventDefault();
+    return;
+  }
   if (state.cardChoices) {
     if (k === '1' || k === '2' || k === '3') {
       const idx = parseInt(k) - 1;
@@ -102,6 +107,7 @@ canvas.addEventListener('mousedown', e => {
       return;
     }
     mouse.down = true;
+    if (playMode === 'online') { pendingTap = true; previewTap = true; }
   } else if (e.button === 2) {
     if (state.inventoryOpen) {
       for (let i = 0; i < state.inventorySlotRects.length; i++) {

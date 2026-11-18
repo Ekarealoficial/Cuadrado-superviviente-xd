@@ -20,6 +20,7 @@ function pickRandomCards(n) {
   return picked;
 }
 function openCardSelection() {
+  if (playMode === 'online') state.inventoryOpen = false;
   state.cardChoices = pickRandomCards(3);
   mouse.down = false;
   state.laserCharging = false;

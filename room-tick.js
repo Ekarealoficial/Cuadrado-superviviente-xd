@@ -1,4 +1,5 @@
 (() => {
+  playMode = 'online';
   rules = settings;
   configureCardUpgrades();
   const world = newState();
@@ -15,7 +16,7 @@
     party.set(id,{state:personal,profile,input:{},actions:[]});
   }
   function tick(dt) {
-    const ready = [...party.values()].filter(m=>!m.state.over && !m.state.inventoryOpen && !m.state.cardChoices);
+    const ready = [...party.values()].filter(m=>!m.state.over);
     const focus = ready[Math.floor(world.time/3)%ready.length];
     for (const member of new Set([focus,...party.values()])) {
       if (!member) continue;
@@ -24,7 +25,18 @@
       for (const key of ['w','a','s','d']) keys[key]=Boolean(input[key]);
       mouse.x = W/2 + (input.dx || 0);
       mouse.y = H/2 + (input.dy || 0);
-      mouse.down = Boolean(input.fire);
+      if (Number.isFinite(input.angle)) {
+        const p = state.player;
+        mouse.x = W/2 + (p.x - state.cam.x + 1000*Math.cos(input.angle))*state.cam.zoom;
+        mouse.y = H/2 + (p.y - state.cam.y + 1000*Math.sin(input.angle))*state.cam.zoom;
+      }
+      mouse.down = Boolean(input.fire || member.tap);
+      member.tap = false;
+      if (member.applied !== input) {
+        member.applied = input;
+        member.inputTime = input.stamp;
+      }
+      if (Number.isFinite(member.inputTime)) member.inputTime += dt * 1000;
       for (const action of member.actions.splice(0)) {
         if (state.over) continue;
         if (action.kind==='pick' && state.cardChoices?.[action.i]) pickCard(state.cardChoices[action.i]);
@@ -32,6 +44,7 @@
         if (action.kind==='slot' && !state.inventoryOpen && !state.cardChoices) useSlot(action.i);
         if (action.kind==='equip' && state.inventoryOpen && (action.card===null || state.specialCards[action.card]?.totalCards>0)) state.slots[action.i]=action.card;
       }
+      if (state.inventoryOpen || state.cardChoices) mouse.down = false;
       update(dt,member===focus);
       // The focus advances boss AI once. Its active attacks can hit every player.
       if(world.boss && member!==focus && !state.over && state.player.invuln<=0){
@@ -55,8 +68,10 @@
           if(victim===attacker || victim.state.over) continue;
           const p=victim.state.player;
           if(Math.hypot(p.x-b.x,p.y-b.y)>15+b.r) continue;
+          state=attacker.state;
+          const damage=b.damage*attackMultiplier();
           state=victim.state;
-          damagePlayer(b.damage); shots.splice(i,1); break;
+          damagePlayer(damage); shots.splice(i,1); break;
         }
       }
     }
@@ -72,11 +87,26 @@
     for(const group of [world.enemies,world.enemyBullets,world.enemyDarts,world.orbs,world.potions,...[...party.values()].map(m=>m.state.bullets)]){
       for(const e of group)e.netId=wireId(e);
     }
-    return {...self.state,bullets:[...party.values()].flatMap(m=>m.state.bullets),
-      peers:others.map(m=>({...m.profile,netId:wireId(m),field:m.state.player.field,burst:m.state.player.burst,impact:m.state.player.impact,blades:m.state.player.blades,echoes:m.state.player.echoes,x:m.state.player.x,y:m.state.player.y,over:m.state.over}))};
+    const members = [...party.values()];
+    const bullets = members.flatMap(m=>m.state.bullets.map(b=>{
+      b.shooterId = wireId(m);
+      return b;
+    }));
+    return {...self.state, bullets, selfId:wireId(self), inputTime:self.inputTime,
+      peers:others.map(m=>{
+        const s=m.state, p=s.player;
+        return {...m.profile,netId:wireId(m),x:p.x,y:p.y,size:p.size,angle:p.angle,
+          vx:p.vx,vy:p.vy,backShots:p.backShots,dashTimer:p.dashTimer,invuln:p.invuln,
+          field:p.field,burst:p.burst,impact:p.impact,blades:p.blades,echoes:p.echoes,
+          drones:s.drones,shields:s.shields,darts:s.darts.map(({x,y,angle,type})=>({x,y,angle,type})),
+          laserCharging:s.laserCharging,laserChargeTime:s.laserChargeTime,lasersFiring:s.lasersFiring,over:s.over};
+      })};
   }
   return {add,tick,snapshot,remove:id=>party.delete(id),input(id,input,actions){
-    const member=party.get(id); member.input=input;
+    const member=party.get(id);
     member.actions.push(...actions.slice(0,32-member.actions.length));
+    if (Number.isFinite(input.stamp) && input.stamp <= (member.input.stamp ?? -1)) return;
+    member.tap ||= Boolean(input.tap);
+    member.input=input;
   }};
 })()

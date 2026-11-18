@@ -7,7 +7,13 @@ const BOSS_FIRST_TIME = 150;
 
 /* =============== CARTAS =============== */
 const CARD_TYPES = [
-  ...[['gravity','Singularidad','Atrae enemigos cada 7 s y estalla. Cada copia amplía el radio y el daño.','#b787ff'],
+  ...[['vampirism','Vampirismo','½ ❤ cada 16 − N bajas. Cada 16 copias, reinicia el ciclo y cura ½ ❤ más.','#ff608a'],
+      ['explosive','Balas explosivas','15% de explotar al impactar e infligir daño de área. Cada copia multiplica la probabilidad por 1,5.','#ff9c52'],
+      ['frost','Congelación','Los impactos ralentizan durante 2 s. Cada copia añade 10 puntos de ralentización.','#85eaff'],
+      ['critical','Golpe crítico','10% de daño doble. Cada copia añade 5 puntos. Al llegar a 100%, vuelve a 10% y aumenta el multiplicador.','#ffd95d'],
+      ['armor','Armadura','10% de ignorar un golpe. Cada copia multiplica la probabilidad por 1,5.','#99baff'],
+      ['fury','Furia','Por copia, cada 10% de vida perdida añade un 5% de daño.','#ff6868'],
+      ['gravity','Singularidad','Atrae enemigos cada 7 s y estalla. Cada copia amplía el radio y el daño.','#b787ff'],
       ['venom','Veneno','Las balas envenenan. Cada copia aumenta el daño y la duración.','#8eff63'],
       ['swords','Espada Espectral','Añade una espada orbital que hiere al contacto.','#bbeaff']]
     .map(([id,name,desc,color])=>({id,name,desc,color,apply:p=>{p[id]=(p[id]||0)+1;}})),

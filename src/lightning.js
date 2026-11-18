@@ -19,7 +19,7 @@ function updateLightning(dt) {
       const e2 = state.enemies[i];
       const ddx = e2.x - tx, ddy = e2.y - ty;
       if (ddx*ddx + ddy*ddy < radius*radius) {
-        e2.hp -= 3 * state.playerDamageMult;
+        e2.hp -= 3 * attackMultiplier();
         e2.hitFlash = 0.15;
         if (e2.hp <= 0) killEnemy(i);
       }
@@ -27,7 +27,7 @@ function updateLightning(dt) {
     if (state.boss) {
       const bdx = state.boss.x - tx, bdy = state.boss.y - ty;
       if (bdx*bdx + bdy*bdy < radius*radius) {
-        state.boss.hp -= 3 * state.playerDamageMult;
+        state.boss.hp -= 3 * attackMultiplier();
         state.boss.hitFlash = 0.15;
         if (state.boss.hp <= 0) killBoss();
       }

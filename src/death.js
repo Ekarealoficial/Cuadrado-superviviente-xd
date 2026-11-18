@@ -11,7 +11,7 @@ function killEnemy(index) {
     spawnOrbs(e.x + gameRand(-30, 30), e.y + gameRand(-30, 30), e.xp * 0.7 * Math.max(1,0.15*state.player.greedLevel));
     addFloat(e.x, e.y - 25, '¡XP extra!', '#fbbf24');
   }
-  state.kills++;
+  recordKill();
   state.score += Math.round(e.maxHp * 5);
   state.shake = Math.min(state.shake + 6, 16);
   state.cam.zoom = Math.min(1.15, state.cam.zoom + 0.04);
@@ -33,6 +33,7 @@ function explodeKamikaze(e) {
   if (ddx*ddx + ddy*ddy < radius*radius && p.invuln <= 0) damagePlayer(1);
   for (let i = state.enemies.length - 1; i >= 0; i--) {
     const other = state.enemies[i];
+    if (!other) continue;
     const dx = other.x - e.x, dy = other.y - e.y;
     const d = Math.hypot(dx, dy) || 1;
     if (d < radius) {

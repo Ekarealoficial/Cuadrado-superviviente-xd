@@ -9,6 +9,7 @@ function spawnBullet(x, y, angle, speed, opts) {
     r: opts.radius !== undefined ? opts.radius : 4,
     life: 1.6,
     venom: state.player.venom || 0,
+    volley: opts.volley, lane: opts.lane,
     drone: !!opts.drone,
     bounces: opts.bounces || 0,
     homing: !!opts.homing,
@@ -19,6 +20,7 @@ function spawnBullet(x, y, angle, speed, opts) {
 
 function shoot(n) {
   const p = state.player;
+  p.volley++;
   const speed = 900;
   const off = p.size / 2 + 6;
   const baseRadius = 4 + p.sizeLevel * 1.2;
@@ -36,7 +38,7 @@ function shoot(n) {
     spawnBullet(p.x + Math.cos(a) * off, p.y + Math.sin(a) * off, a, speed, {
       bounces: p.bounces, homing: isHoming,
       dupli: isDupli ? p.dupliCount : 0,
-      damage: baseDamage, radius: baseRadius
+      damage: baseDamage, radius: baseRadius, volley: p.volley, lane: i
     });
     spawnParticles(p.x + Math.cos(a) * off, p.y + Math.sin(a) * off, 2, '#9ef7ff', 0.5);
   }
@@ -52,7 +54,7 @@ function shoot(n) {
       spawnBullet(p.x + Math.cos(a) * off, p.y + Math.sin(a) * off, a, speed * 0.9, {
         bounces: p.bounces, homing: isHoming,
         dupli: isDupli ? p.dupliCount : 0,
-        damage: baseDamage, radius: baseRadius
+        damage: baseDamage, radius: baseRadius, volley: p.volley, lane: -1-i
       });
       spawnParticles(p.x + Math.cos(a) * off, p.y + Math.sin(a) * off, 2, '#c77dff', 0.5);
     }
@@ -61,10 +63,36 @@ function shoot(n) {
   Sfx.play('shoot', 30);
 }
 
+function stackingChance(base, stacks) {
+  return stacks ? Math.min(1, base * 1.5 ** (stacks - 1)) : 0;
+}
+function attackMultiplier() {
+  const p = state.player;
+  const missing = 1 - state.halfHearts / state.maxHalfHearts;
+  const base = state.playerDamageMult * (1 + missing * 0.5 * p.fury);
+  if (!p.critical) return base;
+  const upgrades = p.critical - 1;
+  const chance = (10 + 5 * (upgrades % 18)) / 100;
+  return base * (gameRandom() < chance ? 2 + Math.floor(upgrades / 18) : 1);
+}
+function recordKill() {
+  state.kills++;
+  const p = state.player;
+  if (!p.vampirism || ++p.vampKills < 16 - p.vampirism % 16) return;
+  p.vampKills = 0;
+  const healed = Math.min(state.maxHalfHearts - state.halfHearts, 1 + Math.floor(p.vampirism / 16));
+  state.halfHearts += healed;
+  if (healed) addFloat(p.x, p.y - 30, '+' + healed / 2 + ' ❤', '#ff608a');
+}
 function damagePlayer(amount) {
   amount = amount || 1;
   const p = state.player;
   if (p.invuln > 0) return;
+  if (p.armor && gameRandom() < stackingChance(0.10, p.armor)) {
+    p.invuln = 1;
+    addFloat(p.x, p.y - 30, 'Armadura', '#99baff');
+    return;
+  }
   state.halfHearts -= amount;
   p.invuln = 1.0;
   state.shake = 20 + amount * 5;

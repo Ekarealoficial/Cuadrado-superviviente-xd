@@ -32,10 +32,11 @@ function drawCardIcon(cx, cy, size, card, color) {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   const s = size * 0.5;
   switch (card.id) {
+    case 'vampirism':case 'explosive':case 'frost':case 'critical':case 'armor':case 'fury':
     case 'frames':case 'swords':case 'gravity':case 'venom':
       ctx.fillStyle=color;ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.font='bold '+size+'px system-ui';
-      ctx.fillText(({frames:'ϟ',swords:'⚔',gravity:'◎',venom:'☠'})[card.id],0,0);
+      ctx.fillText(({vampirism:'♥',explosive:'✹',frost:'❄',critical:'✷',armor:'🛡',fury:'♨',frames:'ϟ',swords:'⚔',gravity:'◎',venom:'☠'})[card.id],0,0);
       break;
     case 'fire':
       ctx.beginPath();
@@ -290,7 +291,7 @@ function drawCards() {
     ctx.stroke();
     ctx.fillStyle = 'rgba(255,255,255,0.7)';
     ctx.font = '15px system-ui, sans-serif';
-    wrapText(card.desc, cx + CARD_W/2, y + 230, CARD_W - 40, 20);
+    wrapText(card.desc, cx + CARD_W/2, y + 224, CARD_W - 32, 17);
     ctx.fillStyle = hover ? card.color : 'rgba(255,255,255,0.35)';
     ctx.font = 'bold 15px system-ui, sans-serif';
     ctx.fillText('[' + (i + 1) + ']', cx + CARD_W/2, y + CARD_H - 22);
