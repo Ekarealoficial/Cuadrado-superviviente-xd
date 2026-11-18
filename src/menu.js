@@ -103,8 +103,10 @@ function initializeMenu(){
     const profile={name:identity.elements.nick.value.trim(),color:identity.elements.color.value};
     try{
       const r=await roomRequest(creating?'create':'join',{code,settings:multiplayerSettings,profile});
+      motion=[];receivedAt=0;
       rules={...r.settings,color:profile.color};state=r.state;netSession={code:r.code,token:r.token};start('online');
       function accept(next,session){
+        prepareMotion(state,next,performance.now());
         state=next;state.inventorySelection=inventoryChoice;
         currentWalls=getVisibleChunks(state.cam).concat(state.arena?.walls||[]);
         el('playerInfo').textContent=profile.name+' · X '+Math.round(state.player.x)+'  Y '+Math.round(state.player.y)+' · Código '+session.code;

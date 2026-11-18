@@ -122,10 +122,22 @@ function render() {
   renderEntities8();
   for(const body of [p,...(state.peers||[])]){
     ctx.save();
+    drawCardFeedback(body);
     if(body.field){
       const f=body.field;ctx.fillStyle='#9a51ff30';ctx.strokeStyle='#be8dff';ctx.lineWidth=2;
       ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,TAU);ctx.fill();ctx.stroke();
-      ctx.beginPath();ctx.arc(f.x,f.y,8,0,TAU);ctx.fillStyle='#180f29';ctx.fill();
+      for(let arm=0;arm<3;arm++){
+        ctx.beginPath();
+        for(let j=0;j<=18;j++){
+          const u=j/18,angle=state.time*5+arm*TAU/3+u*3.7;
+          const r=8+u*(f.r-8);
+          const x=f.x+Math.cos(angle)*r,y=f.y+Math.sin(angle)*r;
+          if(j===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
+        }
+        ctx.strokeStyle='#cf9aff';ctx.stroke();
+      }
+      ctx.shadowColor='#aa5cff';ctx.shadowBlur=16;
+      ctx.beginPath();ctx.arc(f.x,f.y,8,0,TAU);ctx.fillStyle='#170821';ctx.fill();ctx.stroke();
     }
     ctx.globalAlpha=.22;ctx.fillStyle=body.color||rules.color;
     for(const copy of body.echoes||[])ctx.fillRect(copy.x-15,copy.y-15,30,30);
@@ -222,6 +234,36 @@ function render() {
   drawCrosshair();
 }
 
+const heardCardEffects={};
+function drawCardFeedback(body){
+  const own=body===state.player;
+  function sound(name,event){
+    if(!own || event.born==null || heardCardEffects[name]===event.born)return;
+    heardCardEffects[name]=event.born;Sfx.play(name);
+  }
+  if(body.field)sound('gravityPull',body.field);
+  if(body.burst){
+    const flash=body.burst,t=clamp((state.time-flash.born)/.42,0,1);
+    if(t<1){
+      sound('gravityBurst',flash);
+      ctx.save();ctx.globalAlpha=1-t;ctx.strokeStyle='#e8cfff';ctx.lineWidth=5*(1-t)+1;
+      ctx.beginPath();ctx.arc(flash.x,flash.y,flash.r*(.15+t),0,TAU);ctx.stroke();ctx.restore();
+    }
+  }
+  if(body.impact){
+    const hit=body.impact,t=clamp((state.time-hit.born)/.19,0,1);
+    if(t<1){
+      sound('speedHit',hit);
+      ctx.save();ctx.translate(hit.x,hit.y);ctx.globalAlpha=1-t;ctx.strokeStyle='#ffddfa';ctx.lineWidth=3;
+      ctx.beginPath();
+      for(let i=0;i<7;i++){
+        const a=i*TAU/7+hit.born,dx=Math.cos(a),dy=Math.sin(a);
+        ctx.moveTo(dx*(3+t*9),dy*(3+t*9));ctx.lineTo(dx*(14+t*16),dy*(14+t*16));
+      }
+      ctx.stroke();ctx.restore();
+    }
+  }
+}
 function drawCrosshair() {
   const x = mouse.x, y = mouse.y;
   ctx.save();

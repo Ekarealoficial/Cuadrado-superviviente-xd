@@ -61,10 +61,19 @@
       }
     }
   }
+  let nextEntityId=0;
+  const wireIds=new WeakMap();
+  function wireId(entity){
+    if(!wireIds.has(entity))wireIds.set(entity,++nextEntityId);
+    return wireIds.get(entity);
+  }
   function snapshot(id) {
     const self=party.get(id), others=[...party.values()].filter(m=>m!==self);
+    for(const group of [world.enemies,world.enemyBullets,world.enemyDarts,world.orbs,world.potions,...[...party.values()].map(m=>m.state.bullets)]){
+      for(const e of group)e.netId=wireId(e);
+    }
     return {...self.state,bullets:[...party.values()].flatMap(m=>m.state.bullets),
-      peers:others.map(m=>({...m.profile,field:m.state.player.field,blades:m.state.player.blades,echoes:m.state.player.echoes,x:m.state.player.x,y:m.state.player.y,over:m.state.over}))};
+      peers:others.map(m=>({...m.profile,netId:wireId(m),field:m.state.player.field,burst:m.state.player.burst,impact:m.state.player.impact,blades:m.state.player.blades,echoes:m.state.player.echoes,x:m.state.player.x,y:m.state.player.y,over:m.state.over}))};
   }
   return {add,tick,snapshot,remove:id=>party.delete(id),input(id,input,actions){
     const member=party.get(id); member.input=input;

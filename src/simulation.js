@@ -29,7 +29,8 @@ function update(dt, worldStep = true) {
     state.cam.x += (targetCamX - state.cam.x) * Math.min(1, 10 * dt);
     state.cam.y += (targetCamY - state.cam.y) * Math.min(1, 10 * dt);
   }
-  state.cam.zoom += (1 - state.cam.zoom) * Math.min(1, 4.5 * dt);
+  const targetZoom=p.frameTime>0 ? 0.86 : 1;
+  state.cam.zoom += (targetZoom - state.cam.zoom) * Math.min(1, 4.5 * dt);
   currentWalls = getVisibleChunks(state.cam);
   if (state.bossActive && state.arena) currentWalls = currentWalls.concat(state.arena.walls);
 
@@ -81,7 +82,7 @@ function updateCardFields(dt,worldStep) {
     if(p.gravityCd<=0){
       const target=getNearestTarget(p.x,p.y);
       if(target){
-        p.field={x:target.x,y:target.y,r:75+20*p.gravity,time:1.4};
+        p.field={x:target.x,y:target.y,r:75+20*p.gravity,time:1.4,born:state.time};
         p.gravityCd=7;
       }
     }
@@ -123,14 +124,21 @@ function updateCardFields(dt,worldStep) {
     }
     for(const blade of p.blades)if(Math.hypot(e.x-blade.x,e.y-blade.y)<e.size/2+13)
       damage+=12*dt*state.playerDamageMult;
-    if(p.frameTime>0 && Math.hypot(p.vx,p.vy)>30 && Math.hypot(e.x-p.x,e.y-p.y)<(e.size+p.size)/2+5)
+    if(p.frameTime>0 && Math.hypot(p.vx,p.vy)>30 && Math.hypot(e.x-p.x,e.y-p.y)<(e.size+p.size)/2+5){
       damage+=(14+5*state.specialCards.frames.totalCards)*dt*state.playerDamageMult;
+      e.hitFlash=.12;
+      if(!p.impact || state.time-p.impact.born>.14)
+        p.impact={x:(p.x+e.x)/2,y:(p.y+e.y)/2,born:state.time};
+    }
     if(damage){
       e.hp-=damage;
       if(e.hp<=0){if(e===state.boss)killBoss();else killEnemy(state.enemies.indexOf(e));}
     }
   }
-  if(p.field?.time<=0)p.field=null;
+  if(p.field?.time<=0){
+    p.burst={x:p.field.x,y:p.field.y,r:p.field.r,born:state.time};
+    p.field=null;
+  }
 }
 
 function reflectBulletOffWall(b, w) {

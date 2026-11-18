@@ -50,6 +50,9 @@ const Sfx = {
     if (throttle && this.last[name] && now - this.last[name] < throttle) return;
     this.last[name] = now;
     switch (name) {
+      case 'gravityPull': this.tone(105,1.25,'sine',.22,420);this.tone(160,.8,'triangle',.09,75);break;
+      case 'gravityBurst': this.tone(150,.36,'sine',.32,32);this.noise(.18,.2,1200);break;
+      case 'speedHit': this.tone(650,.075,'triangle',.14,180);break;
       case 'shoot':   this.tone(900, 0.06, 'square', 0.10, 260); break;
       case 'hit':     this.tone(320, 0.05, 'square', 0.12, 140); break;
       case 'kill':    this.tone(460, 0.18, 'sawtooth', 0.2, 90); this.noise(0.14, 0.15, 900); break;
