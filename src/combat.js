@@ -79,7 +79,8 @@ function recordKill(victim = state.player) {
   if (healed) cardPulse('vampirism',victim,healed);
   if (healed) addFloat(p.x, p.y - 30, '+' + healed / 2 + ' ❤', '#ff608a');
 }
-function damagePlayer(amount) {
+function damagePlayer(amount, piercesPlasma=false) {
+  if(state.player.plasma?.end>state.time && !piercesPlasma)return;
   amount = amount || 1;
   const p = state.player;
   if (p.invuln > 0) return;
@@ -89,7 +90,8 @@ function damagePlayer(amount) {
     addFloat(p.x, p.y - 30, 'Armadura', '#99baff');
     return;
   }
-  state.halfHearts -= amount;
+  const absorbed=Math.min(amount,state.blueHealth);state.blueHealth-=absorbed;
+  state.halfHearts -= amount-absorbed;
   p.invuln = 1.0;
   state.shake = 20 + amount * 5;
   state.flash = 0.4;

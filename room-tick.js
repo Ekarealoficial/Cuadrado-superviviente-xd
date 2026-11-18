@@ -3,7 +3,7 @@
   rules = settings;
   configureCardUpgrades();
   const world = newState();
-  const shared = 'time enemies enemyBullets enemyDarts orbs potions spawnTimer potionTimer boss bossEncounters bossActive arena bossBombs bossLasers bossLaserActive bossLaserTimer bossSpawnTimer bossWarningShown enemyHpMult spawnRateMult adaptiveCheckTimer'.split(' ');
+  const shared = 'iceZones stopUntil time enemies enemyBullets enemyDarts orbs potions spawnTimer potionTimer boss bossEncounters bossActive arena bossBombs bossLasers bossLaserActive bossLaserTimer bossSpawnTimer bossWarningShown enemyHpMult spawnRateMult adaptiveCheckTimer'.split(' ');
   const party = new Map();
   function add(id, profile) {
     const personal = newState();
@@ -28,6 +28,8 @@
       if (!member) continue;
       state = member.state;
       const input = member.input;
+      state.viewWidth=Number.isFinite(input.width)?clamp(input.width,240,4096):W;
+      state.viewHeight=Number.isFinite(input.height)?clamp(input.height,160,2160):H;
       for (const key of ['w','a','s','d']) keys[key]=Boolean(input[key]);
       mouse.x = W/2 + (input.dx || 0);
       mouse.y = H/2 + (input.dy || 0);
@@ -47,7 +49,17 @@
         if (state.over) continue;
         if (action.kind==='pick' && state.cardChoices?.[action.i]) pickCard(state.cardChoices[action.i]);
         if (action.kind==='inventory' && !state.cardChoices) state.inventoryOpen=!state.inventoryOpen;
-        if (action.kind==='slot' && !state.inventoryOpen && !state.cardChoices) useSlot(action.i);
+        if (action.kind==='slot' && !state.inventoryOpen && !state.cardChoices){
+          if(state.slots[action.i]==='reverse' && state.specialCards.reverse.charges){
+            for(const other of party.values())if(other!==member){
+              other.state.bullets=other.state.bullets.filter(b=>{
+                if(!inversionVisible(b))return true;
+                b.homing=true;delete b.volley;state.bullets.push(b);return false;
+              });
+            }
+          }
+          useSlot(action.i);
+        }
         if (action.kind==='equip' && state.inventoryOpen && (action.card===null || state.specialCards[action.card]?.totalCards>0)) state.slots[action.i]=action.card;
       }
       if (state.inventoryOpen || state.cardChoices) mouse.down = false;
@@ -64,7 +76,7 @@
       }
       update(dt,member===focus,commands);
       // The focus advances boss AI once. Its active attacks can hit every player.
-      if(world.boss && member!==focus && !state.over && state.player.invuln<=0){
+      if(world.stopUntil<=world.time && world.boss && member!==focus && !state.over && state.player.invuln<=0){
         const p=state.player,b=world.boss;
         const near=(object,radius)=>Math.hypot(p.x-object.x,p.y-object.y)<radius;
         if(b.state==='dash' && visibleContact(b,p,(b.size+p.size)/2))damagePlayer(2);
@@ -77,13 +89,14 @@
         p.x=clamp(p.x,a.x+15,a.x+a.w-15); p.y=clamp(p.y,a.y+15,a.y+a.h-15);
       }
     }
-    if(settings.pvp) for(const attacker of party.values()) {
+    if(settings.pvp && world.stopUntil<=world.time) for(const attacker of party.values()) {
       const shots=attacker.state.bullets;
       for(let i=shots.length-1;i>=0;i--) {
         const b=shots[i];
         for(const victim of party.values()) {
           if(victim===attacker || victim.state.over) continue;
           const p=victim.state.player;
+          if(p.plasma?.end>world.time && reflectPlasmaShot(p,p.plasma,b))continue;
           if(bulletEntry(b,p,p.size/2+b.r)===Infinity)continue;
           state=attacker.state;
           const damage=b.damage*attackMultiplier(victim.state.player);
@@ -114,7 +127,7 @@
         const s=m.state, p=s.player;
         return {...m.profile,netId:wireId(m),x:p.x,y:p.y,size:p.size,angle:p.angle,
           vx:p.vx,vy:p.vy,backShots:p.backShots,dashTimer:p.dashTimer,invuln:p.invuln,
-          pulses:p.pulses?.filter(hit=>world.time-hit.born<.7),fury:p.fury,missingHealth:1-s.halfHearts/s.maxHalfHearts,field:p.field,burst:p.burst,impact:p.impact,blades:p.blades,echoes:p.echoes,
+          pulses:p.pulses?.filter(hit=>world.time-hit.born<.7),fury:p.fury,missingHealth:1-s.halfHearts/s.maxHalfHearts,beam:p.beam,plasma:p.plasma,cast:p.cast,iceUntil:p.iceUntil,field:p.field,burst:p.burst,impact:p.impact,blades:p.blades,echoes:p.echoes,
           drones:s.drones,shields:s.shields,darts:s.darts.map(({x,y,angle,type})=>({x,y,angle,type})),
           laserCharging:s.laserCharging,laserChargeTime:s.laserChargeTime,lasersFiring:s.lasersFiring,over:s.over};
       })};

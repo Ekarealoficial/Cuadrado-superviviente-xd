@@ -1,5 +1,5 @@
 'use strict';
-const ENEMY_NAMES={normal:'Normal',fast:'Veloz',tank:'Tanque',shooter:'Tirador',invoker:'Invocador',teleporter:'Teletransportador',kamikaze:'Kamikaze',dardante:'Dardante',juggernaut:'Juggernaut',boss:'Jefe de la arena'};
+const ENEMY_NAMES={tackler:'Tacleador',splitter:'Divisor',cannon:'Cañón',frostMage:'Hechicero helado',normal:'Normal',fast:'Veloz',tank:'Tanque',shooter:'Tirador',invoker:'Invocador',teleporter:'Teletransportador',kamikaze:'Kamikaze',dardante:'Dardante',juggernaut:'Juggernaut',boss:'Jefe de la arena'};
 let netSession=null, queuedActions=[], inventoryChoice=null;
 const multiplayerServer = String(window.MULTIPLAYER_SERVER_URL || '').replace(/\/$/, '');
 function handleNetKey(e){
@@ -144,7 +144,7 @@ function initializeMenu(){
       }
       function controls(frames,now){
         const p=state.player;
-        return {frames,stamp:now,angle:p.angle,dx:(mouse.x-W/2)/state.cam.zoom,
+        return {frames,width:W,height:H,stamp:now,angle:p.angle,dx:(mouse.x-W/2)/state.cam.zoom,
           dy:(mouse.y-H/2)/state.cam.zoom,fire:mouse.down,
           w:!!(keys.w||keys.arrowup),a:!!(keys.a||keys.arrowleft),
           s:!!(keys.s||keys.arrowdown),d:!!(keys.d||keys.arrowright)};

@@ -38,7 +38,18 @@ const CARD_TYPES = [
   { id: 'regen',         name: 'Regeneración',   desc: 'Recupera medio corazón cada 50s. Acumulable: -1s al intervalo.', color: '#4ade80' },
   { id: 'greed',         name: 'Codicia',        desc: '15% de probabilidad de soltar XP extra al matar. Acumulable.', color: '#fbbf24' }
 ];
+const expansionCards=[
+  ['kame','Kamekameka','Rayo de 0,45 s. Cada copia añade una carga.',24,'#53dfff'],
+  ['activeHeal','Regeneración activa','Cura 1 ❤ y +½ por copia. Con vida llena otorga corazones azules.',32,'#68b4ff'],
+  ['reverse','Inversión','Convierte proyectiles en aliados guiados y dardos en explosivos. +1 carga por copia.',28,'#ff76ec'],
+  ['plasma','Barrera de plasma','Durante 6 s repele enemigos y balas. Cada copia aumenta radio y daño.',36,'#86ffaf'],
+  ['timeBreak','Tiempo roto','Detiene el combate 3 s. Cada copia añade 1 s.',48,'#ffe384']
+];
 const SPECIAL_CARDS = [
+  ...expansionCards.map(([id,name,desc,cd,color])=>({id,name,color,desc:desc+' Recarga '+cd+' s.',apply:()=>{
+    const sc=state.specialCards[id];sc.totalCards++;
+    if(sc.totalCards===1 || id==='kame' || id==='reverse'){sc.maxCharges++;sc.charges++;}
+  }})),
   {id:'frames',name:'Velocista a fotogramas',desc:'Velocidad ×4 e inmunidad durante 10 s. 34 de daño/s al contacto. Cada copia añade 2 s y 5 de daño/s. Recarga: 55 s.',color:'#ff78db',apply:()=>{const sc=state.specialCards.frames;sc.totalCards++;sc.maxCharges++;sc.charges++;}},
   { id: 'blink',       name: 'Distorsión',   desc: 'Cada 35s teletranspórtate al puntero. Asigna a un slot.',   color: '#a855f7' },
   { id: 'dash',        name: 'Dash',         desc: 'Dash rápido hacia el puntero. Cargas = número de cartas.',  color: '#22d3ee' },

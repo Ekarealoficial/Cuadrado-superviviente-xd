@@ -59,3 +59,14 @@ test('Tras un atasco de red, los jugadores ven la dirección reciente sin reprod
   assert.ok(local.player.x>0);
   assert.equal(remote.peers[0].x,local.player.x);
 });
+test('Tiempo roto y hechizos se comparten entre los miembros de la sala',()=>{
+ const r=engine({difficulty:1,xp:1,disabled,pvp:false});
+ r.add('a',{name:'A'});r.add('b',{name:'B'});
+ const a=r.snapshot('a');a.slots[0]='timeBreak';a.specialCards.timeBreak.totalCards=1;a.specialCards.timeBreak.charges=1;
+ a.enemyBullets.push({x:90,y:100,vx:120,vy:0,life:3,r:6});
+ r.input('a',{},[{kind:'slot',i:0}]);r.tick(1/30);
+ const other=r.snapshot('b');assert.ok(other.stopUntil>other.time);assert.equal(other.enemyBullets[0].x,90);
+ assert.equal(other.peers[0].cast.id,'timeBreak');
+ for(let i=0;i<92;i++)r.tick(1/30);
+ assert.ok(r.snapshot('b').enemyBullets[0].x>90);
+});

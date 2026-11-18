@@ -153,3 +153,31 @@ test('Sandbox mantiene el mapa sin oleadas y admite enemigos junto al jefe manua
   assert.equal(run('state.boss.x'),590);
   assert.equal(run('state.boss.y'),-380);
 });
+test('Las rotaciones sustituyen al donante y respetan la lista desactivada',()=>{
+ const run=game();
+ for(const [donor,id,time] of [['normal','splitter',30],['fast','tackler',50],['shooter','cannon',70],['invoker','frostMage',90]]){
+   run("baseEnemyType=()=>'"+donor+"';gameRandom=()=>0;rules.disabled=[]");
+   assert.equal(run('chooseEnemyType('+ (time-1)+')'),donor);
+   assert.equal(run('chooseEnemyType('+time+')'),id);
+   assert.equal(run("rules.disabled=['"+id+"'];chooseEnemyType(200)"),donor);
+ }
+});
+test('El divisor se agota en siete bajas',()=>{
+ const run=game();run("state.enemies=[createEnemy('splitter',50,50)];for(let i=0;i<7;i++)killEnemy(0)");
+ assert.equal(run('state.enemies.length'),0);assert.equal(run('state.kills'),7);
+});
+test('Cargas, vida azul, inversión, plasma y tiempo roto',()=>{
+ const run=game();
+ run("for(const [id] of expansionCards){const c=SPECIAL_CARDS.find(c=>c.id===id);applyCard(c);applyCard(c)}");
+ assert.equal(run("activateExpansion('activeHeal');state.blueHealth"),3);
+ assert.equal(run("damagePlayer(1);state.blueHealth"),2);
+ run("state.enemyBullets=[{x:20,y:0,vx:-80,vy:0,r:4,life:2}];state.enemyDarts=[{x:10,y:0}];activateExpansion('reverse')");
+ assert.equal(run("state.bullets[0].homing && state.darts[0].type==='explosive'"),true);
+ run("activateExpansion('timeBreak');const bx=state.bullets[0].x;update(.05)");
+ assert.equal(run('state.bullets[0].x===bx'),true);
+ run("state.stopUntil=0;update(.05);activateExpansion('kame');activateExpansion('kame')");
+ assert.equal(run('state.player.beam.length'),2);
+ run("activateExpansion('plasma');state.enemyBullets=[{x:40,y:0,vx:-90,vy:0,r:5}];repelPlasma();state.player.invuln=0;damagePlayer(2);render()");
+ assert.equal(run('state.enemyBullets[0].vx'),90);assert.equal(run('state.blueHealth'),2);
+ assert.equal(run('damagePlayer(1,true);state.blueHealth'),1);
+});

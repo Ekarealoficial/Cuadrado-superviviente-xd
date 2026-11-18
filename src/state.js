@@ -54,7 +54,9 @@ function newState() {
     inventoryCardRects: [],
     inventorySlotRects: [],
     slots: [null, null, null, null, null],
+    iceZones:[],stopUntil:0,blueHealth:0,
     specialCards: {
+      ...Object.fromEntries(expansionCards.map(([id,,,cooldownMax])=>[id,{totalCards:0,maxCharges:0,charges:0,cooldown:0,cooldownMax}])) ,
       frames:{totalCards:0,charges:0,maxCharges:0,cooldown:0,cooldownMax:55},
       blink:       { totalCards: 0, charges: 0, maxCharges: 0, cooldown: 0, cooldownMax: 35 },
       dash:        { totalCards: 0, charges: 0, maxCharges: 0, cooldown: 0, cooldownMax: 18 },

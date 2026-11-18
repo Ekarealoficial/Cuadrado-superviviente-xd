@@ -16,85 +16,27 @@ function drawInventory() {
   ctx.shadowBlur = 0;
   ctx.fillStyle = 'rgba(255,255,255,0.6)';
   ctx.font = '16px system-ui, sans-serif';
-  ctx.fillText('Selecciona una carta especial y luego un slot. Click derecho en un slot para quitarla.', W / 2, 120);
+  const hovered=state.inventoryCardRects.find(r=>mouse.x>=r.x && mouse.x<=r.x+r.w && mouse.y>=r.y && mouse.y<=r.y+r.h);
+  const detail=SPECIAL_CARDS.find(c=>c.id===hovered?.id);
+  ctx.fillText(detail?.desc || 'Selecciona una carta y luego un slot. Clic derecho para quitarla.',W/2,120,W-36);
   ctx.restore();
 
   const availCards = SPECIAL_CARDS.filter(c => state.specialCards[c.id] && state.specialCards[c.id].totalCards > 0);
-  const listX = W / 2 - 380;
-  const listY = 200;
-
-  ctx.save();
-  ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-  ctx.fillStyle = 'rgba(255,255,255,0.7)';
-  ctx.font = 'bold 18px system-ui, sans-serif';
-  ctx.fillText('Cartas especiales', listX, listY - 40);
-  ctx.restore();
-
-
-  if (availCards.length === 0) {
-    ctx.save();
-    ctx.fillStyle = 'rgba(255,255,255,0.4)';
-    ctx.font = '16px system-ui, sans-serif';
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillText('(No tienes cartas especiales todavía)', listX, listY);
-    ctx.restore();
+  for(const rect of state.inventoryCardRects){
+    const card=availCards.find(c=>c.id===rect.id),sc=state.specialCards[card.id];
+    ctx.save();ctx.fillStyle='#151428';ctx.strokeStyle=state.inventorySelection===card.id?'#fff':card.color;
+    roundRect(rect.x,rect.y,rect.w,rect.h,7);ctx.fill();ctx.stroke();
+    drawCardIcon(rect.x+19,rect.y+rect.h/2,23,card,card.color);
+    ctx.fillStyle='#fff';ctx.font='bold 14px system-ui';ctx.textAlign='left';
+    ctx.fillText(card.name,rect.x+37,rect.y+rect.h*.46,rect.w-45);
+    ctx.fillStyle=card.color;ctx.font='12px system-ui';
+    ctx.fillText('×'+sc.totalCards+'  ·  Cargas '+sc.charges+'/'+sc.maxCharges,rect.x+37,rect.y+rect.h*.82,rect.w-45);ctx.restore();
   }
-
-  for (let i = 0; i < availCards.length; i++) {
-    const card = availCards[i];
-    const info = state.specialCards[card.id];
-    const cy = listY + i * (INV_CARD_H + INV_CARD_GAP);
-    const selected = state.inventorySelection === card.id;
-
-
-    const hover = mouse.x >= listX && mouse.x <= listX + INV_CARD_W && mouse.y >= cy && mouse.y <= cy + INV_CARD_H;
-    ctx.save();
-    if (selected || hover) { ctx.shadowColor = card.color; ctx.shadowBlur = 20; }
-    ctx.fillStyle = selected ? 'rgba(168, 85, 247, 0.3)' : 'rgba(20, 25, 45, 0.9)';
-    roundRect(listX, cy, INV_CARD_W, INV_CARD_H, 12); ctx.fill();
-    ctx.shadowBlur = 0;
-    ctx.strokeStyle = selected ? card.color : (hover ? 'rgba(168,85,247,0.6)' : 'rgba(255,255,255,0.15)');
-    ctx.lineWidth = selected ? 3 : 2;
-    roundRect(listX, cy, INV_CARD_W, INV_CARD_H, 12); ctx.stroke();
-
-    // Icono (usando drawCardIcon)
-    const iconX = listX + 45;
-    const iconY = cy + INV_CARD_H / 2;
-    ctx.fillStyle = 'rgba(168, 85, 247, 0.2)';
-    ctx.beginPath(); ctx.arc(iconX, iconY, 25, 0, TAU); ctx.fill();
-    drawCardIcon(iconX, iconY, 40, card, card.color);
-
-    // Texto
-    ctx.fillStyle = '#fff';
-    ctx.font = 'bold 18px system-ui, sans-serif';
-    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
-    ctx.fillText(card.name, listX + 90, cy + 12);
-    ctx.fillStyle = 'rgba(255,255,255,0.55)';
-    ctx.font = '12px system-ui, sans-serif';
-    wrapText(card.desc, listX + 90, cy + 36, INV_CARD_W - 110, 15);
-
-    // Contador de cartas
-    ctx.fillStyle = card.color;
-    ctx.font = 'bold 16px system-ui, sans-serif';
-    ctx.textAlign = 'right'; ctx.textBaseline = 'top';
-    ctx.fillText('×' + info.totalCards, listX + INV_CARD_W - 15, cy + 12);
-
-    // Estado de cargas y cooldown
-    ctx.fillStyle = 'rgba(255,255,255,0.7)';
-    ctx.font = '11px system-ui, sans-serif';
-    ctx.textAlign = 'right'; ctx.textBaseline = 'bottom';
-    let status = 'Cargas: ' + info.charges + '/' + info.maxCharges;
-    if (info.charges < info.maxCharges) {
-      status += '  ·  ' + Math.ceil(info.cooldown) + 's';
-    }
-    ctx.fillText(status, listX + INV_CARD_W - 15, cy + INV_CARD_H - 8);
-    ctx.restore();
-  }
-
+  if(!availCards.length){ctx.save();ctx.textAlign='center';ctx.fillStyle='#ccd';ctx.fillText('Sin cartas especiales',W/2,175);ctx.restore();}
   // Slots
   const slotsTotalW = 5 * SLOT_W + 4 * SLOT_GAP;
   const slotsX = W / 2 - slotsTotalW / 2;
-  const slotsY = H / 2 + 80;
+  const slotsY = state.inventorySlotRects[0].y;
 
   ctx.save();
   ctx.textAlign = 'center'; ctx.textBaseline = 'top';

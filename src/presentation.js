@@ -10,6 +10,7 @@ function prepareMotion(old,next,now){
   motion=[]; receivedAt=now;
   const positions=new Map();
   function track(group,e,index){
+    if(next.stopUntil>next.time && group!=='peers')return;
     const id=group+':'+(e.netId??index);
     const prior=lastPositions.get(id);
     positions.set(id,{x:e.x,y:e.y,time:next.time});
@@ -120,6 +121,7 @@ function predictLocalFrame(now,dt){
     previewCooldown=p.fireCdBase;
   }
   previewTap=false;
+  if(state.stopUntil>state.time)return;
   if(previewShots.length)enemyGrid.rebuild(state.enemies);
   for(const b of previewShots){
     advanceBullet(b,p,dt);

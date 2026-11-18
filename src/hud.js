@@ -38,6 +38,11 @@ function drawHUD() {
     hx += s + gap;
   }
 
+  if(state.blueHealth>0){
+    ctx.fillStyle='#84ceff';ctx.font='bold 15px system-ui';ctx.textAlign='left';
+    const bx=W/2+140;heartPath(bx,66,18);ctx.fill();
+    ctx.fillText('×'+state.blueHealth/2,bx+13,71);
+  }
   const xpW = 240, xpH = 10;
   const xpX = W / 2 - xpW / 2, xpY = 62;
   ctx.fillStyle = 'rgba(0,0,0,0.55)';

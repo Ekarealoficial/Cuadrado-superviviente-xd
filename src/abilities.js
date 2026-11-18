@@ -3,6 +3,7 @@
 function useSlot(idx) {
   const cardId = state.slots[idx];
   if (!cardId) return;
+  if(expansionCards.some(c=>c[0]===cardId)){activateExpansion(cardId);return;}
   if (cardId === 'frames') {
     const sc=state.specialCards.frames, p=state.player;
     if (!sc.charges || p.frameTime>0) return;

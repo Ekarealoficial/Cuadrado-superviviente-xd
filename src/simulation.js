@@ -45,13 +45,18 @@ function update(dt, worldStep = true, commands = null) {
   update_abilityCooldowns(dt);
   update_stormAndBossSchedule(dt, worldStep);
   update_movementAndWeapons(dt, worldStep, commands);
-  updateCardFields(dt,worldStep);
+  updateExpansion(dt,worldStep);
+  if(state.stopUntil<=state.time)updateCardFields(dt,worldStep);
+  if(state.stopUntil>state.time){
+    update_shieldPositions(dt);update_experience(worldStep?dt:0);update_potions(worldStep?dt:0);return;
+  }
   update_shieldPositions(dt);
   update_playerProjectiles(dt);
   if (worldStep) update_enemyProjectiles(dt);
   update_projectileCancellation(dt);
   update_shieldBlocking(dt);
   update_shieldPush(dt);
+  repelPlasma();
   update_enemyProjectileHits(dt);
   if (worldStep) {
     update_spawning(dt);
@@ -63,6 +68,7 @@ function update(dt, worldStep = true, commands = null) {
   update_enemyDarts(worldStep ? dt : 0);
   update_experience(worldStep ? dt : 0);
   update_potions(worldStep ? dt : 0);
+  repelPlasma();
   update_contactDamage(dt);
   update_drones(dt);
   update_darts(dt);
@@ -283,6 +289,7 @@ function movementDirection() {
   };
 }
 function movePlayer(p,dt,dx,dy,walls) {
+  if(p.iceUntil>state.time){p.vx=0;p.vy=0;return;}
   // Movimiento (con dash)
   if (p.dashTimer > 0) {
     p.vx = Math.cos(p.dashAngle) * 1650;
@@ -366,6 +373,7 @@ function update_movementAndWeapons(dt, worldStep = true, commands = null) {
     for (const c of commands) applyControl(c[1],{x:c[2],y:c[3]},c);
   } else applyControl(dt,movementDirection(),null);
   if (state.player.invuln > 0) state.player.invuln -= dt;
+  if(state.stopUntil>state.time)return;
   updateLasersFiring(dt);
 
   updateLightning(dt);
@@ -546,7 +554,7 @@ function update_enemyProjectileHits(dt) {
     if (p.invuln <= 0) {
       const rr = p.size/2 + b.r;
       if (visibleContact(b,p,rr)) {
-        damagePlayer(1);
+        damagePlayer(b.damage||1);
         state.enemyBullets.splice(i, 1);
       }
     }
@@ -587,6 +595,7 @@ function update_enemyAI(dt) {
     const toPx = p.x - e.x, toPy = p.y - e.y;
     const distToPlayer = Math.hypot(toPx, toPy) || 1;
 
+    if(updateExpansionEnemy(e,p,dt,travel,distToPlayer))continue;
     if (e.type === 'shooter') {
       const dirX = toPx / distToPlayer, dirY = toPy / distToPlayer;
       const desired = 340;
@@ -891,7 +900,7 @@ function update_enemyDarts(dt) {
     if (p.invuln <= 0) {
       const rr = p.size/2 + 6;
       if (visibleContact(d,p,rr)) {
-        damagePlayer(1);
+        damagePlayer(1,true);
         state.enemyDarts.splice(i, 1);
       }
     }

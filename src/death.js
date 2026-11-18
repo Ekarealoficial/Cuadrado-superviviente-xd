@@ -17,6 +17,14 @@ function killEnemy(index) {
   state.cam.zoom = Math.min(1.15, state.cam.zoom + 0.04);
   Sfx.play('kill', 40);
   state.enemies.splice(index, 1);
+  if(e.type==='splitter' && (e.generation||0)<2){
+    const generation=(e.generation||0)+1,angle=gameRandom()*TAU;
+    for(const sign of [-1,1]){
+      const hp=Math.max(1,Math.floor(e.maxHp/2));
+      state.enemies.push(createEnemy('splitter',e.x+sign*Math.cos(angle)*12,e.y+sign*Math.sin(angle)*12,
+        {generation,size:e.size*.68,hp,maxHp:hp,speed:e.speed*1.65,xp:2}));
+    }
+  }
   if (e.type === 'kamikaze') explodeKamikaze(e);
 }
 

@@ -1,6 +1,10 @@
 'use strict';
 /* =============== ENEMIGOS =============== */
 const ENEMY_TYPES = {
+  tackler: {size:28,hp:5,speed:130,color:'#ff9865',xp:6},
+  splitter: {size:42,hp:8,speed:53,color:'#5cff9a',xp:4},
+  cannon: {size:48,hp:12,speed:74,color:'#ffab4c',xp:10},
+  frostMage: {size:34,hp:9,speed:96,color:'#80dfff',xp:11},
   normal:     { size: 28, hp: 2, speed: 95,  color: '#ff5a6e', xp: 3 },
   fast:       { size: 18, hp: 1, speed: 195, color: '#ffc857', xp: 2 },
   tank:       { size: 52, hp: 7, speed: 62,  color: '#b06bff', xp: 8 },
@@ -12,7 +16,16 @@ const ENEMY_TYPES = {
   juggernaut: { size: 90, hp: 80, speed: 0,  color: '#9f1239', xp: 50 }
 };
 
-function chooseEnemyType(t) {
+// Transfers part of a donor's scheduled spawns over a 20-second transition.
+const rotations={normal:[30,'splitter',.55],fast:[50,'tackler',.65],
+  shooter:[70,'cannon',.65],invoker:[90,'frostMage',.7]};
+function chooseEnemyType(t){
+  const donor=baseEnemyType(t),swap=rotations[donor];
+  if(swap && t>=swap[0] && !rules.disabled.includes(swap[1]) &&
+      gameRandom()<swap[2]*Math.min(1,(1+t-swap[0])/20))return swap[1];
+  return donor;
+}
+function baseEnemyType(t) {
   const r = gameRandom();
   if (t < 20) return r < 0.85 ? 'normal' : 'fast';
   if (t < 40) return r < 0.50 ? 'normal' : (r < 0.85 ? 'fast' : 'tank');

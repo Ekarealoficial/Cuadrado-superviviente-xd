@@ -32,6 +32,10 @@ function drawCardIcon(cx, cy, size, card, color) {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   const s = size * 0.5;
   switch (card.id) {
+    case 'kame': case 'activeHeal': case 'reverse': case 'plasma': case 'timeBreak':
+      neonRing(s*.84,color,2);
+      ctx.font='bold '+size*.74+'px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';
+      ctx.fillText(({kame:'➤',activeHeal:'✚',reverse:'↶',plasma:'⬡',timeBreak:'Ⅱ'})[card.id],0,0);break;
     case 'armor':
       ctx.beginPath();ctx.moveTo(0,-s);ctx.lineTo(s*.78,-s*.65);ctx.lineTo(s*.66,s*.25);
       ctx.lineTo(0,s);ctx.lineTo(-s*.66,s*.25);ctx.lineTo(-s*.78,-s*.65);ctx.closePath();ctx.stroke();
