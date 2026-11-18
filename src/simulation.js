@@ -46,6 +46,8 @@ function update(dt, worldStep = true, commands = null) {
   update_stormAndBossSchedule(dt, worldStep);
   update_movementAndWeapons(dt, worldStep, commands);
   updateExpansion(dt,worldStep);
+  if(state.stopUntil<=state.time)updateCosmicZones(dt,worldStep);
+  collectCardRelics();
   if(state.stopUntil<=state.time)updateCardFields(dt,worldStep);
   if(state.stopUntil>state.time){
     update_shieldPositions(dt);update_experience(worldStep?dt:0);update_potions(worldStep?dt:0);return;
@@ -272,8 +274,14 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
     state.bossSpawnTimer-=dt*rate;
     if(!state.bossOmen && state.bossSpawnTimer<=20*rate){
       const kind=pickEncounter();
-      if(kind)state.bossOmen={kind,start:state.time};
+      if(kind){
+        state.bossOmen={kind,start:state.time};
+        if(kind==='singular')summonWells(2);
+      }
       else state.bossSpawnTimer=180;
+    }
+    if(state.bossOmen?.kind==='singular' && state.time-state.bossOmen.start>9 && !state.bossOmen.second){
+      summonWells(2);state.bossOmen.second=true;
     }
     if(state.bossSpawnTimer<=0 && state.bossOmen)spawnBoss(null,state.bossOmen.kind);
   }
@@ -303,6 +311,7 @@ function movePlayer(p,dt,dx,dy,walls) {
     p.vx += (dx * p.speed * (p.frameTime>0 ? 4 : 1) - p.vx) * k;
     p.vy += (dy * p.speed * (p.frameTime>0 ? 4 : 1) - p.vy) * k;
   }
+  if(state.stopUntil<=state.time)pullIntoWells(p,dt,walls);
   const res = moveWithWalls(p, p.vx * dt, p.vy * dt, walls);
   if (res.blockedX) p.vx = 0;
   if (res.blockedY) p.vy = 0;
@@ -463,10 +472,11 @@ function update_enemyProjectiles(dt) {
   // Balas enemigas
   for (let i = state.enemyBullets.length - 1; i >= 0; i--) {
     const b = state.enemyBullets[i];
+    if(b.inward && advanceInward(b,dt)){state.enemyBullets.splice(i,1);continue;}
     b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
     if (b.life <= 0) { state.enemyBullets.splice(i, 1); continue; }
     let hitWall = false;
-    for (const w of currentWalls) if (aabbOverlapCircle(b.x, b.y, b.r, w)) { hitWall = true; break; }
+    if(!b.inward)for (const w of currentWalls) if (aabbOverlapCircle(b.x, b.y, b.r, w)) { hitWall = true; break; }
     if (hitWall) {
       spawnParticles(b.x, b.y, 4, '#ff8c42', 0.5);
       state.enemyBullets.splice(i, 1);

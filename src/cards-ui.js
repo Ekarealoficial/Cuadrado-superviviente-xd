@@ -270,11 +270,11 @@ function drawCards() {
   ctx.shadowColor = '#ffd54a'; ctx.shadowBlur = 22;
   ctx.fillStyle = '#ffd54a';
   ctx.font = 'bold 42px system-ui, sans-serif';
-  ctx.fillText('¡NIVEL ' + state.level + '!', W / 2, y - 100);
+  ctx.fillText(state.bonusPicks?'BOTÍN DEL JEFE':'¡NIVEL ' + state.level + '!', W / 2, y - 100);
   ctx.shadowBlur = 0;
   ctx.fillStyle = 'rgba(255,255,255,0.6)';
   ctx.font = '18px system-ui, sans-serif';
-  ctx.fillText('Elige una mejora', W / 2, y - 55);
+  ctx.fillText(state.bonusPicks?'Elige una carta · '+state.bonusPicks+' por elegir':'Elige una mejora', W / 2, y - 55);
   if (state.pendingLevelUps > 1) {
     ctx.fillStyle = 'rgba(255,213,74,0.75)';
     ctx.font = 'bold 14px system-ui, sans-serif';

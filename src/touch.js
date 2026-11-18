@@ -116,7 +116,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     if(view==='over'){
       title.textContent='Fin de la partida';button(panel,playMode==='online'?'Salir al menú':'Volver a jugar',()=>playMode==='online'?el('exit').click():restart());
     }else if(view==='reward'){
-      title.textContent='Elige una mejora';
+      title.textContent=state.bonusPicks?'Botín del jefe · '+state.bonusPicks+' por elegir':'Elige una mejora';
       for(const [i,c] of state.cardChoices.entries()){
         const b=button(panel,c.name,()=>playMode==='online'?queuedActions.push({kind:'pick',i}):pickCard(c));
         const desc=document.createElement('small');desc.textContent=c.desc;b.append(desc);b.style.borderLeftColor=c.color;
@@ -158,7 +158,7 @@ window.addEventListener('DOMContentLoaded',()=>{
         b.disabled=!sc?.charges;b.style.color=card?.color||'';b.setAttribute('aria-label',card?.name||'Ranura '+(i+1));
       }
     }
-    const key=view==='inventory'?[view,...state.slots,selected??'-'].join('|'):view==='reward'?view+state.level+state.pendingLevelUps+state.cardChoices.map(c=>c.id).join():view;
+    const key=view==='inventory'?[view,...state.slots,selected??'-'].join('|'):view==='reward'?view+state.level+'-'+state.bonusPicks+'-'+state.pendingLevelUps+state.cardChoices.map(c=>c.id).join():view;
     if(key!==signature){populate(view);signature=key;}
   };
 });

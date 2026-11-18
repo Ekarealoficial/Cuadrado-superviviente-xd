@@ -188,25 +188,25 @@ function drawHUD() {
   }
 
   if (state.boss) {
-    const worm=state.boss.kind==='worm';
+    const worm=state.boss.kind==='worm',singular=state.boss.kind==='singular';
     const bw = Math.min(W - 100, 600);
     const bx = (W - bw) / 2;
-    const by = 100;
+    const by = 120;
     const bh = 22;
     ctx.fillStyle = 'rgba(0,0,0,0.75)';
     ctx.fillRect(bx - 3, by - 3, bw + 6, bh + 6);
     ctx.fillStyle = '#3a0010';
     ctx.fillRect(bx, by, bw, bh);
     const grad = ctx.createLinearGradient(bx, 0, bx + bw, 0);
-    grad.addColorStop(0, worm?'#158552':'#ff2255');
-    grad.addColorStop(1, worm?'#6affe1':'#ff7700');
+    grad.addColorStop(0, worm?'#158552':singular?'#b57926':'#ff2255');
+    grad.addColorStop(1, worm?'#6affe1':singular?'#fff1a2':'#ff7700');
     ctx.fillStyle = grad;
     ctx.fillRect(bx, by, bw * (state.boss.hp / state.boss.maxHp), bh);
     ctx.strokeStyle = state.boss.color; ctx.lineWidth = 2;
     ctx.strokeRect(bx, by, bw, bh);
     ctx.strokeStyle = 'rgba(255,255,255,0.4)'; ctx.lineWidth = 1;
     ctx.beginPath();
-    for(const mark of worm?[.30]:[.33,.50]){
+    for(const mark of worm?[.30]:[singular?.30:.33,.50]){
       ctx.moveTo(bx+bw*mark,by);ctx.lineTo(bx+bw*mark,by+bh);
     }
     ctx.stroke();

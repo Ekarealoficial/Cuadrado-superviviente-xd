@@ -3,9 +3,9 @@ function drawBossOmen(){
   const omen=state.bossOmen;
   if(!omen)return;
   const age=Math.max(0,state.time-omen.start);
-  const worm=omen.kind==='worm',color=worm?'#46ffa5':'#ff477f';
+  const worm=omen.kind==='worm',color=worm?'#46ffa5':omen.kind==='singular'?'#ffd265':'#ff477f';
   ctx.save();
-  if(age<2.1){
+  if(age<2.1 && omen.kind!=='singular'){
     const t=age/2.1,x=-100+(W+200)*t,y=H*(.48-.13*Math.sin(t*Math.PI));
     ctx.shadowColor=color;ctx.shadowBlur=15;
     if(worm){
@@ -35,8 +35,13 @@ function drawWorm(b){
   for(const piece of b.pieces){
     const head=piece.parts[0];ctx.save();
     if(['exit','laneAim','pass'].includes(piece.mode)){
-      for(let i=piece.lane;i<3;i++){
+      for(let i=piece.lane;i<piece.lanes.length;i++){
         const lane=piece.lanes[i],next=i===piece.lane;
+        if(next){
+          ctx.fillStyle=piece.mode==='pass'?'#88ffce48':'#64ffb81c';
+          if(piece.horizontal)ctx.fillRect(a.x,lane-piece.laneWidth/2,a.w,piece.laneWidth);
+          else ctx.fillRect(lane-piece.laneWidth/2,a.y,piece.laneWidth,a.h);
+        }
         ctx.strokeStyle=next?'#acffd4':'#2da777';ctx.globalAlpha=next?.86:.36;
         ctx.lineWidth=next?4:2;ctx.setLineDash(next?[26,7]:[8,13]);
         ctx.shadowColor='#38ff9e';ctx.shadowBlur=next?12:0;
@@ -45,6 +50,7 @@ function drawWorm(b){
       }
     }
     ctx.restore();
+    if(piece.mode==='pass')drawAirCut(piece);
     if(piece.mode==='laneAim')continue;
     ctx.save();
     if(piece.mode==='windup'){
@@ -74,4 +80,17 @@ function drawWorm(b){
     }
     ctx.restore();
   }
+}
+function drawAirCut(piece){
+  const band=airCutBounds(piece),horizontal=piece.horizontal;
+  ctx.save();ctx.translate(band.x,band.y);ctx.fillStyle='#b2ffdf73';ctx.fillRect(0,0,band.w,band.h);
+  const length=horizontal?band.w:band.h,width=piece.laneWidth;
+  if(!horizontal)ctx.transform(0,1,1,0,0,0);
+  ctx.shadowColor='#4effac';ctx.shadowBlur=10;
+  for(let i=0;i<8;i++){
+    const y=width*i/7;ctx.strokeStyle=i===0||i===7?'#ecfff7':'#8cfbc0';
+    ctx.lineWidth=i===0||i===7?3:1;ctx.beginPath();ctx.moveTo(0,y);
+    ctx.lineTo(length*.4,y+Math.sin(i)*4);ctx.lineTo(length,y);ctx.stroke();
+  }
+  ctx.restore();
 }

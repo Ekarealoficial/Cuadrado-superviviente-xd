@@ -43,7 +43,7 @@ function newState() {
     shake: 0, flash: 0, flashRGB: '255,60,100',
     over: false, overTimer: 0,
     cardChoices: null, cardRects: null,
-    pendingLevelUps: 0,
+    pendingLevelUps: 0, bonusPicks: 0, cardRelics: [], cosmicZones: [],
     boss: null, extraBosses: [], firstBossDefeatAt: null, bossActive: false, arena: null,
     bossBombs: [], bossLasers: [], bossLaserActive: false, bossLaserTimer: 0,
     bossSpawnTimer: BOSS_FIRST_TIME, bossCycle: [], bossOmen: null,

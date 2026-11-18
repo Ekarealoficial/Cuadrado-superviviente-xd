@@ -8,7 +8,7 @@ const rooms=new Map();
 const sockets=new Map();
 const streams=new Map();
 const allowedOrigins=new Set((process.env.ALLOWED_ORIGINS||'https://ekarealoficial.github.io,http://localhost:3000').split(',').map(origin=>origin.trim()).filter(Boolean));
-const types='tackler splitter cannon frostMage normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss worm'.split(' ');
+const types='tackler splitter cannon frostMage normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss worm singular'.split(' ');
 const rates=[0.5,1,1.5,2,3];
 function requireValue(ok,message,status=400){if(!ok)throw Object.assign(new Error(message),{status});}
 function settings(s) {

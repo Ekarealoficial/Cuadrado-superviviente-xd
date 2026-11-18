@@ -4,11 +4,11 @@ function livingBosses() {
   return state.boss ? [state.boss, ...(state.extraBosses || [])] : [];
 }
 function bossTargets() {
-  return livingBosses().flatMap(b => b.pieces ? b.pieces.flatMap(piece => piece.parts) : [b]);
+  return livingBosses().flatMap(b => b.pieces ? b.pieces.flatMap(piece => piece.parts) : b.state==='final' ? [] : [b]);
 }
 function bossFor(target) {
   if(target?.wormSegment)return target._dying ? null : target;
-  return livingBosses().find(b => b === target || b.balls.includes(target));
+  return livingBosses().find(b => b.state!=='final' && (b === target || b.balls.includes(target)));
 }
 function finishTarget(target) {
   if (target.wormSegment) breakWormSegment(target);
@@ -59,7 +59,7 @@ function spawnBoss(position,kind='boss') {
       { x: ax + aw, y: ay - 60, w: 60, h: ah + 120, isArena: true }
     ]
   };
-  const boss = kind==='worm' ? createWorm(position || {x:p.x,y:ay+180},bossHp) : {
+  const boss = kind==='singular' ? createSingular(position || {x:p.x,y:ay+180},bossHp) : kind==='worm' ? createWorm(position || {x:p.x,y:ay+180},bossHp) : {
     kind,
     x: position?.x ?? p.x, y: position?.y ?? ay + 200,
     size: 180,
@@ -83,8 +83,12 @@ function spawnBoss(position,kind='boss') {
   Sfx.play('bossroar');
 }
 
-function killBoss(b = state.boss) {
+function killBoss(b = state.boss, completed = false) {
   if (!b || b._dying || !livingBosses().includes(b)) return;
+  if(b.kind==='singular' && !completed){
+    if(b.state!=='final')startSingularFinal(b);
+    return;
+  }
   b._dying = true;
   state.firstBossDefeatAt ??= state.time;
   spawnParticles(b.x, b.y, 80, b.color, 2);
@@ -94,17 +98,26 @@ function killBoss(b = state.boss) {
   state.flashRGB = '255,60,100';
   state.score += 5000;
   recordKill(b);
-  dropGreedBonus(b,25*6);
+  const loot=rewardSpot(b.x,b.y);
+  const xp=300+state.xpNeeded*2;
+  dropGreedBonus(b,xp);
+  for(const side of [-1,1]){
+    const spot=rewardSpot(loot.x+side*48,loot.y+24);
+    state.cardRelics.push(spot);
+  }
   addFloat(b.x, b.y - 60, '¡JEFE DERROTADO!', '#ffd54a');
   Sfx.play('bossdie');
-  for (let i = 0; i < 25; i++) spawnOrbs(b.x + gameRand(-150, 150), b.y + gameRand(-150, 150), 6);
+  for (let i = 0; i < 25; i++) {
+    const pos=rewardSpot(loot.x+gameRand(-150,150),loot.y+gameRand(-150,150));
+    spawnOrbs(pos.x,pos.y,xp/25);
+  }
   for (let i = 0; i < 3; i++) {
-    state.potions.push({ x: b.x + gameRand(-100, 100), y: b.y + gameRand(-100, 100), type: 'large', value: 2, life: 60, maxLife: 60, bob: gameRandom() * TAU });
+    state.potions.push({ ...rewardSpot(loot.x+gameRand(-100,100),loot.y+gameRand(-100,100)), type: 'large', value: 2, life: 60, maxLife: 60, bob: gameRandom() * TAU });
   }
   if (b === state.boss) state.boss = state.extraBosses.shift() || null;
   else state.extraBosses.splice(state.extraBosses.indexOf(b),1);
   if (state.boss) {
-    state.bossLaserActive = livingBosses().some(other => other.phase >= 3);
+    state.bossLaserActive = livingBosses().some(other => other.kind==='boss' && other.phase >= 3);
     return;
   }
   state.bossActive = false;
@@ -183,8 +196,8 @@ function updateBoss(dt, b = state.boss) {
   if (!b) return;
   const p = state.player;
 
-  if (b.pieces) {
-    updateWorm(b,dt);
+  if (b.pieces || b.kind==='singular') {
+    if(b.pieces)updateWorm(b,dt);else updateSingular(b,dt);
     if(b===state.boss)updateArenaHazards(dt);
     return;
   }

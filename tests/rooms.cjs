@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const engine=require('../room-engine.cjs');
-const disabled='normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss'.split(' ');
+const disabled='normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss singular'.split(' ');
 for(const pvp of [false,true])test('Combate compartido con PvP '+pvp,()=>{
   const game=engine({difficulty:1,xp:1,pvp,disabled});
   game.add('a',{name:'Azul',color:'#3399ff'});
@@ -87,4 +87,14 @@ test('La sala comparte aviso, segmentos y fase del Gusano Esmeralda',()=>{
  const observed=r.snapshot('b').boss;
  assert.equal(observed.phase,2);assert.equal(observed.pieces.length,2);
  assert.ok(observed.pieces.every(p=>p.mode==='windup' && p.dashes>=10 && p.dashes<=15));
+});
+test('Dos jugadores ven las singularidades del aviso y las reliquias tienen un solo propietario',()=>{
+ const r=engine({difficulty:3,xp:1,disabled:[...disabled.filter(k=>k!=='singular'),'worm'],pvp:false});
+ for(const id of ['a','b'])r.add(id,{name:id,color:'#fff'});
+ for(let i=0;i<905;i++)r.tick(1/30);
+ const a=r.snapshot('a'),b=r.snapshot('b');
+ assert.equal(a.bossOmen.kind,'singular');assert.equal(a.cosmicZones.length,2);assert.deepEqual(a.cosmicZones,b.cosmicZones);
+ a.cardRelics.push({x:a.player.x,y:a.player.y});r.tick(1/30);
+ const rewards=['a','b'].map(id=>r.snapshot(id).bonusPicks).sort();
+ assert.deepEqual(rewards,[0,3]);assert.equal(r.snapshot('b').cardRelics.length,0);
 });

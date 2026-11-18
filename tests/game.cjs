@@ -216,22 +216,22 @@ test('El aviso reserva un jefe veinte segundos antes en cada dificultad y agota 
  }
  run('state.bossCycle=[];const order=Array.from({length:10},pickEncounter)');
  assert.ok(run('order.every((id,i)=>!i || id!==order[i-1])'));
- assert.equal(run("rules.disabled=['worm'];pickEncounter()"),'boss');
- assert.equal(run("rules.disabled=['worm','boss'];pickEncounter()"),null);
+ assert.equal(run("rules.disabled=['worm','singular'];pickEncounter()"),'boss');
+ assert.equal(run("rules.disabled=['worm','boss','singular'];pickEncounter()"),null);
 });
 test('Una bala corta el gusano en dos y la victoria llega al eliminar la última bola',()=>{
- const run=game();run("spawnBoss({x:0,y:100},'worm');const worm=state.boss,body=worm.pieces[0].parts,s=body[7];spawnBullet(s.x,s.y,0,900,{damage:s.hp});update_projectileHits()");
+ const run=game();run("spawnBoss({x:0,y:100},'worm');const worm=state.boss,body=worm.pieces[0].parts,s=body[37];spawnBullet(s.x,s.y,0,900,{damage:s.hp});update_projectileHits()");
  assert.equal(run('worm.pieces.length'),2);
- assert.ok(run('worm.pieces.every(p=>p.parts.length===7) && body[0].maxHp>body[1].maxHp && state.kills===0'));
+ assert.ok(run('worm.pieces.every(p=>p.parts.length===37) && body[0].maxHp>body[1].maxHp && state.kills===0'));
  run("const [left,right]=worm.pieces;wormWindup(left,false);startWormLines(right);const angle=left.heading;state.player.x=500;updateBoss(.1);render()");
  assert.ok(run("left.heading===angle && left.mode==='windup' && right.mode==='exit'"));
  run('for(const s of bossTargets().slice(1)){s.hp=0;finishTarget(s);}');
  assert.ok(run('state.boss===worm && state.arena'));run('const lastSegment=bossTargets()[0];lastSegment.hp=0;finishTarget(lastSegment)');
  assert.ok(run('state.boss===null && state.kills===1 && state.arena===null'));
 });
-test('Tres carriles, diez a quince estampidas por trozo y descanso en fase dos',()=>{
+test('Carriles de borde a borde, diez a quince estampidas por trozo y descanso en fase dos',()=>{
  const run=game();run("spawnBoss({x:40,y:20},'worm');const worm=state.boss,piece=worm.pieces[0];startWormLines(piece);const lanes=new Set();for(let i=0;i<1500;i++){if(piece.mode==='pass')lanes.add(piece.lanes[piece.lane]);updateBoss(1/60);if(piece.mode==='curve')break;}");
- assert.equal(run('lanes.size'),3);
+ assert.equal(run('lanes.size'),run('Math.ceil((piece.horizontal?state.arena.h:state.arena.w)/150)'));
  run('finishTarget(piece.parts[5]);for(const s of bossTargets())s.hp=s.maxHp*.29;updateBoss(.01);const counts=worm.pieces.map(()=>0),lastModes=[];for(let i=0;i<700;i++){updateBoss(1/60);worm.pieces.forEach((p,k)=>{if(p.mode==="rush" && lastModes[k]!=="rush")counts[k]++;lastModes[k]=p.mode});if(worm.pieces.every(p=>p.mode==="rest"))break;}');
  assert.ok(run('worm.phase===2 && counts.length===2 && counts.every(n=>n>=10 && n<=15) && worm.pieces.every(p=>p.mode==="rest")'));
 });
@@ -242,4 +242,40 @@ test('Cadencia aumenta el límite por jugador y Tiempo roto conserva cada grieta
  run('state.stopStarted=1;state.stopUntil=4;state.time=1;fractureShake();const pattern=fracture.paths;state.time+=.001;fractureShake()');
  assert.equal(run('fracture.step'),0);run('state.time=4;fractureShake();render()');
  assert.ok(run('fracture.paths===pattern && fracture.step===fracture.times.length-1 && fracture.paths.every(ray=>ray.at(-1).at===1)'));
+});
+test('Cadencia, Multidisparo y Retroceso amplían juntos el presupuesto de balas',()=>{
+ const run=game();run("for(const id of ['fire','multi','back','back'])applyCard(CARD_TYPES.find(c=>c.id===id))");
+ assert.equal(run('playerBulletLimit(state.player)'),400);
+});
+test('Cada reliquia permite tres elecciones además de las subidas pendientes',()=>{
+ const run=game();run('state.level=9;state.xpNeeded=200;spawnBoss();killBoss();');
+ assert.equal(run('state.cardRelics.length'),2);
+ assert.ok(Math.abs(run('state.orbs.reduce((n,o)=>n+o.value,0)')-700)<1e-6);
+ run('state.pendingLevelUps=1;openCardSelection();Object.assign(state.player,state.cardRelics[0]);collectCardRelics()');
+ assert.equal(run('state.bonusPicks'),3);
+ run('for(let i=0;i<3;i++)pickCard(state.cardChoices[0]);');
+ assert.ok(run('state.level===9 && state.pendingLevelUps===1 && state.cardChoices.length===3 && state.cardRelics.length===1'));
+ run('pickCard(state.cardChoices[0]);Object.assign(state.player,state.cardRelics[0]);collectCardRelics();for(let i=0;i<3;i++)pickCard(state.cardChoices[0]);');
+ assert.ok(run('state.level===9 && !state.cardChoices && state.cardRelics.length===0'));
+});
+test('El Círculo absorbe y devuelve las mismas masas, emite rayos y termina antes del botín',()=>{
+ const run=game();run("spawnBoss({x:220,y:50},'singular');const b=state.boss;startSingularAttack(b,'attract');const masses=state.enemyBullets.map(s=>s.damage).sort().join();for(let i=0;i<230 && b.state!=='repel';i++){updateBoss(1/60);update_enemyProjectiles(1/60)}");
+ assert.equal(run('b.absorbed.length'),22);run("updateBoss(.6);");assert.equal(run("state.enemyBullets.map(s=>s.damage).sort().join()"),run('masses'));
+ run("startSingularAttack(b,'blink');const count=b.remaining+1;for(let i=0;i<count;i++)updateBoss(1);");
+ assert.ok(run("count>=4 && count<=6 && state.cosmicZones.filter(z=>z.type==='beam').length===count"));
+ run("b.hp=b.maxHp*.5;updateBoss(.01);startSingularAttack(b,'lunar');");
+ assert.ok(run('new Set(b.planets.map(p=>p.distance)).size===4 && b.planets.every(p=>p.moons.length===4)'));
+ run("const shots=state.enemyBullets.length;updateBoss(.9);");assert.equal(run('state.enemyBullets.length-shots'),16);
+ run("b.hp=b.maxHp*.29;b.ambient=0;updateBoss(.01);render()");
+ assert.ok(run("b.phase===3 && state.cosmicZones.some(z=>z.type==='well') && state.cosmicZones.some(z=>z.type==='solar')"));
+ run("b.hp=0;finishTarget(b);finishTarget(b);render()");
+ assert.ok(run("b.state==='final' && !bossTargets().length && state.enemyBullets.filter(s=>s.planet).length===4 && !state.cardRelics.length"));
+ run('for(let i=0;i<130;i++)updateBoss(1/60);render()');
+ assert.ok(run("!state.boss && state.kills===1 && state.cardRelics.length===2 && state.cosmicZones.some(z=>z.type==='nova')"));
+});
+test('El triángulo solar ocupa dos veces el área del hielo y golpea sin congelar',()=>{
+ const run=game();run("solarVolley();const z=state.cosmicZones[0],v=solarVertices(z);state.cosmicZones=[z];const area=Math.abs((v[1].x-v[0].x)*(v[2].y-v[0].y)-(v[1].y-v[0].y)*(v[2].x-v[0].x))/2;");
+ assert.ok(Math.abs(run('area/(Math.PI*45**2)')-2)<1e-9);
+ run('const hp=state.halfHearts;updateCosmicZones(.65,true);');assert.equal(run('hp'),run('state.halfHearts'));
+ run('updateCosmicZones(.04,true);');assert.ok(run('hp-state.halfHearts===2 && !state.player.iceUntil && state.shake>0'));
 });

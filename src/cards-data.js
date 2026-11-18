@@ -4,7 +4,7 @@ const START_HALF_HEARTS = 8;
 const START_MAGNET = 200;
 const BASE_BULLET_LIMIT = 200;
 function playerBulletLimit(p){
-  return BASE_BULLET_LIMIT + 50 * (p.fireUpgrades || 0);
+  return BASE_BULLET_LIMIT + 50 * ((p.fireUpgrades || 0) + Math.max(0,p.shots-1) + p.backShots);
 }
 const BOSS_FIRST_TIME = 150;
 
@@ -21,10 +21,10 @@ const CARD_TYPES = [
       ['swords','Espada Espectral','Añade una espada orbital que hiere al contacto.','#bbeaff']]
     .map(([id,name,desc,color])=>({id,name,desc,color,apply:p=>{p[id]=(p[id]||0)+1;}})),
   { id: 'fire',          name: 'Cadencia',       desc: 'Reduce el intervalo entre disparos un 15% y permite 50 balas activas más.',                    color: '#4df3ff' },
-  { id: 'multi',         name: 'Multidisparo',   desc: 'Añade una línea de disparo adicional.',                       color: '#ffc857' },
+  { id: 'multi',         name: 'Multidisparo',   desc: 'Añade una línea frontal y permite 50 balas activas más.',                       color: '#ffc857' },
   { id: 'health',        name: 'Vitalidad',      desc: 'Aumenta vida máxima en medio corazón y te cura medio.',       color: '#ff3b6b' },
   { id: 'speed',         name: 'Agilidad',       desc: 'Aumenta tu velocidad un 10%.',                                color: '#8fff9e' },
-  { id: 'back',          name: 'Retroceso',      desc: 'Dispara también hacia atrás. Acumulable.',                    color: '#c77dff' },
+  { id: 'back',          name: 'Retroceso',      desc: 'Añade un disparo trasero y permite 50 balas activas más.',                    color: '#c77dff' },
   { id: 'drone1',        name: 'Dron Básico',    desc: 'Añade un dron con 1 línea de disparo.',                       color: '#4dff88' },
   { id: 'drone2',        name: 'Dron Doble',     desc: 'Añade un dron con 2 líneas de disparo.',                      color: '#7dffb0' },
   { id: 'drone3',        name: 'Dron Triple',    desc: 'Añade un dron con 3 líneas de disparo.',                      color: '#a8ffcf' },

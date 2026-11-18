@@ -1,17 +1,24 @@
 'use strict';
-const WORM_LINK=26;
+const WORM_LINK=38;
 function newWormPiece(parts,heading){
   return {parts,heading,mode:'curve',timer:gameRand(2.3,4),wave:gameRand(0,TAU)};
 }
 function createWorm(pos,hp){
-  const count=15,unit=Math.floor(hp/(count+2)),arena=state.arena;
+  const count=75,unit=Math.floor(hp/(count+2)),arena=state.arena;
   const dir=pos.x<arena.x+arena.w/2?-1:1;
+  let x=pos.x,y=pos.y,step=-dir;
+  const row=y<arena.y+arena.h/2?1:-1;
   const parts=Array.from({length:count},(_,i)=>{
     const health=i===0?hp-(count-1)*unit:unit;
-    return {wormSegment:true,segmentId:i,x:pos.x-i*dir*WORM_LINK,y:pos.y,
-      size:i===0?48:36,hp:health,maxHp:health,color:'#34ec9d',balls:[],hitFlash:0};
+    if(i){
+      const next=x+step*WORM_LINK;
+      if(next<arena.x+35 || next>arena.x+arena.w-35){step=-step;y+=row*WORM_LINK;}
+      else x=next;
+    }
+    return {wormSegment:true,segmentId:i,x,y,
+      size:i===0?70:54,hp:health,maxHp:health,color:'#34ec9d',balls:[],hitFlash:0};
   });
-  return {kind:'worm',x:pos.x,y:pos.y,size:48,hp,maxHp:hp,phase:1,color:'#34ec9d',
+  return {kind:'worm',x:pos.x,y:pos.y,size:70,hp,maxHp:hp,phase:1,color:'#34ec9d',
     balls:[],pieces:[newWormPiece(parts,dir===1?0:Math.PI)]};
 }
 function wormHealth(b){
@@ -28,7 +35,7 @@ function breakWormSegment(seg){
     spawnParticles(seg.x,seg.y,18,b.color,1);
     if(tail.length){
       if(gameRandom()<.5)tail.reverse();
-      tail[0].size=44;
+      tail[0].size=64;
       const next=newWormPiece(tail,tail.length>1?Math.atan2(tail[0].y-tail[1].y,tail[0].x-tail[1].x):piece.heading+Math.PI);
       b.pieces.push(next);
       if(b.phase===2)startWormVolley(next);
@@ -61,9 +68,10 @@ function startWormLines(piece){
   const h=piece.parts[0],a=state.arena;
   piece.horizontal=gameRandom()<.5;
   const start=piece.horizontal?a.y:a.x,length=piece.horizontal?a.h:a.w;
-  const anchor=clamp(piece.horizontal?state.player.y:state.player.x,start+130,start+length-130);
-  piece.lanes=[anchor-105,anchor,anchor+105];
-  for(let i=2;i>0;i--){const j=Math.floor(gameRandom()*(i+1));[piece.lanes[i],piece.lanes[j]]=[piece.lanes[j],piece.lanes[i]];}
+  const count=Math.ceil(length/150);
+  piece.laneWidth=length/count;
+  piece.lanes=Array.from({length:count},(_,i)=>start+(i+.5)*piece.laneWidth);
+  for(let i=count-1;i>0;i--){const j=Math.floor(gameRandom()*(i+1));[piece.lanes[i],piece.lanes[j]]=[piece.lanes[j],piece.lanes[i]];}
   piece.lane=0;piece.mode='exit';piece.timer=1;
   piece.forward=piece.horizontal?h.x<a.x+a.w/2:h.y<a.y+a.h/2;
   piece.heading=piece.horizontal?(piece.forward?Math.PI:0):(piece.forward?-Math.PI/2:Math.PI/2);
@@ -82,6 +90,11 @@ function wormContact(b){
   const p=state.player;
   for(const piece of b.pieces){
     if(piece.mode==='laneAim')continue;
+    if(piece.mode==='pass'){
+      const band=airCutBounds(piece);
+      if(aabbOverlapCircle(p.x,p.y,p.size/2,band)){damagePlayer(2);return;}
+      continue;
+    }
     for(const s of piece.parts){
       const radius=(s.size+p.size)/2;
       const crossing=!state.viewDelay && bulletEntry(s,p,radius)!==Infinity;
@@ -162,11 +175,11 @@ function updateWormPiece(piece,phase,dt,a){
       break;
     case 'pass': {
       const length=piece.horizontal?a.w:a.h;
-      speed=Math.max(1300,length/.82);
+      speed=Math.max(length/.13,(length+piece.parts.length*WORM_LINK)/.32);
       const axis=piece.horizontal?h.x:h.y,edge=piece.horizontal?a.x:a.y;
       if(piece.forward?axis>edge+length+piece.parts.length*WORM_LINK:axis<edge-piece.parts.length*WORM_LINK){
         speed=0;
-        if(++piece.lane<3){piece.forward=!piece.forward;stageWormLane(piece);}
+        if(++piece.lane<piece.lanes.length){piece.forward=!piece.forward;stageWormLane(piece);}
         else{
           piece.heading+=Math.PI;piece.mode='curve';piece.timer=2.5;
           // Return from the edge with the tail behind the head.
@@ -187,4 +200,13 @@ function updateWormPiece(piece,phase,dt,a){
     const prev=piece.parts[i-1],dx=prev.x-s.x,dy=prev.y-s.y,d=Math.hypot(dx,dy);
     if(d>WORM_LINK){s.x=prev.x-dx/d*WORM_LINK;s.y=prev.y-dy/d*WORM_LINK;}
   }
+}
+
+function airCutBounds(piece){
+  const axis=piece.horizontal?'x':'y',previous=piece.horizontal?'prevX':'prevY';
+  const head=piece.parts[0],tail=piece.parts.at(-1),lane=piece.lanes[piece.lane];
+  const min=Math.min(head[axis],tail[axis],head[previous]??head[axis],tail[previous]??tail[axis])-30;
+  const max=Math.max(head[axis],tail[axis],head[previous]??head[axis],tail[previous]??tail[axis])+30;
+  return piece.horizontal?{x:min,y:lane-piece.laneWidth/2,w:max-min,h:piece.laneWidth}:
+    {x:lane-piece.laneWidth/2,y:min,w:piece.laneWidth,h:max-min};
 }

@@ -112,6 +112,7 @@ function render() {
     ctx.restore();
   }
 
+  drawCosmicWorld();
   drawExpansionWorld();
   renderEntities0();
   renderEntities1();
@@ -410,6 +411,7 @@ function renderEntities1() {
   // Boss
   for (const b of livingBosses()) {
     if(b.pieces){drawWorm(b);continue;}
+    if(b.kind==='singular'){drawSingular(b);continue;}
     for (const ball of b.balls) {
       if (ball.state === 'attached') {
         ctx.strokeStyle = 'rgba(255, 100, 130, 0.55)';
@@ -578,8 +580,8 @@ function renderEntities3() {
   // Balas enemigas
   ctx.save();
   for (const b of state.enemyBullets) {
-    ctx.shadowColor = '#ff8c42'; ctx.shadowBlur = 14;
-    ctx.fillStyle = '#ffd0a8';
+    ctx.shadowColor = b.tint || '#ff8c42'; ctx.shadowBlur = 14;
+    ctx.fillStyle = b.tint || '#ffd0a8';
     ctx.beginPath(); ctx.arc(b.x, b.y, b.r, 0, TAU); ctx.fill();
   }
   ctx.restore();

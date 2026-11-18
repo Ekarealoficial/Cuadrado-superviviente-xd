@@ -144,7 +144,7 @@ function reflectPlasmaShot(p,s,b){
   const dx=b.x-p.x,dy=b.y-p.y,d=Math.hypot(dx,dy),r=s.r+b.r;
   if(d>=r)return false;
   const nx=d?dx/d:1,ny=d?dy/d:0,dot=nx*b.vx+ny*b.vy;
-  if(dot<0){b.vx-=2*dot*nx;b.vy-=2*dot*ny;}
+  if(dot<0){b.vx-=2*dot*nx;b.vy-=2*dot*ny;delete b.inward;}
   b.x=p.x+nx*r;b.y=p.y+ny*r;
   s.flare={a:Math.atan2(ny,nx),end:state.time+.18};
   b.prevX=b.x;b.prevY=b.y;
