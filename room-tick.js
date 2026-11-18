@@ -16,6 +16,12 @@
     party.set(id,{state:personal,profile,input:{},actions:[],queue:[],ack:0,credit:0,sequenced:false});
   }
   function tick(dt) {
+    for(const group of [world.enemies,world.enemyBullets,world.enemyDarts])
+      for(const e of group)rememberPosition(e,world.time);
+    if(world.boss){
+      rememberPosition(world.boss,world.time);
+      for(const ball of world.boss.balls)rememberPosition(ball,world.time);
+    }
     const ready = [...party.values()].filter(m=>!m.state.over);
     const focus = ready[Math.floor(world.time/3)%ready.length];
     for (const member of new Set([focus,...party.values()])) {
@@ -61,8 +67,8 @@
       if(world.boss && member!==focus && !state.over && state.player.invuln<=0){
         const p=state.player,b=world.boss;
         const near=(object,radius)=>Math.hypot(p.x-object.x,p.y-object.y)<radius;
-        if(b.state==='dash' && near(b,(b.size+p.size)/2))damagePlayer(2);
-        else if(b.balls.some(ball=>ball.state==='flying' && near(ball,ball.r+p.size/2))
+        if(b.state==='dash' && visibleContact(b,p,(b.size+p.size)/2))damagePlayer(2);
+        else if(b.balls.some(ball=>ball.state==='flying' && visibleContact(ball,p,ball.r+p.size/2))
           || world.bossBombs.some(bomb=>bomb.exploded && bomb.fadeTimer===0 && near(bomb,100))
           || world.bossLasers.some(laser=>laser.state==='active' && laserHits(p.x,p.y,p.size/2,laser.x,laser.y,laser.angle,laser.width,3000)))damagePlayer(1);
       }
@@ -78,7 +84,7 @@
         for(const victim of party.values()) {
           if(victim===attacker || victim.state.over) continue;
           const p=victim.state.player;
-          if(Math.hypot(p.x-b.x,p.y-b.y)>15+b.r) continue;
+          if(bulletEntry(b,p,p.size/2+b.r)===Infinity)continue;
           state=attacker.state;
           const damage=b.damage*attackMultiplier(victim.state.player);
           state=victim.state;
@@ -120,11 +126,17 @@
       member.sequenced=true;
       let last=member.queue.at(-1)?.[0] ?? member.ack;
       for (const c of input.frames.slice(0,48)) {
-        if (!Array.isArray(c) || c.length!==6 || !Number.isSafeInteger(c[0]) || c[0]<=last ||
+        if (!Array.isArray(c) || (c.length!==6 && c.length!==7) || !Number.isSafeInteger(c[0]) || c[0]<=last ||
             !Number.isFinite(c[1]) || c[1]<=0 || c[1]>.05 ||
             ![-1,0,1].includes(c[2]) || ![-1,0,1].includes(c[3]) || !Number.isFinite(c[4])) continue;
-        if (member.queue.length>=96) break;
+
         member.queue.push(c); last=c[0];
+      }
+      // After a stall, accept only a bounded interval of recent controls.
+      let duration=0;
+      for(let i=member.queue.length-1;i>=0;i--){
+        duration+=member.queue[i][1];
+        if(duration>.24+1e-9){member.queue.splice(0,i+1);break;}
       }
     }
     if (Number.isFinite(input.stamp) && input.stamp <= (member.input.stamp ?? -1)) return;

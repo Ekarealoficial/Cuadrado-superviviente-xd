@@ -3,7 +3,7 @@ services:
     name: cuadradito-superviviente-ekareal
     runtime: node
     plan: free
-    buildCommand: ""
+    buildCommand: npm ci --omit=dev --ignore-scripts
     startCommand: npm start
     healthCheckPath: /health
     envVars:

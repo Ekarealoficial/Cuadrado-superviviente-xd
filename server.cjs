@@ -3,7 +3,9 @@ const fs=require('node:fs');
 const path=require('node:path');
 const crypto=require('node:crypto');
 const engine=require('./room-engine.cjs');
+const {WebSocketServer,WebSocket}=require('ws');
 const rooms=new Map();
+const sockets=new Map();
 const streams=new Map();
 const allowedOrigins=new Set((process.env.ALLOWED_ORIGINS||'https://ekarealoficial.github.io,http://localhost:3000').split(',').map(origin=>origin.trim()).filter(Boolean));
 const types='normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss'.split(' ');
@@ -16,14 +18,22 @@ function settings(s) {
     difficulty:s.difficulty,xp:s.xp,disabled:types.filter(t=>s.disabled.includes(t))};
 }
 function leave(room,token){
+  sockets.get(token)?.close(1000);
   room.members.delete(token); room.game.remove(token);
   if(!room.members.size)rooms.delete(room.code);
 }
+const stepMs=1000/30;
+let lastTick=performance.now(), debt=0;
 setInterval(()=>{
+  const now=performance.now();
+  debt=Math.min(4*stepMs,debt+now-lastTick);
+  lastTick=now;
+  const steps=Math.floor(debt/stepMs);
+  debt-=steps*stepMs;
   for(const r of rooms.values()){
     for(const [token,seen] of r.members)if(Date.now()-seen>20000)leave(r,token);
     if(r.members.size){
-      try{r.game.tick(1/30);}
+      try{for(let i=0;i<steps;i++)r.game.tick(1/30);}
       catch(error){console.error('Error de simulación',error);rooms.delete(r.code);}
     }
   }
@@ -102,11 +112,58 @@ const server=http.createServer(async(req,res)=>{
     }
     requireValue(action==='input'||action==='step','No encontrado',404);
     room.members.set(data.token,Date.now());
+    submitInput(room,data.token,data);
+    return json(200,action==='input'?{}:room.game.snapshot(data.token));
+  }catch(e){json(e.status||500,{error:e.status?e.message:'Error del servidor'});}
+});
+function submitInput(room,token,data){
     const input=data.input||{};
     for(const k of ['dx','dy']) input[k]=Number.isFinite(input[k])?Math.max(-2000,Math.min(2000,input[k])):0;
     const actions=(Array.isArray(data.actions)?data.actions:[]).filter(a=>a && (a.kind==='inventory'||Number.isInteger(a.i)&&a.i>=0&&a.i<5));
-    room.game.input(data.token,input,actions);
-    return json(200,action==='input'?{}:room.game.snapshot(data.token));
-  }catch(e){json(e.status||500,{error:e.status?e.message:'Error del servidor'});}
+    room.game.input(token,input,actions);
+}
+
+// One ordered duplex channel per participant. Slow readers skip obsolete snapshots.
+const wsServer=new WebSocketServer({noServer:true,maxPayload:16384,perMessageDeflate:{threshold:1500}});
+server.on('upgrade',(req,socket,head)=>{
+  if(req.url!=='/api/live' || (req.headers.origin && !allowedOrigins.has(req.headers.origin))){
+    socket.destroy();return;
+  }
+  wsServer.handleUpgrade(req,socket,head,ws=>wsServer.emit('connection',ws));
+});
+wsServer.on('connection',ws=>{
+  let room,token,timer,serial=0,seen=0;
+  const authTimer=setTimeout(()=>ws.close(1008),5000);
+  ws.on('error',()=>ws.terminate());
+  ws.on('close',()=>{
+    clearInterval(timer);clearTimeout(authTimer);
+    if(sockets.get(token)===ws)sockets.delete(token);
+  });
+  ws.on('message',raw=>{
+    try{
+      const data=JSON.parse(raw);
+      if(!room){
+        room=rooms.get(data.code); token=data.token;
+        if(!room?.members.has(token)){ws.close(1008);return;}
+        clearTimeout(authTimer);
+        sockets.get(token)?.close(1000);
+        sockets.set(token,ws);
+        ws.send(JSON.stringify({type:'ready'}));
+        timer=setInterval(()=>{
+          if(!room.members.has(token)||!rooms.has(room.code)){ws.close(1000);return;}
+          if(ws.readyState!==WebSocket.OPEN || ws.bufferedAmount>32768 || serial-seen>=8)return;
+          const state=room.game.snapshot(token);
+          ws.send(JSON.stringify({type:'state',serial:++serial,state},(k,v)=>
+            k==='owner'||k==='target'||k==='prevX'||k==='prevY'?undefined:v));
+        },40);
+        return;
+      }
+      if(sockets.get(token)!==ws || !room.members.has(token)){ws.close(1008);return;}
+      room.members.set(token,Date.now());
+      if(Number.isSafeInteger(data.seen))seen=Math.max(seen,Math.min(serial,data.seen));
+      if(data.type==='ping'){ws.send(JSON.stringify({type:'pong',stamp:data.stamp}));return;}
+      if(data.type==='input')submitInput(room,token,data);
+    }catch{ws.close(1008);}
+  });
 });
 server.listen(process.env.PORT||3000);

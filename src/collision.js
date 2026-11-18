@@ -64,3 +64,46 @@ function isBossOrBall(obj) {
   return state.boss.balls.indexOf(obj) !== -1;
 }
 
+
+// Fraction of the projectile step at first contact. Checking only the endpoint
+// misses grazing hits and targets narrower than a 30 Hz projectile step.
+function bulletEntry(b,target,radius){
+  const x=b.prevX??b.x,y=b.prevY??b.y,dx=b.x-x,dy=b.y-y;
+  const ox=x-target.x,oy=y-target.y,length2=dx*dx+dy*dy;
+  const c=ox*ox+oy*oy-radius*radius;
+  if(c<=0)return 0;
+  if(!length2)return Infinity;
+  const dot=ox*dx+oy*dy,disc=dot*dot-length2*c;
+  if(dot>=0 || disc<0)return Infinity;
+  const t=(-dot-Math.sqrt(disc))/length2;
+  return t<=1?t:Infinity;
+}
+const combatHistory=new WeakMap();
+function rememberPosition(e,time){
+  const points=combatHistory.get(e)||[];
+  points.push({x:e.x,y:e.y,time});
+  if(points.length>8)points.shift();
+  combatHistory.set(e,points);
+}
+function combatPosition(e,delay){
+  if(!delay)return e;
+  const points=combatHistory.get(e);
+  if(!points?.length)return e;
+  const time=state.time-delay;
+  let end=e,endTime=state.time;
+  for(let i=points.length-1;i>=0;i--){
+    const start=points[i];
+    if(start.time<=time){
+      if(Math.hypot(end.x-start.x,end.y-start.y)>80)return e;
+      const t=clamp((time-start.time)/(endTime-start.time||1),0,1);
+      return {x:start.x+(end.x-start.x)*t,y:start.y+(end.y-start.y)*t};
+    }
+    end=start;endTime=start.time;
+  }
+  return end;
+}
+
+function visibleContact(entity,p,radius){
+  const pos=combatPosition(entity,state.viewDelay);
+  return (p.x-pos.x)**2+(p.y-pos.y)**2<radius*radius;
+}

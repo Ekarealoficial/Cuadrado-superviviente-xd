@@ -7,7 +7,7 @@ function spawnBullet(x, y, angle, speed, opts, list = state.bullets) {
     x, y,
     vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
     r: opts.radius !== undefined ? opts.radius : 4,
-    life: 1.6,
+    life: 1.6, viewDelay:opts.viewDelay || 0,
     venom: state.player.venom || 0,
     volley: opts.volley, lane: opts.lane,
     drone: !!opts.drone,
@@ -31,7 +31,7 @@ function shoot(n, commandId = 0, preview = null) {
     spawnBullet(x,y,a,speed,{
       homing:random() < p.homingChance, dupli:random() < p.dupliChance ? p.dupliCount : 0,
       bounces:p.bounces, damage:1+Math.floor(p.sizeLevel*.75), radius:4+p.sizeLevel*1.2,
-      volley,lane
+      viewDelay:commandId && !preview ? state.viewDelay : 0, volley,lane
     },list);
     if (!preview) spawnParticles(x,y,2,lane<0?'#c77dff':'#9ef7ff',.5);
   }

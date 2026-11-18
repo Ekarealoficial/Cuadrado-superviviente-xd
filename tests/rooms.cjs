@@ -46,3 +46,16 @@ test('En una sala los menús dejan avanzar enemigos, balas y daño',()=>{
   room.tick(1/30);
   assert.ok(room.snapshot('a').time>cards.time && shot.x>x);
 });
+test('Tras un atasco de red, los jugadores ven la dirección reciente sin reproducir segundos de entradas',()=>{
+  const r=engine({difficulty:1,xp:1,disabled,pvp:false});
+  r.add('a',{name:'A'});r.add('b',{name:'B'});
+  r.input('a',{frames:[]},[]);
+  for(let i=0;i<8;i++)r.tick(1/30);
+  const frames=Array.from({length:120},(_,i)=>[i+1,1/60,i<105?-1:1,0,0,false]);
+  for(let i=0;i<120;i+=40)r.input('a',{frames:frames.slice(i,i+40)},[]);
+  r.tick(1/30);
+  const local=r.snapshot('a'),remote=r.snapshot('b');
+  assert.equal(local.ack,120);
+  assert.ok(local.player.x>0);
+  assert.equal(remote.peers[0].x,local.player.x);
+});

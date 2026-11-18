@@ -302,6 +302,7 @@ function movePlayer(p,dt,dx,dy,walls) {
 }
 
 function applyControl(dt, direction, command) {
+  state.viewDelay=Number.isFinite(command?.[6]) ? clamp(state.time-command[6],0,.18) : 0;
   const p=state.player;
   movePlayer(p,dt,direction.x,direction.y,currentWalls);
   if (command && state.arena) {
@@ -389,6 +390,7 @@ function update_shieldPositions(dt) {
 }
 
 function advanceBullet(b,p,dt) {
+    b.prevX=b.x;b.prevY=b.y;
     if (b.homing) {
       const nearest = getNearestTarget(b.x, b.y);
       if (nearest) {
@@ -416,6 +418,7 @@ function update_playerProjectiles(dt) {
     let removed = false;
     for (const w of currentWalls) {
       if (aabbOverlapCircle(b.x, b.y, b.r, w)) {
+        b.prevX=b.x;b.prevY=b.y;
         if (b.dupli > 0) {
           reflectBulletOffWall(b, w);
           const newDupli = b.dupli - 1;
@@ -541,9 +544,8 @@ function update_enemyProjectileHits(dt) {
   for (let i = state.enemyBullets.length - 1; i >= 0; i--) {
     const b = state.enemyBullets[i];
     if (p.invuln <= 0) {
-      const ddx = p.x - b.x, ddy = p.y - b.y;
       const rr = p.size/2 + b.r;
-      if (ddx*ddx + ddy*ddy < rr*rr) {
+      if (visibleContact(b,p,rr)) {
         damagePlayer(1);
         state.enemyBullets.splice(i, 1);
       }
@@ -701,9 +703,8 @@ function update_enemyAI(dt) {
         e.jTimer -= dt;
         const res2 = moveWithWalls(e, Math.cos(e.jAngle) * 1800 * travel, Math.sin(e.jAngle) * 1800 * travel, currentWalls);
         if (!e.jHit && p.invuln <= 0) {
-          const ddx = p.x - e.x, ddy = p.y - e.y;
           const rr = (e.size + p.size) * 0.5;
-          if (ddx*ddx + ddy*ddy < rr*rr) { damagePlayer(2); e.jHit = true; }
+          if (visibleContact(e,p,rr)) { damagePlayer(2); e.jHit = true; }
         }
         if (e.jTimer <= 0 || res2.blockedX || res2.blockedY) { e.jState = 'recover'; e.jTimer = 1.0; }
       } else if (e.jState === 'recover') {
@@ -759,11 +760,19 @@ function update_projectileHits(dt) {
   for (let i = state.bullets.length - 1; i >= 0; i--) {
     const b = state.bullets[i];
     let hit = false, bounceKept = false;
-    for (const e of enemyGrid.query(b.x,b.y,45+b.r).reverse()) {
-      if(e._dying) continue;
-      const ddx = b.x - e.x, ddy = b.y - e.y;
-      const rr = e.size/2 + b.r;
-      if (ddx*ddx + ddy*ddy < rr*rr) {
+    const dx=b.x-(b.prevX??b.x),dy=b.y-(b.prevY??b.y);
+    const range=45+b.r+Math.hypot(dx,dy)/2+(b.viewDelay||0)*1800;
+    let first=Infinity, victim, center;
+    for(const e of enemyGrid.query(b.x-dx/2,b.y-dy/2,range)){
+      if(e._dying)continue;
+      const pos=combatPosition(e,b.viewDelay);
+      const t=bulletEntry(b,pos,e.size/2+b.r);
+      if(t<first){first=t;victim=e;center=pos;}
+    }
+    if(victim){
+        const e=victim;
+        b.x-=dx*(1-first);b.y-=dy*(1-first);
+        const ddx=b.x-center.x,ddy=b.y-center.y;
         projectileImpact(e, b);
         e.hitFlash = 0.12;
         hit = true;
@@ -797,8 +806,6 @@ function update_projectileHits(dt) {
           spawnParticles(b.x, b.y, 4, '#fbbf24', 0.6);
           bounceKept = true;
         }
-        break;
-      }
     }
     if (hit && !bounceKept) state.bullets.splice(i, 1);
   }
@@ -813,9 +820,10 @@ function update_bossHits(dt) {
     const b0 = state.boss;
     for (let i = state.bullets.length - 1; i >= 0; i--) {
       const b = state.bullets[i];
-      const ddx = b.x - b0.x, ddy = b.y - b0.y;
+      const center=combatPosition(b0,b.viewDelay);
+        const ddx = b.x - center.x, ddy = b.y - center.y;
       const rr = b0.size/2 + b.r;
-      if (ddx*ddx + ddy*ddy < rr*rr) {
+      if (bulletEntry(b,center,rr)!==Infinity) {
         projectileImpact(b0, b);
         b0.hitFlash = 0.1;
         spawnParticles(b.x, b.y, 5, '#ff2255', 0.6);
@@ -838,9 +846,10 @@ function update_bossHits(dt) {
         if (ball.state === 'attached') continue;
         for (let i = state.bullets.length - 1; i >= 0; i--) {
           const b = state.bullets[i];
-          const ddx = b.x - ball.x, ddy = b.y - ball.y;
+          const center=combatPosition(ball,b.viewDelay);
+        const ddx = b.x - center.x, ddy = b.y - center.y;
           const rr = ball.r + b.r;
-          if (ddx*ddx + ddy*ddy < rr*rr) {
+          if (bulletEntry(b,center,rr)!==Infinity) {
             projectileImpact(state.boss, b, 0.5);
             state.boss.hitFlash = 0.1;
             spawnParticles(b.x, b.y, 5, '#ff2255', 0.6);
@@ -880,9 +889,8 @@ function update_enemyDarts(dt) {
     d.x += d.vx * dt; d.y += d.vy * dt;
     d.angle = Math.atan2(d.vy, d.vx);
     if (p.invuln <= 0) {
-      const ddx = p.x - d.x, ddy = p.y - d.y;
       const rr = p.size/2 + 6;
-      if (ddx*ddx + ddy*ddy < rr*rr) {
+      if (visibleContact(d,p,rr)) {
         damagePlayer(1);
         state.enemyDarts.splice(i, 1);
       }
@@ -957,7 +965,9 @@ function update_contactDamage(dt) {
       if (e.type === 'juggernaut' && e.jState !== 'dashing') continue;
       const ddx = p.x - e.x, ddy = p.y - e.y;
       const rr = (e.size + p.size) * 0.5;
-      if (ddx*ddx + ddy*ddy < rr*rr) { damagePlayer(1); break; }
+      if (ddx*ddx + ddy*ddy < rr*rr) {
+        if(visibleContact(e,p,rr)){damagePlayer(1);break;}
+      }
     }
   }
 

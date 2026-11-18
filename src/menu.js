@@ -105,57 +105,72 @@ function initializeMenu(){
       const r=await roomRequest(creating?'create':'join',{code,settings:multiplayerSettings,profile});
       resetPresentation();
       rules={...r.settings,color:profile.color};state=r.state;netSession={code:r.code,token:r.token};start('online');
-      function accept(next,session){
-        prepareMotion(state,next,performance.now());
+      const session=netSession;
+      let socket=null,live=false,lastFrameSent=0,seen=0,nextPing=0,nextAttempt=0,lastStateAt=0;
+      let fallbackBusy=0,lastFallback=-Infinity;
+      function accept(next){
+        if(session!==netSession || next.time<state.time || (next.ack??0)<(state.ack??0))return;
+        const now=performance.now();
+        lastStateAt=now;
+        prepareMotion(state,next,now);
         state=next;state.inventorySelection=inventoryChoice;
         currentWalls=getVisibleChunks(state.cam).concat(state.arena?.walls||[]);
-        el('playerInfo').textContent=profile.name+' · X '+Math.round(state.player.x)+'  Y '+Math.round(state.player.y)+' · Código '+session.code;
+        const ping=netPingMs==null?'…':Math.round(netPingMs)+' ms';
+        el('playerInfo').textContent=profile.name+' · X '+Math.round(state.player.x)+'  Y '+Math.round(state.player.y)+' · Código '+session.code+' · Ping '+ping;
       }
-      let streaming=false;
-      async function receive(session){
-        try{
-          const response=await fetch(multiplayerServer+'/api/stream',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(session)});
-          if(!response.ok||!response.body)return;
-          const reader=response.body.pipeThrough(new TextDecoderStream()).getReader();
-          let pending='';
-          while(session===netSession){
-            const part=await reader.read();if(part.done || session!==netSession)break;
-            pending+=part.value;
-            const lines=pending.split('\n');pending=lines.pop();
-            if(lines.length){streaming=true;accept(JSON.parse(lines[lines.length-1]),session);}
+      function connect(now){
+        nextAttempt=now+5000;
+        const url=new URL('/api/live',multiplayerServer || location.origin);
+        url.protocol=url.protocol==='https:'?'wss:':'ws:';
+        const ws=new WebSocket(url);
+        socket=ws;
+        ws.onopen=()=>{if(session===netSession)ws.send(JSON.stringify(session));else ws.close();};
+        ws.onmessage=e=>{
+          if(session!==netSession || socket!==ws)return;
+          const msg=JSON.parse(e.data);
+          if(msg.type==='ready'){
+            live=true;seen=0;lastFrameSent=state.ack||0;nextPing=0;lastStateAt=performance.now();
+          }else if(msg.type==='state'){seen=msg.serial;accept(msg.state);}
+          else if(msg.type==='pong')netPingMs=performance.now()-msg.stamp;
+        };
+        ws.onclose=()=>{if(socket===ws){socket=null;live=false;if(session===netSession)netPingMs=null;}};
+      }
+      function controls(frames,now){
+        const p=state.player;
+        return {frames,stamp:now,angle:p.angle,dx:(mouse.x-W/2)/state.cam.zoom,
+          dy:(mouse.y-H/2)/state.cam.zoom,fire:mouse.down,
+          w:!!(keys.w||keys.arrowup),a:!!(keys.a||keys.arrowleft),
+          s:!!(keys.s||keys.arrowdown),d:!!(keys.d||keys.arrowright)};
+      }
+      async function sync(){
+        if(session!==netSession){socket?.close();return;}
+        const now=performance.now();
+        if(!socket && now>=nextAttempt)connect(now);
+        if(live){
+          if(now-lastStateAt>3000)socket.close();
+          else if(socket.readyState===WebSocket.OPEN && socket.bufferedAmount<8192){
+            // Ordered delivery lets us send new frames immediately, without waiting for the next ACK.
+            const frames=inputHistory.filter(c=>c[0]>lastFrameSent).slice(-48);
+            if(frames.length || queuedActions.length || seen){
+              socket.send(JSON.stringify({type:'input',seen,input:controls(frames,now),actions:queuedActions.splice(0)}));
+              if(frames.length)lastFrameSent=frames.at(-1)[0];
+              seen=0;
+            }
+            if(now>=nextPing){
+              socket.send(JSON.stringify({type:'ping',stamp:now}));
+              nextPing=now+1000;
+            }
           }
-          await reader.cancel();
-        }catch{}finally{streaming=false;}
+        }else if(fallbackBusy<3 && now-lastFallback>=60){
+          lastFallback=now;fallbackBusy++;
+          roomRequest('step',{...session,input:controls(inputHistory.slice(-48),now),actions:queuedActions.splice(0)})
+            .then(next=>{if(!live && session===netSession){netPingMs=performance.now()-now;accept(next);}})
+            .catch(err=>{if(!live && session===netSession)end(err.message);})
+            .finally(()=>{fallbackBusy--;});
+        }
+        setTimeout(sync,20);
       }
-      receive(netSession);
-      let inFlight=0;
-      let previousInput='',lastInputAt=0;
-      async function sync(session){
-        if(session!==netSession)return;
-        const sent=performance.now();
-        const aim=getWorldMouse();
-        const angle=Math.atan2(aim.y-state.player.y,aim.x-state.player.x);
-        const input={angle:Math.round(angle*1000)/1000,dx:(mouse.x-W/2)/state.cam.zoom,dy:(mouse.y-H/2)/state.cam.zoom,fire:mouse.down};
-        for(const [k,arrow] of Object.entries({w:'arrowup',a:'arrowleft',s:'arrowdown',d:'arrowright'}))input[k]=Boolean(keys[k]||keys[arrow]);
-        try{
-          const currentInput=JSON.stringify(input);
-          if(streaming && !inputHistory.length && !pendingTap && !queuedActions.length && currentInput===previousInput && sent-lastInputAt<1000){
-            setTimeout(()=>sync(session),16);return;
-          }
-          previousInput=currentInput;lastInputAt=sent;
-          input.frames=inputHistory.slice(0,48);
-          input.stamp=sent; input.tap=pendingTap; pendingTap=false;
-          const pipeline = streaming && !queuedActions.length && inFlight<3;
-          inFlight++;
-          if(pipeline)setTimeout(()=>sync(session),25);
-          const next=await roomRequest(streaming?'input':'step',{...session,input,actions:queuedActions.splice(0)});
-          if(session!==netSession)return;
-          inFlight--;
-          if(!streaming && next.player)accept(next,session);
-          if(!pipeline)setTimeout(()=>sync(session),Math.max(0,33-(performance.now()-sent)));
-        }catch(err){if(session===netSession)end(err.message);}
-      }
-      sync(netSession);
+      sync();
     }catch(err){el('notice').textContent=err.message;}
     finally{buttons.forEach(b=>b.disabled=false);}
   };

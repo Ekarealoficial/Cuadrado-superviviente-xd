@@ -176,9 +176,8 @@ function updateBoss(dt) {
     b.x += Math.cos(b.dashAngle) * 1600 * moveTime(b,dt);
     b.y += Math.sin(b.dashAngle) * 1600 * moveTime(b,dt);
     if (p.invuln <= 0) {
-      const ddx = p.x - b.x, ddy = p.y - b.y;
       const rr = (b.size/2 + p.size/2);
-      if (ddx*ddx + ddy*ddy < rr*rr) damagePlayer(2);
+      if (visibleContact(b,p,rr)) damagePlayer(2);
     }
     if (b.timer <= 0) { b.state = 'idle'; b.timer = getBossIdleTime(); }
   } else if (b.state === 'attack') {
@@ -203,9 +202,8 @@ function updateBoss(dt) {
       if (ball.y - ball.r < state.arena.y) { ball.y = state.arena.y + ball.r; ball.vy = Math.abs(ball.vy); }
       if (ball.y + ball.r > state.arena.y + state.arena.h) { ball.y = state.arena.y + state.arena.h - ball.r; ball.vy = -Math.abs(ball.vy); }
       if (p.invuln <= 0) {
-        const ddx = p.x - ball.x, ddy = p.y - ball.y;
         const rr = ball.r + p.size/2;
-        if (ddx*ddx + ddy*ddy < rr*rr) damagePlayer(1);
+        if (visibleContact(ball,p,rr)) damagePlayer(1);
       }
       if (ball.life <= 0) ball.state = 'returning';
     } else if (ball.state === 'returning') {

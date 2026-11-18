@@ -1,46 +1,45 @@
 'use strict';
-let flight=[],motion=[], receivedAt=0, blendMs=50;
+let motion=[],receivedAt=0,netPingMs=null;
+let lastPositions=new Map();
+function viewLead(now){
+  if(!receivedAt)return 0;
+  return clamp(((netPingMs||0)*.5+now-receivedAt)/1000,0,.10);
+}
 function prepareMotion(old,next,now){
-  blendMs=receivedAt ? clamp(now-receivedAt,24,150) : 50;
-  receivedAt=now; motion=[]; flight=[];
-  function track(a,b){
-    if(!a || !b || Math.hypot(a.x-b.x,a.y-b.y)>220)return;
-    motion.push({body:b,x:a.x,y:a.y,toX:b.x,toY:b.y});
-  }
   reconcilePlayer(old,next);
-  track(old.boss,next.boss);
-  for(const group of ['peers','enemies','bullets','enemyBullets','enemyDarts','drones','darts','shields','orbs','potions']){
-    const before=old[group]||[],after=next[group]||[];
-    const ids=new Map(before.filter(e=>e.netId!=null).map(e=>[e.netId,e]));
-    after.forEach((e,i)=>{
-      let a=e.netId!=null?ids.get(e.netId):before[i];
-      if (!a && group==='bullets' && e.shooterId===next.selfId && e.volley)
-        a=previewShots.find(shot=>shot.volley===e.volley && shot.lane===e.lane);
-      if (group==='bullets' && e.volley && e.shooterId===next.selfId) {
-        const lead=clamp(unconfirmedTime,0,.4);
-        const x=e.x+lead*e.vx,y=e.y+lead*e.vy;
-        if (!pointInWall(x,y,currentWalls)) { e.x=x; e.y=y; }
-        const dx=a ? a.x-e.x : 0,dy=a ? a.y-e.y : 0;
-        flight.push({body:e,x:e.x,y:e.y,dx,dy});
-        return;
-      }
-      if(a && a.type===e.type && a.name===e.name && (e.netId!=null || before.length===after.length))track(a,e);
-    });
+  motion=[]; receivedAt=now;
+  const positions=new Map();
+  function track(group,e,index){
+    const id=group+':'+(e.netId??index);
+    const prior=lastPositions.get(id);
+    positions.set(id,{x:e.x,y:e.y,time:next.time});
+    const dt=prior ? next.time-prior.time : 0;
+    const dx=prior?e.x-prior.x:0,dy=prior?e.y-prior.y:0;
+    if(dt<0 || dt>.2 || Math.hypot(dx,dy)>80)return;
+    let vx=e.vx,vy=e.vy;
+    if(group==='ball' && e.state!=='flying'){vx=undefined;vy=undefined;}
+    if(!Number.isFinite(vx)||!Number.isFinite(vy)){
+      if(dt<=0)return;
+      vx=dx/dt;vy=dy/dt;
+    }
+    motion.push({e,x:e.x,y:e.y,vx,vy});
   }
+  for(const group of ['peers','enemies','bullets','enemyBullets','enemyDarts','orbs','potions']){
+    (next[group]||[]).forEach((e,i)=>track(group,e,i));
+  }
+  if(next.boss){
+    track('boss',next.boss,0);
+    next.boss.balls.forEach((e,i)=>track('ball',e,i));
+  }
+  lastPositions=positions;
   previewLasers=previewLasers.filter(l=>l.commandId>(next.ack ?? 0));
   previewShots=previewShots.filter(b=>b.volley>(next.ack ?? next.player.volley ?? 0));
 }
 function animateMotion(now){
-  const age=clamp((now-receivedAt)/1000,0,.15);
-  for(const f of flight){
-    const ease=Math.exp(-18*age), b=f.body;
-    const x=f.x+b.vx*age+f.dx*ease,y=f.y+b.vy*age+f.dy*ease;
-    if(!pointInWall(x,y,currentWalls)){b.x=x;b.y=y;}
-  }
-  const t=clamp((now-receivedAt)/blendMs,0,1);
-  for(const m of motion){
-    m.body.x=m.x+(m.toX-m.x)*t;
-    m.body.y=m.y+(m.toY-m.y)*t;
+  const dt=viewLead(now);
+  for(const {e,x,y,vx,vy} of motion){
+    const tx=x+vx*dt,ty=y+vy*dt;
+    if(!pointInWall(tx,ty,currentWalls)){e.x=tx;e.y=ty;}
   }
 }
 
@@ -48,7 +47,7 @@ let inputHistory=[], correction={x:0,y:0}, previewShots=[], unconfirmedTime=0;
 let previewLasers=[],localCharge=0;
 let commandNumber=0, previewCooldown=0, pendingTap=false, previewTap=false;
 function resetPresentation(){
-  previewLasers=[];localCharge=0;flight=[];motion=[]; receivedAt=0; inputHistory=[]; correction={x:0,y:0};
+  previewLasers=[];localCharge=0;netPingMs=null;lastPositions.clear();motion=[]; receivedAt=0; inputHistory=[]; correction={x:0,y:0};
   previewShots=[]; commandNumber=0; previewCooldown=0; pendingTap=false; previewTap=false;
   unconfirmedTime=0;
 }
@@ -104,7 +103,7 @@ function predictLocalFrame(now,dt){
   p.angle=Math.atan2(aim.y-p.y,aim.x-p.x);
   const fire=!!(!state.inventoryOpen && !state.cardChoices && (mouse.down || previewTap));
   const seq=++commandNumber;
-  inputHistory.push([seq,dt,dir.x,dir.y,p.angle,fire]);
+  inputHistory.push([seq,dt,dir.x,dir.y,p.angle,fire,state.time+viewLead(now)]);
   if(inputHistory.length>240)inputHistory.shift();
   if(p.laserCount && fire)localCharge+=dt;
   else {
@@ -121,9 +120,18 @@ function predictLocalFrame(now,dt){
     previewCooldown=p.fireCdBase;
   }
   previewTap=false;
+  if(previewShots.length)enemyGrid.rebuild(state.enemies);
   for(const b of previewShots){
     advanceBullet(b,p,dt);
     const wall=currentWalls.find(w=>aabbOverlapCircle(b.x,b.y,b.r,w));
+    if(!wall && !b.dupli && !b.bounces){
+      const travel=Math.hypot(b.x-b.prevX,b.y-b.prevY);
+      const targets=enemyGrid.query(b.x,b.y,45+b.r+travel);
+      if(state.boss){
+        targets.push(state.boss,...state.boss.balls.filter(ball=>ball.state!=='attached'));
+      }
+      if(targets.some(e=>bulletEntry(b,e,(e.size?e.size/2:e.r)+b.r)!==Infinity))b.life=0;
+    }
     if(wall){
       if(b.bounces || b.dupli){reflectBulletOffWall(b,wall);if(b.bounces)b.bounces--;}
       else b.life=0;

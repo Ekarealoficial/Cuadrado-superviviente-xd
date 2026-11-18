@@ -114,3 +114,24 @@ test('Los distintivos se activan al bloquear, curar, congelar y acertar un crít
        p.field={x:80,y:0,r:90,time:1,born:0};render()`);
   assert.equal(run("p.pulses.map(h=>h.kind).join(',')"),'armor,vampirism,frost,critical');
 });
+test('Una bala rápida que cruza dos blancos golpea una vez al primero',()=>{
+  const run=game();
+  run(`const first=createEnemy('fast',12,0), second=createEnemy('fast',40,0);
+       state.enemies=[second,first];spawnBullet(-8,0,0,2000,{damage:.5});
+       update_playerProjectiles(1/30);update_projectileHits(1/30)`);
+  assert.equal(run('first.hp'),.5);
+  assert.equal(run('second.hp'),1);
+  assert.equal(run('state.bullets.length'),0);
+});
+test('Con retraso, se valida el blanco apuntado y se descarta el contacto lejano',()=>{
+  const run=game();
+  run(`const e=createEnemy('tank',60,0);state.enemies=[e];
+       rememberPosition(e,0);state.time=.1;e.y=50;
+       spawnBullet(35,0,0,900,{damage:2,viewDelay:.1});
+       update_playerProjectiles(1/30);update_projectileHits(1/30)`);
+  assert.equal(run('e.hp'),5);
+  run('e.x=0;e.y=0;state.viewDelay=.1;update_contactDamage(1/30)');
+  assert.equal(run('state.halfHearts'),8);
+  run('state.viewDelay=0;update_contactDamage(1/30)');
+  assert.equal(run('state.halfHearts'),7);
+});
