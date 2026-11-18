@@ -11,7 +11,7 @@ function killEnemy(index) {
     spawnOrbs(e.x + gameRand(-30, 30), e.y + gameRand(-30, 30), e.xp * 0.7 * Math.max(1,0.15*state.player.greedLevel));
     addFloat(e.x, e.y - 25, '¡XP extra!', '#fbbf24');
   }
-  recordKill();
+  recordKill(e);
   state.score += Math.round(e.maxHp * 5);
   state.shake = Math.min(state.shake + 6, 16);
   state.cam.zoom = Math.min(1.15, state.cam.zoom + 0.04);

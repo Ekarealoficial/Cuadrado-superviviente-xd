@@ -1,13 +1,13 @@
 'use strict';
-let motion=[], receivedAt=0, blendMs=50;
+let flight=[],motion=[], receivedAt=0, blendMs=50;
 function prepareMotion(old,next,now){
   blendMs=receivedAt ? clamp(now-receivedAt,24,150) : 50;
-  receivedAt=now; motion=[];
+  receivedAt=now; motion=[]; flight=[];
   function track(a,b){
     if(!a || !b || Math.hypot(a.x-b.x,a.y-b.y)>220)return;
     motion.push({body:b,x:a.x,y:a.y,toX:b.x,toY:b.y});
   }
-  reconcilePlayer(old,next,now);
+  reconcilePlayer(old,next);
   track(old.boss,next.boss);
   for(const group of ['peers','enemies','bullets','enemyBullets','enemyDarts','drones','darts','shields','orbs','potions']){
     const before=old[group]||[],after=next[group]||[];
@@ -17,16 +17,26 @@ function prepareMotion(old,next,now){
       if (!a && group==='bullets' && e.shooterId===next.selfId && e.volley)
         a=previewShots.find(shot=>shot.volley===e.volley && shot.lane===e.lane);
       if (group==='bullets' && e.volley && e.shooterId===next.selfId) {
-        const lead=clamp((now-(next.inputTime ?? now)+blendMs)/1000,0,.18);
+        const lead=clamp(unconfirmedTime,0,.4);
         const x=e.x+lead*e.vx,y=e.y+lead*e.vy;
         if (!pointInWall(x,y,currentWalls)) { e.x=x; e.y=y; }
+        const dx=a ? a.x-e.x : 0,dy=a ? a.y-e.y : 0;
+        flight.push({body:e,x:e.x,y:e.y,dx,dy});
+        return;
       }
       if(a && a.type===e.type && a.name===e.name && (e.netId!=null || before.length===after.length))track(a,e);
     });
   }
-  previewShots=previewShots.filter(b=>b.volley>(next.player.volley||0));
+  previewLasers=previewLasers.filter(l=>l.commandId>(next.ack ?? 0));
+  previewShots=previewShots.filter(b=>b.volley>(next.ack ?? next.player.volley ?? 0));
 }
 function animateMotion(now){
+  const age=clamp((now-receivedAt)/1000,0,.15);
+  for(const f of flight){
+    const ease=Math.exp(-18*age), b=f.body;
+    const x=f.x+b.vx*age+f.dx*ease,y=f.y+b.vy*age+f.dy*ease;
+    if(!pointInWall(x,y,currentWalls)){b.x=x;b.y=y;}
+  }
   const t=clamp((now-receivedAt)/blendMs,0,1);
   for(const m of motion){
     m.body.x=m.x+(m.toX-m.x)*t;
@@ -34,11 +44,13 @@ function animateMotion(now){
   }
 }
 
-let inputHistory=[], correction={x:0,y:0}, previewShots=[];
-let previewVolley=0, previewCooldown=0, pendingTap=false, previewTap=false;
+let inputHistory=[], correction={x:0,y:0}, previewShots=[], unconfirmedTime=0;
+let previewLasers=[],localCharge=0;
+let commandNumber=0, previewCooldown=0, pendingTap=false, previewTap=false;
 function resetPresentation(){
-  motion=[]; receivedAt=0; inputHistory=[]; correction={x:0,y:0};
-  previewShots=[]; previewVolley=0; previewCooldown=0; pendingTap=false; previewTap=false;
+  previewLasers=[];localCharge=0;flight=[];motion=[]; receivedAt=0; inputHistory=[]; correction={x:0,y:0};
+  previewShots=[]; commandNumber=0; previewCooldown=0; pendingTap=false; previewTap=false;
+  unconfirmedTime=0;
 }
 function clampToArena(p,arena){
   if(!arena)return;
@@ -46,64 +58,76 @@ function clampToArena(p,arena){
   p.x=clamp(p.x,arena.x+h,arena.x+arena.w-h);
   p.y=clamp(p.y,arena.y+h,arena.y+arena.h-h);
 }
-function reconcilePlayer(old,next,now){
-  if (!previewShots.length) previewVolley=next.player.volley||0;
-  else previewVolley=Math.max(previewVolley,next.player.volley||0);
+function reconcilePlayer(old,next){
   const p=next.player, previous=old.player;
-  if(next.over || Math.hypot(previous.x-p.x,previous.y-p.y)>240){
-    correction={x:0,y:0}; inputHistory=[]; previewShots=[];
-    return;
-  }
-  // Replay movement after the server's last simulated input on the client's clock.
-  const since=clamp(next.inputTime ?? now,now-750,now);
+  inputHistory=inputHistory.filter(c=>c[0]>(next.ack ?? 0));
+  unconfirmedTime=inputHistory.reduce((sum,c)=>sum+c[1],0);
+  if(next.over){correction={x:0,y:0};previewShots=[];return;}
+  // The server processed these exact frame durations. Replay only what it hasn't consumed.
   const replay={...p};
-  for(const frame of inputHistory){
-    const dt=Math.min(frame.dt,(frame.end-since)/1000);
-    if(dt<=0)continue;
-    movePlayer(replay,dt,frame.x,frame.y,currentWalls);
+  let cd=p.fireCd;
+  localCharge=next.laserChargeTime;
+  for(const c of inputHistory){
+    movePlayer(replay,c[1],c[2],c[3],currentWalls);
     clampToArena(replay,next.arena);
+    advancePredictedDash(replay,c[1]);
+    localCharge=p.laserCount && c[5] ? localCharge+c[1] : 0;
+    cd-=c[1];
+    if(c[5] && cd<=0 && (!p.laserCount || p.shots>1)) cd=p.fireCdBase;
+  }
+  previewCooldown=cd;
+  p.dashTimer=replay.dashTimer;
+  if(Math.hypot(previous.x-replay.x,previous.y-replay.y)>180){
+    Object.assign(p,{x:replay.x,y:replay.y,vx:replay.vx,vy:replay.vy});
+    correction={x:0,y:0};return;
   }
   correction={x:replay.x-previous.x,y:replay.y-previous.y};
   Object.assign(p,{x:previous.x,y:previous.y,vx:replay.vx,vy:replay.vy});
   next.cam.x=old.cam.x; next.cam.y=old.cam.y;
 }
-function previewFire(p){
-  const volley=++previewVolley;
-  function line(angle,speed,lane){
-    if(previewShots.length>=MAX_BULLETS)return;
-    const dx=Math.cos(angle),dy=Math.sin(angle),off=p.size/2+6;
-    previewShots.push({x:p.x+dx*off,y:p.y+dy*off,vx:dx*speed,vy:dy*speed,
-      r:4+p.sizeLevel*1.2,venom:p.venom,bounces:p.bounces,volley,lane,life:.75});
-  }
-  for(let i=p.laserCount?1:0;i<Math.min(p.shots,MAX_BULLETS);i++)
-    line(p.angle+(i-(p.shots-1)/2)*.12,900,i);
-  for(let i=0;i<Math.min(p.backShots,MAX_BULLETS);i++)
-    line(p.angle+Math.PI+(i-(p.backShots-1)/2)*.12,810,-1-i);
-  Sfx.play('shoot',30);
+function advancePredictedDash(p,dt){
+  if(p.dashTimer>0 && (p.dashTimer-=dt)<=0){p.dashTimer=0;p.vx=0;p.vy=0;}
 }
 function predictLocalFrame(now,dt){
-  if(state.over)return;
+  if(state.over || dt<=0)return;
   const p=state.player,cam=state.cam,dir=movementDirection();
-  inputHistory.push({...dir,end:now,dt});
-  while(inputHistory.length && inputHistory[0].end<now-800)inputHistory.shift();
+
   const k=1-Math.exp(-12*dt);
   moveWithWalls(p,correction.x*k,correction.y*k,currentWalls);
   correction.x*=1-k; correction.y*=1-k;
   movePlayer(p,dt,dir.x,dir.y,currentWalls);
+  advancePredictedDash(p,dt);
   clampToArena(p,state.arena);
   cam.x+=(p.x+p.vx*.16-cam.x)*Math.min(1,10*dt);
   cam.y+=(p.y+p.vy*.16-cam.y)*Math.min(1,10*dt);
   const aim=getWorldMouse();
   p.angle=Math.atan2(aim.y-p.y,aim.x-p.x);
+  const fire=!!(!state.inventoryOpen && !state.cardChoices && (mouse.down || previewTap));
+  const seq=++commandNumber;
+  inputHistory.push([seq,dt,dir.x,dir.y,p.angle,fire]);
+  if(inputHistory.length>240)inputHistory.shift();
+  if(p.laserCount && fire)localCharge+=dt;
+  else {
+    if(localCharge>=.15)fireLasers(localCharge,seq,previewLasers);
+    localCharge=0;
+  }
+  state.laserCharging=localCharge>0;
+  state.laserChargeTime=localCharge;
+  for(const l of previewLasers)l.sweep+=l.sweepSpeed*dt;
+  previewLasers=previewLasers.filter(l=>l.sweep<TAU);
   previewCooldown-=dt;
-  if(!state.inventoryOpen && !state.cardChoices && (mouse.down || previewTap) &&
-     (!p.laserCount || p.shots>1) && previewCooldown<=0){
-    previewFire(p);
-    previewCooldown=Math.ceil(p.fireCdBase*30)/30;
+  if(fire && (!p.laserCount || p.shots>1) && previewCooldown<=0){
+    shoot(p.shots-(p.laserCount?1:0),seq,previewShots);
+    previewCooldown=p.fireCdBase;
   }
   previewTap=false;
   for(const b of previewShots){
-    b.x+=b.vx*dt; b.y+=b.vy*dt; b.life-=dt;
+    advanceBullet(b,p,dt);
+    const wall=currentWalls.find(w=>aabbOverlapCircle(b.x,b.y,b.r,w));
+    if(wall){
+      if(b.bounces || b.dupli){reflectBulletOffWall(b,wall);if(b.bounces)b.bounces--;}
+      else b.life=0;
+    }
   }
-  previewShots=previewShots.filter(b=>b.life>0 && !pointInWall(b.x,b.y,currentWalls));
+  previewShots=previewShots.filter(b=>b.life>0);
 }

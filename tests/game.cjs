@@ -77,3 +77,40 @@ test('El primer cuadro local mueve, apunta y dispara antes de una respuesta de r
   run('const next=JSON.parse(JSON.stringify(state));next.selfId=2;next.player.volley=1;next.bullets=[{...previewShots[0],shooterId:2,netId:1}];prepareMotion(state,next,50)');
   assert.equal(run('previewShots.length'),0);
 });
+test('Los cambios de dirección y las ráfagas coinciden con solo bajo latencia variable',()=>{
+  const online=game(), solo=game();
+  const room=require('../room-engine.cjs')({difficulty:1,xp:1,pvp:false,disabled:['normal','boss']});
+  room.add('a',{name:'A',color:'#fff'});
+  online("playMode='online'");
+  const packets=[], snapshots=[], predicted=[],authoritative=[];
+  let maxError=0, volley=0;
+  for(let i=1;i<=150;i++){
+    const keys='keys.d='+ (i<32 || i>=56&&i<92)+';keys.a='+(i>=32&&i<56)+';mouse.down='+(i<76 || i===90);
+    solo(keys+';applyControl(1/60,movementDirection(),null)');
+    online(keys+';predictLocalFrame('+i+'*1000/60,1/60)');
+    if(online('previewShots.some(b=>b.volley===commandNumber)'))predicted.push(i);
+    if(i%3===0)packets.push({due:i+(i%2?10:5),frames:JSON.parse(online('JSON.stringify(inputHistory)'))});
+    for(const packet of packets.filter(p=>p.due===i))room.input('a',{frames:packet.frames},[]);
+    if(i%2===0){
+      room.tick(1/30);
+      const s=room.snapshot('a');
+      if(s.player.volley!==volley){volley=s.player.volley;authoritative.push(volley);}
+      if(i%4===0)snapshots.push({due:i+6,s:JSON.stringify(s)});
+    }
+    for(const packet of snapshots.filter(p=>p.due===i))
+      online('{const next='+packet.s+';prepareMotion(state,next,'+i+'*1000/60);state=next}');
+    maxError=Math.max(maxError,Math.abs(online('state.player.x')-solo('state.player.x')));
+  }
+  assert.ok(maxError<.001,'Desviación respecto a singleplayer: '+maxError);
+  assert.deepEqual(predicted,authoritative);
+  assert.ok(predicted.length>=5);
+});
+test('Los distintivos se activan al bloquear, curar, congelar y acertar un crítico',()=>{
+  const run=game();
+  run(`const p=state.player,e=createEnemy('tank',80,0);
+       Object.assign(p,{armor:20,vampirism:15,frost:2,critical:1,fury:1});
+       state.halfHearts=4;gameRandom=()=>0;damagePlayer(1);recordKill(e);
+       projectileImpact(e,{x:e.x,y:e.y,damage:1});state.enemies=[e];
+       p.field={x:80,y:0,r:90,time:1,born:0};render()`);
+  assert.equal(run("p.pulses.map(h=>h.kind).join(',')"),'armor,vampirism,frost,critical');
+});

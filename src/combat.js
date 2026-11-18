@@ -1,9 +1,9 @@
 'use strict';
 /* =============== BALAS =============== */
-function spawnBullet(x, y, angle, speed, opts) {
+function spawnBullet(x, y, angle, speed, opts, list = state.bullets) {
   opts = opts || {};
-  if (state.bullets.length >= MAX_BULLETS) return;
-  state.bullets.push({
+  if (list.length >= MAX_BULLETS) return;
+  list.push({
     x, y,
     vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
     r: opts.radius !== undefined ? opts.radius : 4,
@@ -18,70 +18,63 @@ function spawnBullet(x, y, angle, speed, opts) {
   });
 }
 
-function shoot(n) {
+function shoot(n, commandId = 0, preview = null) {
   const p = state.player;
-  p.volley++;
-  const speed = 900;
-  const off = p.size / 2 + 6;
-  const baseRadius = 4 + p.sizeLevel * 1.2;
-  const baseDamage = 1 + Math.floor(p.sizeLevel * 0.75);
-  const spread = 0.12;
-  const fullSpread = (p.shots - 1) * spread;
-  const skipOriginal = (n < p.shots);
-  const startIdx = skipOriginal ? 1 : 0;
-  for (let k = 0; k < n; k++) {
-    const i = startIdx + k;
-    const offset = -fullSpread / 2 + i * spread;
-    const a = p.angle + offset + (gameRandom() - 0.5) * 0.03;
-    const isHoming = gameRandom() < p.homingChance;
-    const isDupli = gameRandom() < p.dupliChance;
-    spawnBullet(p.x + Math.cos(a) * off, p.y + Math.sin(a) * off, a, speed, {
-      bounces: p.bounces, homing: isHoming,
-      dupli: isDupli ? p.dupliCount : 0,
-      damage: baseDamage, radius: baseRadius, volley: p.volley, lane: i
-    });
-    spawnParticles(p.x + Math.cos(a) * off, p.y + Math.sin(a) * off, 2, '#9ef7ff', 0.5);
+  const list = preview || state.bullets;
+  const random = commandId ? makeRng(commandId) : gameRandom;
+  const volley = commandId || (p.volley + 1);
+  if (!preview) p.volley = volley;
+  function line(angle, speed, lane) {
+    const a = angle + (random() - .5) * .03;
+    const x = p.x + Math.cos(a) * (p.size/2 + 6);
+    const y = p.y + Math.sin(a) * (p.size/2 + 6);
+    spawnBullet(x,y,a,speed,{
+      homing:random() < p.homingChance, dupli:random() < p.dupliChance ? p.dupliCount : 0,
+      bounces:p.bounces, damage:1+Math.floor(p.sizeLevel*.75), radius:4+p.sizeLevel*1.2,
+      volley,lane
+    },list);
+    if (!preview) spawnParticles(x,y,2,lane<0?'#c77dff':'#9ef7ff',.5);
   }
-  const bn = p.backShots;
-  if (bn > 0) {
-    const bAngle = p.angle + Math.PI, bSpread = 0.12;
-    const bTotal = (bn - 1) * bSpread;
-    for (let i = 0; i < bn; i++) {
-      const offset = -bTotal / 2 + i * bSpread;
-      const a = bAngle + offset + (gameRandom() - 0.5) * 0.03;
-      const isHoming = gameRandom() < p.homingChance;
-      const isDupli = gameRandom() < p.dupliChance;
-      spawnBullet(p.x + Math.cos(a) * off, p.y + Math.sin(a) * off, a, speed * 0.9, {
-        bounces: p.bounces, homing: isHoming,
-        dupli: isDupli ? p.dupliCount : 0,
-        damage: baseDamage, radius: baseRadius, volley: p.volley, lane: -1-i
-      });
-      spawnParticles(p.x + Math.cos(a) * off, p.y + Math.sin(a) * off, 2, '#c77dff', 0.5);
-    }
-  }
-  state.shake = Math.min(state.shake + 0.6, 4);
-  Sfx.play('shoot', 30);
+  for (let i=p.shots-n;i<p.shots && list.length<MAX_BULLETS;i++)
+    line(p.angle+(i-(p.shots-1)/2)*.12,900,i);
+  for (let i=0;i<p.backShots && list.length<MAX_BULLETS;i++)
+    line(p.angle+Math.PI+(i-(p.backShots-1)/2)*.12,810,-1-i);
+  if (!preview) state.shake = Math.min(state.shake + .6, 4);
+  Sfx.play('shoot',30);
 }
 
 function stackingChance(base, stacks) {
   return stacks ? Math.min(1, base * 1.5 ** (stacks - 1)) : 0;
 }
-function attackMultiplier() {
+function cardPulse(kind,target,power=1) {
+  const p=state.player;
+  const pulses=p.pulses ||= [];
+  const recent=pulses.at(-1);
+  if (recent && recent.kind===kind && state.time-recent.born<.07 &&
+      Math.hypot(recent.x-target.x,recent.y-target.y)<32) return;
+  while(pulses.length && (pulses[0].born<state.time-.7 || pulses.length>=18))pulses.shift();
+  pulses.push({kind,x:target.x,y:target.y,born:state.time,power});
+}
+function attackMultiplier(target) {
   const p = state.player;
   const missing = 1 - state.halfHearts / state.maxHalfHearts;
   const base = state.playerDamageMult * (1 + missing * 0.5 * p.fury);
   if (!p.critical) return base;
   const upgrades = p.critical - 1;
   const chance = (10 + 5 * (upgrades % 18)) / 100;
-  return base * (gameRandom() < chance ? 2 + Math.floor(upgrades / 18) : 1);
+  if (gameRandom() >= chance) return base;
+  const tier=2+Math.floor(upgrades/18);
+  if (target) cardPulse('critical',target,tier);
+  return base*tier;
 }
-function recordKill() {
+function recordKill(victim = state.player) {
   state.kills++;
   const p = state.player;
   if (!p.vampirism || ++p.vampKills < 16 - p.vampirism % 16) return;
   p.vampKills = 0;
   const healed = Math.min(state.maxHalfHearts - state.halfHearts, 1 + Math.floor(p.vampirism / 16));
   state.halfHearts += healed;
+  if (healed) cardPulse('vampirism',victim,healed);
   if (healed) addFloat(p.x, p.y - 30, '+' + healed / 2 + ' ❤', '#ff608a');
 }
 function damagePlayer(amount) {
@@ -90,6 +83,7 @@ function damagePlayer(amount) {
   if (p.invuln > 0) return;
   if (p.armor && gameRandom() < stackingChance(0.10, p.armor)) {
     p.invuln = 1;
+    cardPulse('armor',p);
     addFloat(p.x, p.y - 30, 'Armadura', '#99baff');
     return;
   }

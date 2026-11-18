@@ -39,7 +39,7 @@ const CARD_TYPES = [
   { id: 'greed',         name: 'Codicia',        desc: '15% de probabilidad de soltar XP extra al matar. Acumulable.', color: '#fbbf24' }
 ];
 const SPECIAL_CARDS = [
-  {id:'frames',name:'Velocista a fotogramas',desc:'Velocidad ×4 e inmunidad durante 10 s. Cada copia añade 2 s y daño de contacto. Recarga: 55 s.',color:'#ff78db',apply:()=>{const sc=state.specialCards.frames;sc.totalCards++;sc.maxCharges++;sc.charges++;}},
+  {id:'frames',name:'Velocista a fotogramas',desc:'Velocidad ×4 e inmunidad durante 10 s. 34 de daño/s al contacto. Cada copia añade 2 s y 5 de daño/s. Recarga: 55 s.',color:'#ff78db',apply:()=>{const sc=state.specialCards.frames;sc.totalCards++;sc.maxCharges++;sc.charges++;}},
   { id: 'blink',       name: 'Distorsión',   desc: 'Cada 35s teletranspórtate al puntero. Asigna a un slot.',   color: '#a855f7' },
   { id: 'dash',        name: 'Dash',         desc: 'Dash rápido hacia el puntero. Cargas = número de cartas.',  color: '#22d3ee' },
   { id: 'thunderRain', name: 'Lluvia Truenos',desc: 'Rayos caen sobre todos los enemigos en pantalla. 3s base.', color: '#fbbf24' }

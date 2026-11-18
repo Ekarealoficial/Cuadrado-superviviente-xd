@@ -13,7 +13,7 @@
     const leader = party.values().next().value;
     if (leader) Object.assign(personal.player,{x:leader.state.player.x,y:leader.state.player.y});
     personal.player.color = profile.color;
-    party.set(id,{state:personal,profile,input:{},actions:[]});
+    party.set(id,{state:personal,profile,input:{},actions:[],queue:[],ack:0,credit:0,sequenced:false});
   }
   function tick(dt) {
     const ready = [...party.values()].filter(m=>!m.state.over);
@@ -45,7 +45,18 @@
         if (action.kind==='equip' && state.inventoryOpen && (action.card===null || state.specialCards[action.card]?.totalCards>0)) state.slots[action.i]=action.card;
       }
       if (state.inventoryOpen || state.cardChoices) mouse.down = false;
-      update(dt,member===focus);
+      let commands=null;
+      if (member.sequenced) {
+        commands=[];
+        member.credit=Math.min(.24,member.credit+dt);
+        while (member.queue.length && member.queue[0][1]<=member.credit+1e-9) {
+          const c=member.queue.shift();
+          member.credit-=c[1];
+          member.ack=c[0];
+          commands.push(c);
+        }
+      }
+      update(dt,member===focus,commands);
       // The focus advances boss AI once. Its active attacks can hit every player.
       if(world.boss && member!==focus && !state.over && state.player.invuln<=0){
         const p=state.player,b=world.boss;
@@ -69,7 +80,7 @@
           const p=victim.state.player;
           if(Math.hypot(p.x-b.x,p.y-b.y)>15+b.r) continue;
           state=attacker.state;
-          const damage=b.damage*attackMultiplier();
+          const damage=b.damage*attackMultiplier(victim.state.player);
           state=victim.state;
           damagePlayer(damage); shots.splice(i,1); break;
         }
@@ -92,12 +103,12 @@
       b.shooterId = wireId(m);
       return b;
     }));
-    return {...self.state, bullets, selfId:wireId(self), inputTime:self.inputTime,
+    return {...self.state, bullets, selfId:wireId(self), inputTime:self.inputTime, ack:self.ack, controlVersion:2,
       peers:others.map(m=>{
         const s=m.state, p=s.player;
         return {...m.profile,netId:wireId(m),x:p.x,y:p.y,size:p.size,angle:p.angle,
           vx:p.vx,vy:p.vy,backShots:p.backShots,dashTimer:p.dashTimer,invuln:p.invuln,
-          field:p.field,burst:p.burst,impact:p.impact,blades:p.blades,echoes:p.echoes,
+          pulses:p.pulses?.filter(hit=>world.time-hit.born<.7),fury:p.fury,missingHealth:1-s.halfHearts/s.maxHalfHearts,field:p.field,burst:p.burst,impact:p.impact,blades:p.blades,echoes:p.echoes,
           drones:s.drones,shields:s.shields,darts:s.darts.map(({x,y,angle,type})=>({x,y,angle,type})),
           laserCharging:s.laserCharging,laserChargeTime:s.laserChargeTime,lasersFiring:s.lasersFiring,over:s.over};
       })};
@@ -105,6 +116,17 @@
   return {add,tick,snapshot,remove:id=>party.delete(id),input(id,input,actions){
     const member=party.get(id);
     member.actions.push(...actions.slice(0,32-member.actions.length));
+    if (Array.isArray(input.frames)) {
+      member.sequenced=true;
+      let last=member.queue.at(-1)?.[0] ?? member.ack;
+      for (const c of input.frames.slice(0,48)) {
+        if (!Array.isArray(c) || c.length!==6 || !Number.isSafeInteger(c[0]) || c[0]<=last ||
+            !Number.isFinite(c[1]) || c[1]<=0 || c[1]>.05 ||
+            ![-1,0,1].includes(c[2]) || ![-1,0,1].includes(c[3]) || !Number.isFinite(c[4])) continue;
+        if (member.queue.length>=96) break;
+        member.queue.push(c); last=c[0];
+      }
+    }
     if (Number.isFinite(input.stamp) && input.stamp <= (member.input.stamp ?? -1)) return;
     member.tap ||= Boolean(input.tap);
     member.input=input;

@@ -123,22 +123,8 @@ function render() {
   for(const body of [p,...(state.peers||[])]){
     ctx.save();
     drawCardFeedback(body);
-    if(body.field){
-      const f=body.field;ctx.fillStyle='#9a51ff30';ctx.strokeStyle='#be8dff';ctx.lineWidth=2;
-      ctx.beginPath();ctx.arc(f.x,f.y,f.r,0,TAU);ctx.fill();ctx.stroke();
-      for(let arm=0;arm<3;arm++){
-        ctx.beginPath();
-        for(let j=0;j<=18;j++){
-          const u=j/18,angle=state.time*5+arm*TAU/3+u*3.7;
-          const r=8+u*(f.r-8);
-          const x=f.x+Math.cos(angle)*r,y=f.y+Math.sin(angle)*r;
-          if(j===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);
-        }
-        ctx.strokeStyle='#cf9aff';ctx.stroke();
-      }
-      ctx.shadowColor='#aa5cff';ctx.shadowBlur=16;
-      ctx.beginPath();ctx.arc(f.x,f.y,8,0,TAU);ctx.fillStyle='#170821';ctx.fill();ctx.stroke();
-    }
+    if(body.field)drawGravityField(body.field);
+    drawCombatPulses(body);
     ctx.globalAlpha=.22;ctx.fillStyle=body.color||rules.color;
     for(const copy of body.echoes||[])ctx.fillRect(copy.x-15,copy.y-15,30,30);
     ctx.globalAlpha=1;
@@ -252,7 +238,15 @@ function drawCardFeedback(body){
     if(t<1){
       sound('gravityBurst',flash);
       ctx.save();ctx.globalAlpha=1-t;ctx.strokeStyle='#e8cfff';ctx.lineWidth=5*(1-t)+1;
-      ctx.beginPath();ctx.arc(flash.x,flash.y,flash.r*(.15+t),0,TAU);ctx.stroke();ctx.restore();
+      ctx.translate(flash.x,flash.y);
+      ctx.shadowColor='#a854ff';ctx.shadowBlur=15;
+      ctx.beginPath();ctx.arc(0,0,flash.r*(.15+t),0,TAU);ctx.stroke();
+      for(let i=0;i<12;i++){
+        ctx.rotate(TAU/12);
+        ctx.fillStyle=i%2?'#ff83e7':'#99faff';
+        ctx.fillRect(flash.r*t,-2,(1-t)*14+2,4);
+      }
+      ctx.restore();
     }
   }
   if(body.impact){
@@ -697,7 +691,7 @@ function renderEntities7(view=state,p=state.player) {
 }
 function renderEntities8(view=state,p=state.player) {
   // Rayos activos
-  for (const lf of view.lasersFiring) {
+  for (const lf of (playMode==='online' && view===state ? view.lasersFiring.concat(previewLasers) : view.lasersFiring)) {
     for (let k = 0; k < lf.count; k++) {
       const angle = p.angle + lf.sweep + (k / lf.count) * TAU;
       const range = 2000;
@@ -721,4 +715,88 @@ function renderEntities8(view=state,p=state.player) {
   }
 
 
+}
+
+// Neon rails mark the full reach; pixels spiral inward as the core contracts.
+function drawGravityField(f){
+  const phase=clamp(1-f.time/1.4,0,1), spin=phase*(3+phase*3);
+  ctx.save();ctx.translate(f.x,f.y);
+  ctx.fillStyle='#29184365';
+  ctx.beginPath();ctx.arc(0,0,f.r,0,TAU);ctx.fill();
+  ctx.lineWidth=2;ctx.strokeStyle='#c381ff';ctx.shadowColor='#b44bff';ctx.shadowBlur=12;
+  ctx.beginPath();
+  for(let i=0;i<8;i++){
+    const start=i*TAU/8+spin*.23;
+    ctx.moveTo(Math.cos(start)*f.r,Math.sin(start)*f.r);ctx.arc(0,0,f.r,start,start+.44);
+  }
+  ctx.stroke();
+  ctx.shadowBlur=0;
+  for(let i=0;i<24;i++){
+    const u=(i*.618+1-phase*2%1)%1;
+    const angle=i*2.4+spin+u*1.7,r=10+u*(f.r-10);
+    const x=Math.cos(angle)*r,y=Math.sin(angle)*r;
+    const side=2+3*(1-u);
+    ctx.fillStyle=i%3?'#cd8aff':'#6af6ff';
+    ctx.fillRect(x-side/2,y-side/2,side,side);
+  }
+  ctx.rotate(spin);
+  const core=10+6*Math.sin(phase*Math.PI)-4*phase;
+  ctx.shadowColor='#e568ff';ctx.shadowBlur=18;
+  ctx.strokeStyle='#ff92ec';ctx.lineWidth=3;
+  ctx.strokeRect(-core-3,-core-3,2*core+6,2*core+6);
+  ctx.rotate(-2*spin);ctx.fillStyle='#10091c';ctx.fillRect(-core,-core,2*core,2*core);
+  ctx.strokeStyle='#e9ddff';ctx.strokeRect(-core,-core,2*core,2*core);
+  ctx.restore();
+}
+
+function drawCombatPulses(body){
+  const lost=body===state.player?1-state.halfHearts/state.maxHalfHearts:body.missingHealth;
+  if(body.fury && lost>0 && !body.over && !(body===state.player && state.over)){
+    ctx.save();ctx.translate(body.x,body.y);
+    ctx.globalAlpha=.35+.65*lost;
+    ctx.shadowColor='#ff433b';ctx.shadowBlur=9;ctx.strokeStyle='#ff975d';ctx.lineWidth=2;
+    // Embers rise from the four edges, growing taller as health drops.
+    for(let i=0;i<8;i++){
+      const t=(state.time*(1+lost)+i*.37)%1;
+      const x=(i%4-1.5)*9,y=-17-(i%2)*4-t*(6+18*lost);
+      ctx.fillStyle=i%2?'#ff593d':'#ffc360';ctx.fillRect(x,y,3,5*(1-t)+1);
+    }
+    const r=18+2*Math.sin(state.time*7);
+    ctx.beginPath();ctx.moveTo(-r,-8);ctx.lineTo(-r,r);ctx.lineTo(-7,r);
+    ctx.moveTo(7,r);ctx.lineTo(r,r);ctx.lineTo(r,-8);ctx.stroke();ctx.restore();
+  }
+  for(const hit of body.pulses||[]){
+    const t=(state.time-hit.born)/.55;
+    if(t<0 || t>=1)continue;
+    ctx.save();ctx.globalAlpha=Math.min(1,(1-t)*2);ctx.lineWidth=2.5;
+    if(hit.kind==='armor'){
+      ctx.translate(body.x,body.y);ctx.scale(1+.18*t,1+.18*t);
+      ctx.strokeStyle='#a5dbff';ctx.fillStyle='#619aff30';ctx.shadowColor='#69adff';ctx.shadowBlur=13;
+      ctx.beginPath();ctx.moveTo(0,-29);ctx.lineTo(24,-18);ctx.lineTo(21,8);
+      ctx.lineTo(12,22);ctx.lineTo(0,29);ctx.lineTo(-12,22);ctx.lineTo(-21,8);
+      ctx.lineTo(-24,-18);ctx.closePath();ctx.fill();ctx.stroke();
+    } else if(hit.kind==='vampirism'){
+      ctx.fillStyle='#ff719e';ctx.shadowColor='#ff387b';ctx.shadowBlur=11;
+      for(let i=0;i<6;i++){
+        const u=clamp(t*1.45-i*.07,0,1),wave=Math.sin(Math.PI*u)*(i-2.5)*6;
+        const x=hit.x+(body.x-hit.x)*u,y=hit.y+(body.y-hit.y)*u+wave;
+        ctx.fillRect(x-2,y-2,5,5);
+      }
+      if(t>.6){ctx.fillRect(body.x-8,body.y-26,16,4);ctx.fillRect(body.x-2,body.y-32,4,16);}
+    } else {
+      const ice=hit.kind==='frost',n=ice?6:4;
+      ctx.translate(hit.x,hit.y);ctx.rotate(ice ? .2 : -.5);
+      ctx.strokeStyle=ice?'#b1f7ff':'#ffdf57';ctx.fillStyle=ice?'#63ddff':'#fff5b3';
+      ctx.shadowColor=ice?'#46caff':'#ff9a19';ctx.shadowBlur=8;
+      for(let i=0;i<n;i++){
+        ctx.rotate(TAU/n);
+        const r=5+14*t,len=ice?9:15;
+        ctx.beginPath();ctx.moveTo(r,0);ctx.lineTo(r+len,0);
+        if(ice){ctx.moveTo(r+2,-4);ctx.lineTo(r+7,0);ctx.lineTo(r+2,4);}
+        ctx.stroke();ctx.fillRect(r+len,-1,3,3);
+      }
+      if(!ice){ctx.rotate(.5);ctx.font='bold 14px system-ui';ctx.textAlign='center';ctx.fillText('×'+hit.power,0,-21-12*t);}
+    }
+    ctx.restore();
+  }
 }

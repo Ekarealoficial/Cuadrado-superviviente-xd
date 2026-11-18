@@ -1,16 +1,16 @@
 'use strict';
 /* =============== LÁSER =============== */
-function fireLasers(holdTime) {
+function fireLasers(holdTime, commandId=0, output=state.lasersFiring) {
   const p = state.player;
   const count = p.laserCount;
   if (count === 0 || holdTime < 0.15) return;
   const width = 20 + holdTime * 25;
   const damage = width * 0.4;
-  state.lasersFiring.push({
+  output.push({commandId,
     startAngle: p.angle, sweep: 0, sweepSpeed: 6,
     width, damage, count, holdTime
   });
-  state.shake = Math.min(state.shake + 8, 20);
+  if (output===state.lasersFiring) state.shake = Math.min(state.shake + 8, 20);
   Sfx.play('laser', 300);
 }
 
@@ -26,7 +26,7 @@ function updateLasersFiring(dt) {
       for (let j = state.enemies.length - 1; j >= 0; j--) {
         const e = state.enemies[j];
         if (laserHits(e.x, e.y, e.size / 2, p.x, p.y, angle, lf.width, range)) {
-          e.hp -= lf.damage * dt * attackMultiplier();
+          e.hp -= lf.damage * dt * attackMultiplier(e);
           e.hitFlash = 0.05;
           if (e.hp <= 0) killEnemy(j);
         }
@@ -34,14 +34,14 @@ function updateLasersFiring(dt) {
       if (state.boss) {
         const b = state.boss;
         if (laserHits(b.x, b.y, b.size / 2, p.x, p.y, angle, lf.width, range)) {
-          b.hp -= lf.damage * dt * attackMultiplier();
+          b.hp -= lf.damage * dt * attackMultiplier(b);
           b.hitFlash = 0.05;
           if (b.hp <= 0) killBoss();
         }
         for (const ball of b.balls) {
           if (ball.state === 'attached') continue;
           if (laserHits(ball.x, ball.y, ball.r, p.x, p.y, angle, lf.width, range)) {
-            b.hp -= lf.damage * dt * attackMultiplier() * 0.5;
+            b.hp -= lf.damage * dt * attackMultiplier(ball) * 0.5;
             if (b.hp <= 0) { killBoss(); break; }
           }
         }

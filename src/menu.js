@@ -139,10 +139,11 @@ function initializeMenu(){
         for(const [k,arrow] of Object.entries({w:'arrowup',a:'arrowleft',s:'arrowdown',d:'arrowright'}))input[k]=Boolean(keys[k]||keys[arrow]);
         try{
           const currentInput=JSON.stringify(input);
-          if(streaming && !pendingTap && !queuedActions.length && currentInput===previousInput && sent-lastInputAt<1000){
+          if(streaming && !inputHistory.length && !pendingTap && !queuedActions.length && currentInput===previousInput && sent-lastInputAt<1000){
             setTimeout(()=>sync(session),16);return;
           }
           previousInput=currentInput;lastInputAt=sent;
+          input.frames=inputHistory.slice(0,48);
           input.stamp=sent; input.tap=pendingTap; pendingTap=false;
           const pipeline = streaming && !queuedActions.length && inFlight<3;
           inFlight++;

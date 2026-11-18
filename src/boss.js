@@ -53,7 +53,7 @@ function killBoss() {
   state.flash = 0.6;
   state.flashRGB = '255,60,100';
   state.score += 5000;
-  recordKill();
+  recordKill(b);
   addFloat(b.x, b.y - 60, '¡JEFE DERROTADO!', '#ffd54a');
   Sfx.play('bossdie');
   for (let i = 0; i < 25; i++) spawnOrbs(b.x + gameRand(-150, 150), b.y + gameRand(-150, 150), 6);

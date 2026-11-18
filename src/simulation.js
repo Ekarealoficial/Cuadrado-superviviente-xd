@@ -1,6 +1,6 @@
 'use strict';
 /* =============== UPDATE =============== */
-function update(dt, worldStep = true) {
+function update(dt, worldStep = true, commands = null) {
   for (let i = state.particles.length - 1; i >= 0; i--) {
     const pt = state.particles[i];
     pt.life -= dt;
@@ -44,7 +44,7 @@ function update(dt, worldStep = true) {
   update_regeneration(dt);
   update_abilityCooldowns(dt);
   update_stormAndBossSchedule(dt, worldStep);
-  update_movementAndWeapons(dt, worldStep);
+  update_movementAndWeapons(dt, worldStep, commands);
   updateCardFields(dt,worldStep);
   update_shieldPositions(dt);
   update_playerProjectiles(dt);
@@ -72,10 +72,11 @@ function projectileImpact(target, bullet, factor = 1) {
   const p = state.player;
   poisonHit(target, bullet);
   if (p.frost) {
+    cardPulse('frost',target);
     target.slow = Math.max(target.slowUntil > state.time ? target.slow : 0, Math.min(1, p.frost / 10));
     target.slowUntil = state.time + 2;
   }
-  const damage = bullet.damage * attackMultiplier() * factor;
+  const damage = bullet.damage * attackMultiplier(target) * factor;
   target.hp -= damage;
   if (!p.explosive || gameRandom() >= stackingChance(.15, p.explosive)) return;
   spawnParticles(bullet.x, bullet.y, 22, '#ff9c52', 1.4);
@@ -99,7 +100,7 @@ function moveTime(entity,dt) {
 const poisonOwners = new WeakMap();
 function poisonHit(target, bullet) {
   if (!bullet.venom) return;
-  const dps = bullet.venom * attackMultiplier();
+  const dps = bullet.venom * attackMultiplier(target);
   if (!(target.venomTime > 0) || dps >= target.venomDps) {
     target.venomDps = dps;
     poisonOwners.set(target, state);
@@ -154,7 +155,7 @@ function updateCardFields(dt,worldStep) {
     if(p.field){
       const f=p.field,dx=f.x-e.x,dy=f.y-e.y,d=Math.hypot(dx,dy);
       if(d<=f.r+e.size/2){
-        if(f.time<=0)damage+=(3+2*p.gravity)*attackMultiplier();
+        if(f.time<=0)damage+=(3+2*p.gravity)*attackMultiplier(e);
         else if(e!==state.boss && d>1){
           const pull=Math.min(d,180*dt)/d;
           moveWithWalls(e,dx*pull,dy*pull,currentWalls);
@@ -162,9 +163,9 @@ function updateCardFields(dt,worldStep) {
       }
     }
     for(const blade of p.blades)if(Math.hypot(e.x-blade.x,e.y-blade.y)<e.size/2+13)
-      damage+=12*dt*attackMultiplier();
+      damage+=12*dt*attackMultiplier(e);
     if(p.frameTime>0 && Math.hypot(p.vx,p.vy)>30 && Math.hypot(e.x-p.x,e.y-p.y)<(e.size+p.size)/2+5){
-      damage+=(14+5*state.specialCards.frames.totalCards)*dt*attackMultiplier();
+      damage+=(29+5*state.specialCards.frames.totalCards)*dt*attackMultiplier(e);
       e.hitFlash=.12;
       if(!p.impact || state.time-p.impact.born>.14)
         p.impact={x:(p.x+e.x)/2,y:(p.y+e.y)/2,born:state.time};
@@ -242,7 +243,7 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
         const e = state.enemies[i];
         if (isOnScreen(e.x, e.y)) {
           state.lightningStrikes.push({ x: e.x, y: e.y, timer: 0.3, maxTimer: 0.3 });
-          e.hp -= 3 * attackMultiplier();
+          e.hp -= 3 * attackMultiplier(e);
           e.hitFlash = 0.15;
           anyHit = true;
           if (e.hp <= 0) killEnemy(i);
@@ -250,7 +251,7 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
       }
       if (state.boss && isOnScreen(state.boss.x, state.boss.y)) {
         state.lightningStrikes.push({ x: state.boss.x, y: state.boss.y, timer: 0.3, maxTimer: 0.3 });
-        state.boss.hp -= 3 * attackMultiplier();
+        state.boss.hp -= 3 * attackMultiplier(state.boss);
         state.boss.hitFlash = 0.15;
         anyHit = true;
         if (state.boss.hp <= 0) killBoss();
@@ -300,10 +301,14 @@ function movePlayer(p,dt,dx,dy,walls) {
 
 }
 
-function update_movementAndWeapons(dt, worldStep = true) {
+function applyControl(dt, direction, command) {
   const p=state.player;
-  const direction = movementDirection();
   movePlayer(p,dt,direction.x,direction.y,currentWalls);
+  if (command && state.arena) {
+    const a=state.arena,h=p.size/2;
+    p.x=clamp(p.x,a.x+h,a.x+a.w-h);
+    p.y=clamp(p.y,a.y+h,a.y+a.h-h);
+  }
   if (p.dashTimer > 0) {
     p.invuln = Math.max(p.invuln, 0.05);
     spawnParticles(p.x, p.y, 1, '#22d3ee', 0.7);
@@ -329,32 +334,37 @@ function update_movementAndWeapons(dt, worldStep = true) {
   }
 
   const wm = getWorldMouse();
-  p.angle = Math.atan2(wm.y - p.y, wm.x - p.x);
-  if (p.invuln > 0) p.invuln -= dt;
+  p.angle = command ? command[4] : Math.atan2(wm.y - p.y, wm.x - p.x);
   p.fireCd -= dt;
 
   // Disparo / carga láser
-  if (mouse.down) {
+  if (command ? command[5] && !state.inventoryOpen && !state.cardChoices : mouse.down) {
     if (p.laserCount > 0) {
       state.laserCharging = true;
       state.laserChargeTime += dt;
       if (p.fireCd <= 0 && p.shots > 1) {
-        shoot(p.shots - 1);
+        shoot(p.shots - 1,command?.[0]);
         p.fireCd = p.fireCdBase;
       }
     } else {
       if (p.fireCd <= 0) {
-        shoot(p.shots);
+        shoot(p.shots,command?.[0]);
         p.fireCd = p.fireCdBase;
       }
     }
   } else {
     if (state.laserCharging) {
-      fireLasers(state.laserChargeTime);
+      fireLasers(state.laserChargeTime,command?.[0]);
       state.laserCharging = false;
       state.laserChargeTime = 0;
     }
   }
+}
+function update_movementAndWeapons(dt, worldStep = true, commands = null) {
+  if (commands) {
+    for (const c of commands) applyControl(c[1],{x:c[2],y:c[3]},c);
+  } else applyControl(dt,movementDirection(),null);
+  if (state.player.invuln > 0) state.player.invuln -= dt;
   updateLasersFiring(dt);
 
   updateLightning(dt);
@@ -378,11 +388,7 @@ function update_shieldPositions(dt) {
 
 }
 
-function update_playerProjectiles(dt) {
-  const p=state.player;
-  // Balas jugador
-  for (let i = state.bullets.length - 1; i >= 0; i--) {
-    const b = state.bullets[i];
+function advanceBullet(b,p,dt) {
     if (b.homing) {
       const nearest = getNearestTarget(b.x, b.y);
       if (nearest) {
@@ -398,6 +404,14 @@ function update_playerProjectiles(dt) {
       }
     }
     b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+}
+
+function update_playerProjectiles(dt) {
+  const p=state.player;
+  // Balas jugador
+  for (let i = state.bullets.length - 1; i >= 0; i--) {
+    const b = state.bullets[i];
+    advanceBullet(b,p,dt);
     if (b.life <= 0) { state.bullets.splice(i, 1); continue; }
     let removed = false;
     for (const w of currentWalls) {
@@ -1037,7 +1051,7 @@ function update_darts(dt) {
             const e2 = state.enemies[j];
             const edx = e2.x - d.x, edy = e2.y - d.y;
             if (edx*edx + edy*edy < radius*radius) {
-              e2.hp -= 3 * attackMultiplier();
+              e2.hp -= 3 * attackMultiplier(e2);
               e2.hitFlash = 0.15;
               if (e2.hp <= 0) killEnemy(j);
             }
@@ -1045,7 +1059,7 @@ function update_darts(dt) {
           if (state.boss) {
             const edx = state.boss.x - d.x, edy = state.boss.y - d.y;
             if (edx*edx + edy*edy < radius*radius) {
-              state.boss.hp -= 3 * attackMultiplier();
+              state.boss.hp -= 3 * attackMultiplier(state.boss);
               if (state.boss.hp <= 0) killBoss();
             }
           }
@@ -1055,14 +1069,14 @@ function update_darts(dt) {
         } else {
           if (targetIsBoss) {
             if (state.boss) {
-              state.boss.hp -= (d.target === state.boss ? 1 : BALANCE.ballDamage) * attackMultiplier();
+              state.boss.hp -= (d.target === state.boss ? 1 : BALANCE.ballDamage) * attackMultiplier(state.boss);
               state.boss.hitFlash = 0.12;
               if (state.boss.hp <= 0) killBoss();
             }
           } else {
             const idx = state.enemies.indexOf(d.target);
             if (idx !== -1) {
-              d.target.hp -= 1 * attackMultiplier();
+              d.target.hp -= 1 * attackMultiplier(d.target);
               d.target.hitFlash = 0.12;
               if (d.target.hp <= 0) killEnemy(idx);
             }

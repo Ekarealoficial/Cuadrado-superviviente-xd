@@ -32,11 +32,38 @@ function drawCardIcon(cx, cy, size, card, color) {
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   const s = size * 0.5;
   switch (card.id) {
-    case 'vampirism':case 'explosive':case 'frost':case 'critical':case 'armor':case 'fury':
+    case 'armor':
+      ctx.beginPath();ctx.moveTo(0,-s);ctx.lineTo(s*.78,-s*.65);ctx.lineTo(s*.66,s*.25);
+      ctx.lineTo(0,s);ctx.lineTo(-s*.66,s*.25);ctx.lineTo(-s*.78,-s*.65);ctx.closePath();ctx.stroke();
+      ctx.fillRect(-s*.1,-s*.55,s*.2,s*1.05);break;
+    case 'critical': case 'explosive':
+      ctx.beginPath();
+      for(let i=0;i<16;i++){
+        const a=i*Math.PI/8,r=i%2?s*.3:(card.id==='critical' && i%4 ? s*.54 : s);
+        const x=Math.cos(a)*r,y=Math.sin(a)*r;
+        if(i)ctx.lineTo(x,y);else ctx.moveTo(x,y);
+      }
+      ctx.closePath();ctx.stroke();ctx.fillRect(-s*.13,-s*.13,s*.26,s*.26);break;
+    case 'frost':
+      ctx.beginPath();
+      for(let i=0;i<6;i++){
+        ctx.rotate(TAU/6);ctx.moveTo(0,0);ctx.lineTo(0,-s);
+        ctx.moveTo(-s*.22,-s*.65);ctx.lineTo(0,-s*.45);ctx.lineTo(s*.22,-s*.65);
+      }
+      ctx.stroke();break;
+    case 'vampirism':
+      ctx.beginPath();ctx.moveTo(0,-s);ctx.quadraticCurveTo(s*1.28,s*.55,s*.35,s*.85);
+      ctx.quadraticCurveTo(-s*1.2,s*1.12,-s*.49,-s*.15);ctx.closePath();ctx.stroke();
+      ctx.fillRect(-s*.1,0,s*.2,s*.55);ctx.fillRect(-s*.27,s*.18,s*.54,s*.18);break;
+    case 'fury':
+      ctx.beginPath();ctx.moveTo(-s*.68,s*.75);ctx.lineTo(-s*.87,-s*.24);
+      ctx.lineTo(-s*.38,0);ctx.lineTo(-s*.08,-s);ctx.lineTo(s*.21,-s*.22);
+      ctx.lineTo(s*.68,-s*.55);ctx.lineTo(s*.56,s*.76);ctx.closePath();ctx.stroke();
+      ctx.fillRect(-s*.26,s*.34,s*.56,s*.16);break;
     case 'frames':case 'swords':case 'gravity':case 'venom':
       ctx.fillStyle=color;ctx.textAlign='center';ctx.textBaseline='middle';
       ctx.font='bold '+size+'px system-ui';
-      ctx.fillText(({vampirism:'♥',explosive:'✹',frost:'❄',critical:'✷',armor:'🛡',fury:'♨',frames:'ϟ',swords:'⚔',gravity:'◎',venom:'☠'})[card.id],0,0);
+      ctx.fillText(({frames:'ϟ',swords:'⚔',gravity:'◎',venom:'☠'})[card.id],0,0);
       break;
     case 'fire':
       ctx.beginPath();
