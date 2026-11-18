@@ -17,3 +17,14 @@ h1,h2,legend{color:#eaffff;text-shadow:0 0 14px #4df3ff55}
 #home button{padding:20px;border:1px solid currentColor;background:#101622;color:#4df3ff}
 #home #multi{color:#d099ff;background:#20152c}
 button:hover,button:focus-visible{box-shadow:0 0 15px #4df3ff44}fieldset{border-color:#a855f755}
+#home #sandbox{color:#8fff9e;background:#11221a}
+#sandboxPanel{margin:auto;max-height:85vh;padding:22px;color:#edf7ff;box-sizing:border-box}
+#sandboxPanel[open]{display:flex;flex-direction:column}
+#sandboxPanel::backdrop{background:#050510bf}
+.sandboxHeader{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.sandboxHeader h2{margin:0}
+#sandboxStatus{font-size:14px;color:#c5d4e5}
+#sandboxList{overflow:auto;display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:8px;padding:3px}
+#sandboxList h3{grid-column:1/-1;margin:10px 0 3px}
+#sandboxList button{text-align:left;border-left-width:4px}
+#sandboxList button[aria-pressed=true]{background:#234052}

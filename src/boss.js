@@ -1,14 +1,19 @@
 'use strict';
 /* =============== BOSS =============== */
-function spawnBoss() {
+function spawnBoss(position) {
   state.bossEncounters = (state.bossEncounters || 0) + 1;
   const bossHp = Math.round(BALANCE.bossHp * Math.pow(BALANCE.bossGrowth, state.bossEncounters - 1) * state.enemyHpMult);
   state.bossActive = true;
   state.bossWarningShown = false;
   const p = state.player;
-  const aw = W / state.cam.zoom * 0.95;
-  const ah = H / state.cam.zoom * 0.95;
-  const ax = p.x - aw / 2, ay = p.y - ah / 2;
+  let aw = W / state.cam.zoom * 0.95;
+  let ah = H / state.cam.zoom * 0.95;
+  let ax = p.x - aw / 2, ay = p.y - ah / 2;
+  if(position){
+    const right=Math.max(ax+aw,position.x+90),bottom=Math.max(ay+ah,position.y+90);
+    ax=Math.min(ax,position.x-90);ay=Math.min(ay,position.y-90);
+    aw=right-ax;ah=bottom-ay;
+  }
   state.arena = {
     x: ax, y: ay, w: aw, h: ah,
     walls: [
@@ -19,7 +24,7 @@ function spawnBoss() {
     ]
   };
   state.boss = {
-    x: p.x, y: ay + 200,
+    x: position?.x ?? p.x, y: position?.y ?? ay + 200,
     size: 180,
     hp: bossHp, maxHp: bossHp,
     color: '#ff2255', hitFlash: 0,
@@ -29,10 +34,9 @@ function spawnBoss() {
       { side: 'right',  x: 0, y: 0, r: 36, state: 'attached', vx: 0, vy: 0, life: 0 }
     ]
   };
-  state.enemies = [];
-  state.enemyDarts = [];
-  state.enemyBullets = [];
-  state.potions = [];
+  if(!position){
+    state.enemies = [];state.enemyDarts = [];state.enemyBullets = [];state.potions = [];
+  }
   state.bossBombs = [];
   state.bossLasers = [];
   state.bossLaserActive = false;

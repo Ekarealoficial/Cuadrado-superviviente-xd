@@ -48,7 +48,7 @@ function newState() {
     bossBombs: [], bossLasers: [], bossLaserActive: false, bossLaserTimer: 0,
     bossSpawnTimer: BOSS_FIRST_TIME, bossWarningShown: false,
     playerDamageMult: 1.0, enemyHpMult: 1.0, spawnRateMult: 1.0,
-    levelTimer: 0, damageTimer: 0, adaptiveCheckTimer: 0,
+    recentKills: [], levelTimer: 0, damageTimer: 0, adaptiveCheckTimer: 0,
     inventoryOpen: false,
     inventorySelection: null,
     inventoryCardRects: [],

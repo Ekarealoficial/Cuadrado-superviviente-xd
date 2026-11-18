@@ -1,4 +1,5 @@
 'use strict';
+const ENEMY_NAMES={normal:'Normal',fast:'Veloz',tank:'Tanque',shooter:'Tirador',invoker:'Invocador',teleporter:'Teletransportador',kamikaze:'Kamikaze',dardante:'Dardante',juggernaut:'Juggernaut',boss:'Jefe de la arena'};
 let netSession=null, queuedActions=[], inventoryChoice=null;
 const multiplayerServer = String(window.MULTIPLAYER_SERVER_URL || '').replace(/\/$/, '');
 function handleNetKey(e){
@@ -38,7 +39,7 @@ async function roomRequest(action,data){
 function initializeMenu(){
   const el=id=>document.getElementById(id);
   const setup=el('setup'), identity=el('identity'), screens=['home','setup','lobby','identity'];
-  const names={normal:'Normal',fast:'Veloz',tank:'Tanque',shooter:'Tirador',invoker:'Invocador',teleporter:'Teletransportador',kamikaze:'Kamikaze',dardante:'Dardante',juggernaut:'Juggernaut',boss:'Jefe de la arena'};
+
   let screen='home',creating=false,code='',listed=[], multiplayerSettings;
   function show(next){
     screen=next;
@@ -59,7 +60,7 @@ function initializeMenu(){
   for(const key of ['difficulty','xp'])for(const rate of [0.5,1,1.5,2,3]){
     const option=new Option(rate+'×',rate,false,rate===1);setup.elements[key].add(option);
   }
-  for(const [id,name] of Object.entries(names)){
+  for(const [id,name] of Object.entries(ENEMY_NAMES)){
     const label=document.createElement('label'),box=document.createElement('input');
     box.type='checkbox';box.checked=true;box.value=id;label.append(box,name);el('roster').append(label);
   }
@@ -67,6 +68,12 @@ function initializeMenu(){
     creating=multi;el('roomOptions').hidden=!multi;el('soloColor').hidden=multi;
     el('setupTitle').textContent=multi?'Crear partida':'Singleplayer';show('setup');
   }
+  el('sandbox').onclick=()=>{
+    rules={difficulty:1,xp:1,disabled:[],color:'#4df3ff'};
+    restart();sandboxEnemy='normal';start('sandbox');sandboxHint();
+  };
+  el('sandboxClose').onclick=closeSandboxPanel;
+  el('sandboxPanel').addEventListener('close',()=>{if(!el('sandboxPanel').open)sandboxTab=null;});
   el('solo').onclick=()=>configure(false);el('create').onclick=()=>configure(true);
   setup.onsubmit=e=>{
     e.preventDefault();const f=setup.elements;

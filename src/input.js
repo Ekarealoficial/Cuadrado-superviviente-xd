@@ -18,6 +18,7 @@ window.addEventListener('keydown', e => {
   ensureAudio();
   const k = e.key.toLowerCase();
 
+  if (playMode === 'sandbox' && handleSandboxKey(e,k)) return;
   if (playMode === 'online') {
     keys[k] = true;
     if (['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright'].includes(k)) e.preventDefault();
@@ -69,6 +70,11 @@ canvas.addEventListener('mousemove', e => {
 });
 canvas.addEventListener('mousedown', e => {
   if (playMode === 'menu') return;
+  if (playMode === 'sandbox' && e.button===2 && !state.inventoryOpen){
+    const rect=canvas.getBoundingClientRect();
+    mouse.x=(e.clientX-rect.left)*W/rect.width;mouse.y=(e.clientY-rect.top)*H/rect.height;
+    placeSandboxEnemy();return;
+  }
   if (playMode === 'online' && handleNetClick(e)) return;
   updateUILayout();
   ensureAudio();
@@ -107,7 +113,8 @@ canvas.addEventListener('mousedown', e => {
       return;
     }
     mouse.down = true;
-    if (playMode === 'online') { pendingTap = true; previewTap = true; }
+    if (playMode === 'sandbox' && handleSandboxKey(e,k)) return;
+  if (playMode === 'online') { pendingTap = true; previewTap = true; }
   } else if (e.button === 2) {
     if (state.inventoryOpen) {
       for (let i = 0; i < state.inventorySlotRects.length; i++) {

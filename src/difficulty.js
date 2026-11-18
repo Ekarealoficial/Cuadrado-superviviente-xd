@@ -1,5 +1,6 @@
 'use strict';
 /* =============== ADAPTIVE =============== */
+const RAPID_KILLS=8, KILL_WINDOW=15;
 function checkAdaptive(dt) {
   if (state.bossActive) { state.adaptiveCheckTimer = 0; return; }
   state.adaptiveCheckTimer += dt;
@@ -7,7 +8,9 @@ function checkAdaptive(dt) {
   state.adaptiveCheckTimer = 0;
   const levelSlow = state.levelTimer > 30;
   const noDamage = state.damageTimer > 22;
-  if (!levelSlow && !noDamage) return;
+  const kills=state.recentKills;
+  const fastKills=kills.length===RAPID_KILLS && state.time-kills[0]<=KILL_WINDOW;
+  if (!(levelSlow && noDamage && fastKills)) return;
   const r = gameRandom();
   if (r < 0.40) {
     state.spawnRateMult = Math.max(0.55, state.spawnRateMult * 0.88);

@@ -262,7 +262,7 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
   }
 
   if (!worldStep) return;
-  if (!state.bossActive && !rules.disabled.includes('boss')) {
+  if (playMode!=='sandbox' && !state.bossActive && !rules.disabled.includes('boss')) {
     if (state.bossSpawnTimer > 0 && state.bossSpawnTimer < 5 && !state.bossWarningShown) {
       state.bossWarningShown = true;
       addFloat(p.x, p.y - 100, '¡JEFE EN CAMINO!', '#ff2255');
@@ -560,7 +560,7 @@ function update_spawning(dt) {
   // Spawn
   if (!state.bossActive) {
     state.spawnTimer -= dt;
-    if (state.spawnTimer <= 0) {
+    if (playMode!=='sandbox' && state.spawnTimer <= 0) {
       spawnEnemy();
       const interval = Math.max(0.55, 1.7 - state.time * rules.difficulty * 0.009) * state.spawnRateMult;
       state.spawnTimer = interval * gameRand(0.80, 1.25);

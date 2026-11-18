@@ -135,3 +135,21 @@ test('Con retraso, se valida el blanco apuntado y se descarta el contacto lejano
   run('state.viewDelay=0;update_contactDamage(1/30)');
   assert.equal(run('state.halfHearts'),7);
 });
+test('Solo aumentan los ajustes adaptativos con las tres condiciones a la vez',()=>{
+  for(const [level,damage,kills,age,expected] of [[31,23,8,15,true],[30,23,8,0,false],
+    [31,22,8,0,false],[31,23,7,0,false],[31,23,8,15.1,false]]){
+    const run=game();
+    run('state.levelTimer='+level+';state.damageTimer='+damage+';for(let i=0;i<'+kills+';i++)recordKill();state.time='+age+';gameRandom=()=>0;checkAdaptive(15)');
+    assert.equal(run('state.spawnRateMult<1'),expected);
+  }
+});
+test('Sandbox mantiene el mapa sin oleadas y admite enemigos junto al jefe manual',()=>{
+  const run=game();
+  run("playMode='sandbox';state.spawnTimer=0;state.bossSpawnTimer=0;for(let i=0;i<100;i++)update(.05)");
+  assert.equal(run('state.enemies.length'),0);
+  assert.equal(run('state.boss'),null);
+  run("state.enemies.push(createEnemy('tank',20,50));spawnBoss({x:590,y:-380});updateBoss(0)");
+  assert.equal(run('state.enemies.length'),1);
+  assert.equal(run('state.boss.x'),590);
+  assert.equal(run('state.boss.y'),-380);
+});

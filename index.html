@@ -15,7 +15,7 @@
 <main id="menu">
   <section class="panel">
     <header><span class="mark" aria-hidden="true"></span><h1>Cuadrado Superviviente</h1></header>
-    <div id="home"><button id="solo">Singleplayer</button> <button id="multi">Multijugador</button></div>
+    <div id="home"><button id="solo">Singleplayer</button> <button id="multi">Multijugador</button> <button id="sandbox">Sandbox</button></div>
     <form id="setup" hidden>
       <h2 id="setupTitle">Singleplayer</h2>
       <label id="soloColor">Color del cuadradito <input name="color" type="color" value="#4df3ff"></label>
@@ -41,6 +41,10 @@
     <p id="notice" role="status"></p>
   </section>
 </main>
+<dialog id="sandboxPanel" class="panel" aria-labelledby="sandboxTitle">
+  <div class="sandboxHeader"><h2 id="sandboxTitle"></h2><button type="button" id="sandboxClose">Cerrar</button></div>
+  <p id="sandboxStatus" aria-live="polite"></p><div id="sandboxList"></div>
+</dialog>
 <aside id="sessionHUD" hidden><span id="playerInfo"></span> <button id="exit">Salir al menú</button></aside>
 <script defer src="src/config.js"></script>
 <script defer src="src/spatial.js"></script>
@@ -69,6 +73,7 @@
 <script defer src="src/effects.js"></script>
 <script defer src="src/layout.js"></script>
 <script defer src="src/runtime-config.js"></script>
+<script defer src="src/sandbox.js"></script>
 <script defer src="src/menu.js"></script>
 <script defer src="src/presentation.js"></script>
 <script defer src="src/loop.js"></script>

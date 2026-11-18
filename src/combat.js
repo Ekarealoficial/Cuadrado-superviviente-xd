@@ -69,6 +69,8 @@ function attackMultiplier(target) {
 }
 function recordKill(victim = state.player) {
   state.kills++;
+  state.recentKills.push(state.time);
+  if(state.recentKills.length>RAPID_KILLS)state.recentKills.shift();
   const p = state.player;
   if (!p.vampirism || ++p.vampKills < 16 - p.vampirism % 16) return;
   p.vampKills = 0;

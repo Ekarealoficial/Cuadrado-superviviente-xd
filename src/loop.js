@@ -7,8 +7,8 @@ function loop(now) {
   last = now;
   if (dt > 0.05) dt = 0.05;
   if (playMode !== 'menu') {
-    if (playMode === 'solo') update(dt);
-    else { animateMotion(now); predictLocalFrame(now,dt); }
+    if (playMode === 'online') { animateMotion(now); predictLocalFrame(now,dt); }
+    else if(playMode!=='sandbox' || !sandboxTab)update(dt);
     updateUILayout();
     render();
   }
