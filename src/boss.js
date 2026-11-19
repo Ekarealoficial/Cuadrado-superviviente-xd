@@ -4,14 +4,16 @@ function livingBosses() {
   return state.boss ? [state.boss, ...(state.extraBosses || [])] : [];
 }
 function bossTargets() {
-  return livingBosses().flatMap(b => b.pieces ? b.pieces.flatMap(piece => piece.parts) : b.state==='final' ? [] : [b]);
+  return livingBosses().flatMap(b => b.pieces ? b.pieces.flatMap(piece => piece.parts) : b.state==='final' ? [] : b.parts ? [...(b.kind==='heart'?[b]:[]),...activeParts(b)] : [b]);
 }
 function bossFor(target) {
+  if(target?.component)return livingBosses().some(b=>b.state!=='final'&&b.parts?.includes(target))&&target.hp>0?target:null;
   if(target?.wormSegment)return target._dying ? null : target;
   return livingBosses().find(b => b.state!=='final' && (b === target || b.balls.includes(target)));
 }
 function finishTarget(target) {
-  if (target.wormSegment) breakWormSegment(target);
+  if(target.component)partDefeated(target);
+  else if (target.wormSegment) breakWormSegment(target);
   else if (target.balls) killBoss(target);
   else killEnemy(state.enemies.indexOf(target));
 }
@@ -97,12 +99,16 @@ function spawnBoss(position,kind='boss') {
     ]
   };
   boss.id=++state.nextBossId;
+  makeComponents(boss);
+  if(kind==='monolith'){
+    makeScore(boss);boss.state='landing';wave(boss,.3,boss,false,0);
+  }
   if (state.boss) state.extraBosses.push(boss);
   else state.boss = boss;
   if(!position){
     state.enemies = [];state.enemyDarts = [];state.enemyBullets = [];state.potions = [];
   }
-  addFloat(p.x, p.y - 100, BOSS_NAMES[kind].toUpperCase(), boss.color);
+  addFloat(boss.x, boss.y - boss.size/2 - 24, BOSS_NAMES[kind].toUpperCase(), boss.color);
   state.shake = 25;
   state.flash = 0.5;
   state.flashRGB = '255,60,100';
@@ -117,6 +123,10 @@ function killBoss(b = state.boss, completed = false) {
     return;
   }
   b._dying = true;
+  state.enemyBullets=state.enemyBullets.filter(s=>s.source!==b.id);
+  state.cosmicZones=state.cosmicZones.filter(s=>s.source!==b.id);
+  state.bossBombs=state.bossBombs.filter(s=>s.source!==b.id);
+  state.bossLasers=state.bossLasers.filter(s=>s.source!==b.id);
   if(PATTERN_BOSSES[b.kind]){
     state.remnants.push({kind:b.kind,x:b.x,y:b.y,born:state.time,color:b.color});
     bossCue(b.kind+'Release',b);
@@ -126,7 +136,8 @@ function killBoss(b = state.boss, completed = false) {
   spawnParticles(b.x, b.y, 40, '#ffffff', 1.5);
   state.shake = 40;
   state.flash = 0.6;
-  state.flashRGB = '255,60,100';
+  state.flashRGB = ({fractal:'255,140,224',clock:'255,223,150',crown:'233,204,255',
+    beacon:'255,152,180',twins:'245,242,255',heart:'255,133,112',monolith:'176,242,255'})[b.kind]||'255,60,100';
   state.score += 5000;
   recordKill(b);
   const loot=rewardSpot(b.x,b.y);
@@ -197,7 +208,7 @@ function startBossAttack(type, b = state.boss) {
         tries++;
         if (tries > 25) break;
       } while (Math.hypot(bx - p.x, by - p.y) < 140);
-      state.bossBombs.push({ x: bx, y: by, r: 18, timer: 2.5 + i * 0.35, exploded: false, triggerTime: 0, fadeTimer: 0 });
+      state.bossBombs.push({ source:b.id,x: bx, y: by, r: 18, timer: 2.5 + i * 0.35, exploded: false, triggerTime: 0, fadeTimer: 0 });
     }
   } else if (type === 'balls') {
     b.state = 'attack';
@@ -331,7 +342,7 @@ function updateArenaHazards(dt){
 
   if (state.bossLaserActive) {
     state.bossLaserTimer -= dt;
-    if (state.bossLaserTimer <= 0 && !livingBosses().some(b=>HEAVY_MOVES.has(b.state))) {
+    if (state.bossLaserTimer <= 0 && !livingBosses().some(b=>HEAVY_MOVES.has(b.state)||b.waitFinal)) {
       state.bossLaserTimer = 2.0;
       const edges = ['top', 'bottom', 'left', 'right'];
       const edge = edges[Math.floor(gameRandom() * 4)];
@@ -340,7 +351,7 @@ function updateArenaHazards(dt){
       else if (edge === 'bottom') { lx = state.arena.x + gameRandom() * state.arena.w; ly = state.arena.y + state.arena.h; la = -Math.PI/2 + gameRand(-0.6, 0.6); }
       else if (edge === 'left') { lx = state.arena.x; ly = state.arena.y + gameRandom() * state.arena.h; la = gameRand(-0.6, 0.6); }
       else { lx = state.arena.x + state.arena.w; ly = state.arena.y + gameRandom() * state.arena.h; la = Math.PI + gameRand(-0.6, 0.6); }
-      state.bossLasers.push({ x: lx, y: ly, angle: la, warmup: 1.0, active: 1.6, width: 70, state: 'warmup' });
+      state.bossLasers.push({ source:livingBosses().find(o=>o.kind==='boss'&&o.phase>=3)?.id,x: lx, y: ly, angle: la, warmup: 1.0, active: 1.6, width: 70, state: 'warmup' });
     }
   }
   for (let i = state.bossLasers.length - 1; i >= 0; i--) {

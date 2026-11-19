@@ -2,7 +2,7 @@
 /* =============== BALAS =============== */
 function spawnBullet(x, y, angle, speed, opts, list = state.bullets) {
   opts = opts || {};
-  if (list.length >= playerBulletLimit(state.player)) return;
+  if (!opts.inverted && list.length >= playerBulletLimit(state.player)) return;
   list.push({
     x, y,
     vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
@@ -10,7 +10,7 @@ function spawnBullet(x, y, angle, speed, opts, list = state.bullets) {
     life: 1.6*(1+.15*(state.player.persist||0)),persist:state.player.persist||0,style:opts.style, viewDelay:opts.viewDelay || 0,
     venom: state.player.venom || 0,
     volley: opts.volley, lane: opts.lane,
-    drone: !!opts.drone,
+    drone: !!opts.drone,inverted:opts.inverted,
     bounces: opts.bounces || 0,
     homing: !!opts.homing,
     dupli: opts.dupli || 0,
@@ -55,10 +55,10 @@ function cardPulse(kind,target,power=1) {
   while(pulses.length && (pulses[0].born<state.time-.7 || pulses.length>=18))pulses.shift();
   pulses.push({kind,x:target.x,y:target.y,born:state.time,power});
 }
-function attackMultiplier(target) {
-  const p = state.player;
-  const missing = 1 - state.halfHearts / state.maxHalfHearts;
-  const base = state.playerDamageMult * (1 + missing * 0.5 * p.fury);
+function attackMultiplier(target, attacker=state) {
+  const p = attacker.player;
+  const missing = 1 - attacker.halfHearts / attacker.maxHalfHearts;
+  const base = attacker.playerDamageMult * (1 + missing * 0.5 * p.fury);
   if (!p.critical) return base;
   const upgrades = p.critical - 1;
   const chance = (10 + 5 * (upgrades % 18)) / 100;
@@ -80,6 +80,7 @@ function recordKill(victim = state.player) {
   if (healed) addFloat(p.x, p.y - 30, '+' + healed / 2 + ' ❤', '#ff608a');
 }
 function damagePlayer(amount, piercesPlasma=false) {
+  if(playMode==='sandbox' && lab.god)return;
   if(state.player.plasma?.end>state.time && !piercesPlasma)return;
   amount = amount || 1;
   const p = state.player;

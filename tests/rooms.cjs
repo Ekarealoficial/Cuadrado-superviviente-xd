@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const engine=require('../room-engine.cjs');
-const disabled='normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss singular fractal clock crown'.split(' ');
+const disabled='normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss singular fractal clock crown beacon twins heart monolith'.split(' ');
 for(const pvp of [false,true])test('Combate compartido con PvP '+pvp,()=>{
   const game=engine({difficulty:1,xp:1,pvp,disabled});
   game.add('a',{name:'Azul',color:'#3399ff'});
@@ -116,6 +116,7 @@ test('Los dos integrantes de una dupla dañan a los dos jugadores y mueren de fo
    r.tick(1/30);
    for(const [i,id] of ['a','b'].entries())assert.equal(r.snapshot(id).halfHearts,hp[i]-2);
  }
+ for(const id of ['a','b'])r.snapshot(id).player.invuln=10000;
  finish(group[0]);until(s=>s.extraBosses.length===0);assert.ok(r.snapshot('b').arena);
  finish(group[1]);until(s=>!s.boss);assert.equal(r.snapshot('b').arena,null);
 });
@@ -128,4 +129,30 @@ test('El ancla de un jugador suspende las balas compartidas y devuelve proyectil
  assert.equal(r.snapshot('b').peers[0].anchor.held.length,1);assert.equal(r.snapshot('b').enemyBullets.length,0);
  for(let i=0;i<121;i++)r.tick(1/30);
  assert.ok(r.snapshot('b').bullets.some(s=>s.style==='anchor'&&s.vx>0));assert.equal(r.snapshot('a').player.anchor,null);
+});
+test('Paquetes repetidos o antiguos no repiten acciones ni encolan movimiento',()=>{
+ const r=engine({difficulty:1,xp:1,pvp:false,disabled});r.add('a',{name:'A'});
+ const action=[{kind:'inventory'}];r.input('a',{stamp:20},action);r.input('a',{stamp:20},action);
+ r.input('a',{stamp:19,frames:[[9,.02,1,0,0,false]]},action);r.tick(.033);
+ const a=r.snapshot('a');assert.ok(a.inventoryOpen);assert.equal(a.ack,0);
+});
+test('La furia ofensiva y la armadura defensiva pertenecen a distintos jugadores',()=>{
+ const r=engine({difficulty:1,xp:1,pvp:true,disabled});r.add('a',{});r.add('b',{});
+ const a=r.snapshot('a'),b=r.snapshot('b');Object.assign(a.player,{x:-55,y:0,armor:50});
+ Object.assign(b.player,{x:35,y:0,fury:40});
+ r.input('a',{angle:0,fire:true},[]);for(let i=0;i<6;i++)r.tick(1/30);
+ assert.equal(r.snapshot('b').halfHearts,7);
+ b.player.invuln=0;b.player.armor=20;
+ for(let i=0;i<24;i++)r.tick(1/30);
+ assert.equal(r.snapshot('b').halfHearts,7);assert.ok(b.player.pulses.some(e=>e.kind==='armor'));
+});
+test('Dos clientes reciben la misma resistencia y desaparición de una bala grande',()=>{
+ const r=engine({difficulty:1,xp:1,pvp:false,disabled});r.add('a',{});r.add('b',{});
+ const s=r.snapshot('a');s.player.sizeLevel=2;
+ s.enemyBullets.push({x:65,y:0,r:11,vx:0,vy:0,life:10,damage:3});
+ r.input('a',{angle:0,fire:true},[]);r.tick(1/30);
+ const seen=id=>JSON.parse(JSON.stringify(r.snapshot(id).enemyBullets));
+ assert.deepEqual(seen('a'),seen('b'));assert.ok(seen('a')[0].cancelHP<121);
+ for(let i=0;i<120;i++)r.tick(1/30);
+ assert.deepEqual(seen('a'),[]);assert.deepEqual(seen('b'),[]);
 });

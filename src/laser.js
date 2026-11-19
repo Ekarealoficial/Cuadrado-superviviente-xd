@@ -26,21 +26,21 @@ function updateLasersFiring(dt) {
       for (let j = state.enemies.length - 1; j >= 0; j--) {
         const e = state.enemies[j];
         if (laserHits(e.x, e.y, e.size / 2, p.x, p.y, angle, lf.width, range)) {
-          e.hp -= lf.damage * dt * attackMultiplier(e);
+          hurtTarget(e,lf.damage * dt * attackMultiplier(e));
           e.hitFlash = 0.05;
           if (e.hp <= 0) killEnemy(j);
         }
       }
       for (const b of bossTargets()) {
         if (laserHits(b.x, b.y, b.size / 2, p.x, p.y, angle, lf.width, range)) {
-          b.hp -= lf.damage * dt * attackMultiplier(b);
+          hurtTarget(b,lf.damage * dt * attackMultiplier(b));
           b.hitFlash = 0.05;
           if (b.hp <= 0) { finishTarget(b); continue; }
         }
         for (const ball of b.balls) {
           if (ball.state === 'attached') continue;
           if (laserHits(ball.x, ball.y, ball.r, p.x, p.y, angle, lf.width, range)) {
-            b.hp -= lf.damage * dt * attackMultiplier(ball) * 0.5;
+            hurtTarget(b,lf.damage * dt * attackMultiplier(ball) * 0.5);
             if (b.hp <= 0) { finishTarget(b); break; }
           }
         }

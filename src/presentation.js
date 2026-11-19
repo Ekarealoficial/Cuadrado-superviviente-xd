@@ -30,6 +30,7 @@ function prepareMotion(old,next,now){
   }
   for(const b of [next.boss,...(next.extraBosses||[])].filter(Boolean)){
     const key='boss'+b.id;
+    for(const part of b.parts||[])track(key+'component',part,part.index);
     for(const piece of b.pieces||[])for(const seg of piece.parts)track(key+'segment',seg,seg.segmentId);
     track(key,b,0);b.balls.forEach((e,i)=>track(key+'ball',e,i));
     for(const [i,q] of (b.planets||[]).entries())track(key+'planet',q,i);

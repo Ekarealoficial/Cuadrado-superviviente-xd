@@ -290,16 +290,16 @@ test('Los planetas alcanzan al jugador lejos del núcleo',()=>{
  run("spawnBoss({x:0,y:0},'singular');const b=state.boss;b.hp=b.maxHp/2;updateBoss(.01);const outer=b.planets.at(-1);Object.assign(state.player,{x:outer.x,y:outer.y});const hp=state.halfHearts;planetContact(b,state.player)");
  assert.ok(run('outer.distance>300 && hp-state.halfHearts===1'));
 });
-test('El catálogo de seis recorre sus 63 conjuntos y después conserva el máximo',()=>{
- const sequence=()=>game()('JSON.stringify(Array.from({length:66},pickEncounter))');
+test('El catálogo de diez recorre sus 1023 conjuntos y después conserva el máximo',()=>{
+ const sequence=()=>game()('JSON.stringify(Array.from({length:1026},pickEncounter))');
  const out=JSON.parse(sequence());assert.equal(JSON.stringify(out),sequence());
  let start=0;
- for(const [index,n] of [6,15,20,15,6,1].entries()){
+ for(const [index,n] of [10,45,120,210,252,210,120,45,10,1].entries()){
    const groups=out.slice(start,start+n);start+=n;
    assert.ok(groups.every(g=>g.length===index+1 && new Set(g).size===g.length));
    assert.equal(new Set(groups.map(g=>g.sort().join('+'))).size,n);
  }
- assert.ok(out.slice(63).every(g=>g.length===6));
+ assert.ok(out.slice(1023).every(g=>g.length===10));
  const run=game();run("rules.disabled=Object.keys(BOSS_NAMES).filter(k=>!['fractal','clock','crown'].includes(k))");
  const reduced=JSON.parse(run('JSON.stringify(Array.from({length:9},pickEncounter))'));
  assert.deepEqual(reduced.map(g=>g.length),[1,1,1,2,2,2,3,3,3]);
@@ -309,7 +309,7 @@ test('Una arena, una escala y una entrega por muerte durante un encuentro triple
  const run=game();run("spawnEncounter(['fractal','clock','crown']);const group=livingBosses();");
  assert.ok(run('state.bossEncounters===1 && group.every(b=>b.maxHp===1200) && new Set(group.map(b=>b.id)).size===3 && state.arena.w===1366 && state.arena.h===768'));
  for(let i=0;i<3;i++){
-   run('startPatternFinal(group['+i+']);killBoss(group['+i+']);for(let k=0;k<140;k++){updateBoss(1/60,group['+i+']);render()}');
+   run('startPatternFinal(group['+i+']);killBoss(group['+i+']);for(let k=0;k<450 && !group['+i+']._dying;k++){updateBoss(1/60,group['+i+']);render()}');
    assert.equal(run('state.cardRelics.length'),2*(i+1));assert.equal(run('!!state.arena'),i<2);
  }
  run("spawnEncounter(['clock','crown'])");assert.ok(run('livingBosses().every(b=>b.maxHp===1500)'));
@@ -365,4 +365,71 @@ test('Resonancia cuenta doce impactos y Cadena sobre 100 % conserva descargas ad
  const run=game();run("const p=state.player,t=createEnemy('tank',30,0),n=createEnemy('tank',90,0);state.enemies=[t,n];p.resonance=1;for(let i=0;i<11;i++)geometryImpact(t,p);const before=n.hp;geometryImpact(t,p);");
  assert.equal(run('before-n.hp'),1);run("p.resonance=0;p.chain=14;gameRandom=()=>.9;const hp=n.hp;geometryImpact(t,p);");
  assert.equal(run('hp-n.hp'),2);
+});
+test('Cancelación por área, acumulación simultánea, continuidad y barrido relativo',()=>{
+ const run=game();
+ run('const shot=(r,x=0,y=0)=>({x,y,r,vx:300,vy:0,life:5,damage:3});const collide=(n,r)=>{state.bullets=Array.from({length:n},()=>shot(r));update_projectileCancellation()}');
+ for(const [r,hits] of [[6,1],[11,4],[17,9]]){
+   run('state.enemyBullets=[shot('+r+')]');
+   for(let i=1;i<hits;i++){
+     run('collide(1,6);update_projectileCancellation()');
+     assert.equal(run('state.enemyBullets[0].cancelHP'),r*r-i*36);
+     assert.ok(run('!state.bullets.length && state.enemyBullets[0].vx===300 && state.enemyBullets[0].damage===3'));
+   }
+   run('collide(1,6)');assert.equal(run('state.enemyBullets.length'),0);
+ }
+ run('state.enemyBullets=[shot(17)];collide(9,6)');assert.equal(run('state.enemyBullets.length+state.bullets.length'),0);
+ run('state.enemyBullets=[{...shot(6,150),prevX:-150}];state.bullets=[{...shot(17,-150),prevX:150}];update_projectileCancellation()');
+ assert.equal(run('state.enemyBullets.length+state.bullets.length'),0);
+ run('state.enemyBullets=Array.from({length:600},(_,i)=>shot(6,30*i));state.bullets=state.enemyBullets.map(e=>shot(6,e.x));update_projectileCancellation()');
+ assert.equal(run('state.enemyBullets.length+state.bullets.length'),0);
+});
+for(const kind of ['beacon','twins','heart','monolith'])test('Laboratorio y ciclo completo de '+kind,()=>{
+ const run=game();run("playMode='sandbox';lab.god=true;spawnBoss({x:0,y:-140},'"+kind+"');const b=state.boss,seen=new Set();");
+ const moves=JSON.parse(run('JSON.stringify(sandboxPhases(b).flat())'));
+ for(const move of moves){
+   run("sandboxAttack(b,'"+move+"');");
+   assert.equal(run('b.state'),move);
+   assert.ok(run('b.events.length>0'),move);
+   run("for(let i=0;i<1100 && b.state!=='recover';i++){state.time+=1/60;updateBoss(1/60,b);update_enemyProjectiles(1/60);patternContact(b,state.player);if(i%6===0)render()}");
+   assert.ok(run("b.state==='recover' && Number.isFinite(b.x) && b.parts?.some(q=>!Number.isFinite(q.x))!==true"),move);
+ }
+ run("setSandboxPhase(b,1);killBoss(b);const before=state.cardRelics.length;const dangerous=[];for(let i=0;i<500&&!b._dying;i++){state.time+=1/60;updateBoss(1/60,b);if(!b._dying)dangerous.push(patternShapes(b).some(s=>s.live)||state.enemyBullets.length>0);if(i%5===0)render()}");
+ assert.ok(run('dangerous.includes(true) && state.cardRelics.length===before+2 && !state.boss && !state.enemyBullets.some(s=>s.source===b.id)'));
+});
+test('Los dos gemelos comparten encuentro y cada superviviente conserva su propia ofensiva',()=>{
+ for(const first of [0,1]){
+  const run=game();run("spawnEncounter(['twins','heart']);const [b,h]=livingBosses();const q=b.parts["+first+"];hurtTarget(q,q.maxHp);finishTarget(q);");
+  assert.ok(run("b.phase===3 && activeParts(b).length===1 && b.state==='absorb' && state.cardRelics.length===0 && state.bossEncounters===1"));
+  assert.equal(run('availablePatterns(b)[0]'),first?'positiveStorm':'negativeStorm');
+  run("const survivor=activeParts(b)[0];hurtTarget(survivor,survivor.maxHp);finishTarget(survivor);for(let i=0;i<330;i++)updateBoss(1/60,b)");
+  assert.ok(run('state.boss===h && !!state.arena && state.cardRelics.length===2'));
+ }
+});
+test('El núcleo pierde resistencia y solo reconstruye una vez si no se interrumpe',()=>{
+ for(const interrupt of [false,true]){
+  const run=game();run("spawnBoss(null,'heart');const b=state.boss;const q=b.parts[1];hurtTarget(b,90);const plated=b.maxHp-b.hp;partDefeated(q);const hp=b.hp;hurtTarget(b,90);");
+  assert.ok(run('hp-b.hp>plated && !availablePatterns(b).includes("transmission")'));
+  run("setSandboxPhase(b,2);beginPattern(b,'rebuild');"+(interrupt?'hurtTarget(b,b.maxHp*.12);':'')+"for(let i=0;i<140;i++)updateBoss(1/60,b)");
+  assert.equal(run('q.hp>0'),!interrupt);assert.equal(run('b.repairs'),0);
+ }
+});
+test('El láser refractado conserva cada rebote del aviso y el rayo de seguimiento fija la mira',()=>{
+ const run=game();run("spawnBoss({x:0,y:0},'beacon');const b=state.boss;setSandboxPhase(b,2);beginPattern(b,'refraction');b.age=.2;const preview=patternShapes(b);b.age=1.2;const active=patternShapes(b)");
+ assert.ok(run('preview.length>=3 && preview.every((s,i)=>!s.live && active[i].live && s.xx===active[i].xx && s.yy===active[i].yy && patternTouches(active[i],{...mixPoint(s,{x:s.xx,y:s.yy},.5),size:1}))'));
+ run("beginPattern(b,'tracking');for(let i=0;i<65;i++)updateBoss(1/60,b);const locked=b.events[0].angle;state.player.y+=400;for(let i=0;i<20;i++)updateBoss(1/60,b)");
+ assert.ok(run('b.events[0].angle===locked && patternShapes(b).some(s=>s.live)'));
+});
+test('Finales simultáneos respetan el turno, sus balas y el botín de cada dueño',()=>{
+ const run=game();run("spawnEncounter(['fractal','clock']);const [f,c]=livingBosses();killBoss(f);killBoss(c);const marks=[];for(let i=0;i<900&&state.boss;i++){state.time+=1/60;for(const b of livingBosses())updateBoss(1/60,b);if(i===120)marks.push(c.waitFinal,state.enemyBullets.some(s=>s.source===f.id),state.cardRelics.length===0);}");
+ assert.ok(run('marks.length===3 && marks.every(Boolean) && !state.arena && state.cardRelics.length===4'));
+});
+test('Inversión convierte disparos desgastados y bombas por encima del presupuesto normal',()=>{
+ const run=game();run("state.enemyBullets=Array.from({length:200},()=>({r:11,x:0,y:0,vx:100,vy:0,damage:2,life:5,cancelHP:13}));state.bossBombs=[{x:0,y:0}];state.enemyDarts=[{x:0,y:0}];invertProjectiles()");
+ assert.ok(run("state.bullets.length===201 && state.bullets.every(s=>s.homing && s.inverted && s.cancelHP===undefined) && state.darts[0].type==='explosive' && !state.enemyBullets.length"));
+});
+test('Laboratorio protege la vida y limpia disparos sin borrar el encuentro ni la progresión',()=>{
+ const run=game();run("playMode='sandbox';lab.god=true;spawnEncounter(['heart','twins']);const b=state.boss;state.bullets=[{r:4}];state.enemyDarts=[{}];state.enemyBullets=[{}];const hp=state.halfHearts;damagePlayer(2);clearSandboxShots()");
+ assert.ok(run('state.halfHearts===hp && !state.enemyBullets.length && !state.enemyDarts.length && state.bullets.length===1 && livingBosses().length===2 && !state.bossCycle.length'));
+ run('lab.god=false;damagePlayer(2)');assert.equal(run('hp-state.halfHearts'),2);
 });

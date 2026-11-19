@@ -25,7 +25,7 @@ function updateLightning(dt) {
     for (const boss of bosses) {
       const bdx = boss.x - tx, bdy = boss.y - ty;
       if (bdx*bdx + bdy*bdy < radius*radius) {
-        boss.hp -= 3 * attackMultiplier(boss);
+        hurtTarget(boss,3 * attackMultiplier(boss));
         boss.hitFlash = 0.15;
         if (boss.hp <= 0) finishTarget(boss);
       }

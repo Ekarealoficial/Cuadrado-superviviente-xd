@@ -48,7 +48,7 @@ function initializeMenu(){
     el('notice').textContent='';
   }
   function start(mode){
-    playMode=mode;el('menu').hidden=true;el('sessionHUD').hidden=false;
+    playMode=mode;el('sandboxDebug').hidden=true;el('labTool').hidden=mode!=='sandbox';el('menu').hidden=true;el('sessionHUD').hidden=false;
     mouse.down=false;for(const k in keys)keys[k]=false;
   }
   function end(message=''){
@@ -71,8 +71,9 @@ function initializeMenu(){
   }
   el('sandbox').onclick=()=>{
     rules={difficulty:1,xp:1,disabled:[],color:'#4df3ff'};
-    restart();sandboxEnemy='normal';start('sandbox');sandboxHint();
+    restart();Object.assign(lab,{god:false,speed:1,debug:false,bossId:0});lab.group.clear();sandboxEnemy='normal';start('sandbox');sandboxHint();
   };
+  el('labTool').onclick=()=>openSandboxPanel('lab');
   el('sandboxClose').onclick=closeSandboxPanel;
   el('sandboxPanel').addEventListener('close',()=>{if(!el('sandboxPanel').open)sandboxTab=null;});
   el('solo').onclick=()=>configure(false);el('create').onclick=()=>configure(true);

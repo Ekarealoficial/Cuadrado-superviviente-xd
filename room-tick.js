@@ -20,6 +20,7 @@
       for(const e of group)rememberPosition(e,world.time);
     for(const boss of [world.boss,...world.extraBosses].filter(Boolean)){
       for(const piece of boss.pieces||[])for(const part of piece.parts)rememberPosition(part,world.time);
+      for(const part of boss.parts||[])rememberPosition(part,world.time);
       rememberPosition(boss,world.time);
       for(const ball of boss.balls)rememberPosition(ball,world.time);
       for(const planet of boss.planets||[])rememberPosition(planet,world.time);
@@ -107,7 +108,7 @@
           if(p.plasma?.end>world.time && reflectPlasmaShot(p,p.plasma,b))continue;
           if(bulletEntry(b,p,p.size/2+b.r)===Infinity)continue;
           state=attacker.state;
-          const damage=b.damage*attackMultiplier(victim.state.player);
+          const damage=b.damage*attackMultiplier(p,attacker.state);
           state=victim.state;
           damagePlayer(damage); shots.splice(i,1); break;
         }
@@ -143,6 +144,7 @@
   }
   return {add,tick,snapshot,remove:id=>party.delete(id),input(id,input,actions){
     const member=party.get(id);
+    if (Number.isFinite(input.stamp) && input.stamp <= (member.input.stamp ?? -1)) return;
     member.actions.push(...actions.slice(0,32-member.actions.length));
     if (Array.isArray(input.frames)) {
       member.sequenced=true;
@@ -161,7 +163,6 @@
         if(duration>.24+1e-9){member.queue.splice(0,i+1);break;}
       }
     }
-    if (Number.isFinite(input.stamp) && input.stamp <= (member.input.stamp ?? -1)) return;
     member.tap ||= Boolean(input.tap);
     member.input=input;
   }};

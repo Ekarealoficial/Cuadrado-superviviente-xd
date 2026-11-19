@@ -13,21 +13,21 @@ function openSandboxPanel(tab){
   sandboxTab=tab;
   mouse.down=false;
   for(const key in keys)keys[key]=false;
-  document.getElementById('sandboxTitle').textContent=tab==='enemies'?'Invocar enemigo':'Obtener cartas';
-  status.textContent=tab==='enemies'?(mobileDevice?'Selecciona un enemigo y toca el mapa.':'Selecciona un enemigo y colócalo con clic derecho.'):'Selecciona una carta para obtener una copia.';
+  document.getElementById('sandboxTitle').textContent=tab==='lab'?'Laboratorio':tab==='enemies'?'Invocar enemigo':'Obtener cartas';
+  status.textContent=tab==='lab'?'Prueba un patrón o reúne varios jefes.':tab==='enemies'?(mobileDevice?'Selecciona un enemigo y toca el mapa.':'Selecciona un enemigo y colócalo con clic derecho.'):'Selecciona una carta para obtener una copia.';
   list.replaceChildren();
   function button(label,color,action){
     const b=document.createElement('button');
     b.type='button';b.textContent=label;b.style.borderLeftColor=color;b.onclick=action;
     list.append(b);return b;
   }
-  if(tab==='enemies'){
+  if(tab==='lab')renderLabMenu(list,button,status);
+  else if(tab==='enemies'){
+    button('Laboratorio de jefes','#88dfc2',()=>openSandboxPanel('lab'));
     button('Invocar grupo habilitado','#db90ff',()=>{spawnEncounter(Object.keys(BOSS_NAMES).filter(id=>!rules.disabled.includes(id)));closeSandboxPanel();});
     for(const b of livingBosses()){
       button(BOSS_NAMES[b.kind]+' · avanzar fase',b.color,()=>{
-        const threshold=PATTERN_BOSSES[b.kind]?.limits[(b.phase||1)-1]??(b.pieces?.30:b.phase===1?.49:.28);
-        if(b.pieces)for(const piece of b.pieces)for(const part of piece.parts)part.hp=Math.min(part.hp,part.maxHp*.29);
-        else b.hp=Math.min(b.hp,b.maxHp*(threshold-.005));
+        setSandboxPhase(b,Math.min(sandboxPhases(b).length,b.phase+1));
         closeSandboxPanel();
       });
     }
@@ -57,9 +57,9 @@ function openSandboxPanel(tab){
 }
 function handleSandboxKey(e,k){
   if(sandboxTab && k==='escape'){e.preventDefault();closeSandboxPanel();return true;}
-  if((k==='u'||k==='i') && !state.over && !state.cardChoices && !state.inventoryOpen){
+  if((k==='u'||k==='i'||k==='j') && !state.over && !state.cardChoices && !state.inventoryOpen){
     e.preventDefault();
-    const tab=k==='u'?'enemies':'cards';
+    const tab=k==='u'?'enemies':k==='j'?'lab':'cards';
     if(!e.repeat){if(tab===sandboxTab)closeSandboxPanel();else openSandboxPanel(tab);}
     return true;
   }

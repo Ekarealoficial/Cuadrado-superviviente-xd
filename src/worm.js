@@ -143,10 +143,10 @@ function updateWormPiece(piece,phase,dt,a){
       if(piece.timer<=0){
         if(zig){piece.mode='curve';piece.timer=gameRand(1.7,3);}
         else{
-          const attack=Math.floor(gameRandom()*3);
+          const attack=piece.waitLines?2:Math.floor(gameRandom()*3);
           if(attack===0){bossCue('wormZig',h);piece.mode='zigzag';piece.timer=3.5;}
           if(attack===1)wormWindup(piece,false);
-          if(attack===2){if(canCoverArena(livingBosses().find(b=>b.id===piece.bossId)))startWormLines(piece);else wormWindup(piece,false);}
+          if(attack===2){if(canCoverArena(livingBosses().find(b=>b.id===piece.bossId))){piece.waitLines=false;startWormLines(piece);}else{piece.waitLines=true;piece.timer=.42;}}
           speed=0;
         }
       }

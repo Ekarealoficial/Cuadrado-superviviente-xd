@@ -91,21 +91,21 @@ function projectileImpact(target, bullet, factor = 1) {
     target.slowUntil = state.time + 2 + Math.max(0,p.frost-10)*.2;
   }
   const damage = bullet.damage * attackMultiplier(target) * factor;
-  target.hp -= damage;
+  hurtTarget(target,damage);
   const bursts=p.explosive?chanceCount(.15*1.5**(p.explosive-1)):0;
   if(!bursts)return;
   spawnParticles(bullet.x, bullet.y, 22, '#ff9c52', 1.4);
   Sfx.play('explode', 80);
-  target.hp -= damage*bursts;
+  hurtTarget(target,damage*bursts);
   for (const e of state.enemies.slice()) {
     if (e === target || e._dying || Math.hypot(e.x-bullet.x,e.y-bullet.y) > 80+e.size/2) continue;
-    e.hp -= damage*bursts;
+    hurtTarget(e,damage*bursts);
     e.hitFlash = .15;
     if (e.hp <= 0) killEnemy(state.enemies.indexOf(e));
   }
   for (const boss of bossTargets()) {
     if (boss === target || Math.hypot(boss.x-bullet.x,boss.y-bullet.y)>80+boss.size/2) continue;
-    boss.hp -= damage*bursts;
+    hurtTarget(boss,damage*bursts);
     if (boss.hp <= 0) finishTarget(boss);
   }
 }
@@ -155,7 +155,7 @@ function updateCardFields(dt,worldStep) {
     if(e._dying)continue;
     let damage=0;
     if(worldStep && e.venomTime>0){
-      e.hp-=e.venomDps*Math.min(dt,e.venomTime);
+      hurtTarget(e,e.venomDps*Math.min(dt,e.venomTime));
       if (e.hp <= 0) {
         const active = state;
         state = poisonOwners.get(e) || active;
@@ -185,7 +185,7 @@ function updateCardFields(dt,worldStep) {
         p.impact={x:(p.x+e.x)/2,y:(p.y+e.y)/2,born:state.time};
     }
     if(damage){
-      e.hp-=damage;
+      hurtTarget(e,damage);
       if(e.hp<=0)finishTarget(e);
     }
   }
@@ -257,7 +257,7 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
         const e = state.enemies[i];
         if (isOnScreen(e.x, e.y)) {
           state.lightningStrikes.push({ x: e.x, y: e.y, timer: 0.3, maxTimer: 0.3 });
-          e.hp -= 3 * attackMultiplier(e);
+          hurtTarget(e,3 * attackMultiplier(e));
           e.hitFlash = 0.15;
           anyHit = true;
           if (e.hp <= 0) killEnemy(i);
@@ -266,7 +266,7 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
       for (const boss of bossTargets()) {
         if (!isOnScreen(boss.x,boss.y)) continue;
         state.lightningStrikes.push({ x: boss.x, y: boss.y, timer: 0.3, maxTimer: 0.3 });
-        boss.hp -= 3 * attackMultiplier(boss);
+        hurtTarget(boss,3 * attackMultiplier(boss));
         boss.hitFlash = 0.15;
         anyHit = true;
         if (boss.hp <= 0) finishTarget(boss);
@@ -293,7 +293,7 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
     }
     const omen=state.bossOmen;
     if(omen && state.time>=(omen.pulse||0)){
-      for(const kind of omen.group)if(PATTERN_BOSSES[kind])bossCue(kind+'Omen',state.player);
+      for(const kind of omen.group)if(PATTERN_BOSSES[kind]){bossCue(kind+'Omen',state.player);if(kind==='monolith')state.shake=Math.max(3,state.shake);}
       omen.pulse=state.time+Math.max(.28,state.bossSpawnTimer/rate*.11);
     }
     if(state.bossSpawnTimer<=0 && state.bossOmen)spawnEncounter(state.bossOmen.group);
@@ -492,7 +492,8 @@ function update_enemyProjectiles(dt) {
   // Balas enemigas
   for (let i = state.enemyBullets.length - 1; i >= 0; i--) {
     const b = state.enemyBullets[i];
-    if(b.release!==undefined && dt>0)curveEnemyShot(b,dt);
+    b.prevX=b.x;b.prevY=b.y;
+    if((b.release!==undefined||b.curve) && dt>0)curveEnemyShot(b,dt);
     if(b.inward && advanceInward(b,dt)){state.enemyBullets.splice(i,1);continue;}
     b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
     if (b.life <= 0) { state.enemyBullets.splice(i, 1); continue; }
@@ -511,18 +512,33 @@ const shotContactGrid=new SpatialGrid(78);
 function update_projectileCancellation(){
   const shots=state.bullets,hostile=state.enemyBullets;
   if(!shots.length||!hostile.length)return;
-  shotContactGrid.rebuild(shots);
-  let largest=0;for(const shot of shots)largest=Math.max(largest,shot.r);
-  const removed=new Set();
-  for(let i=hostile.length-1;i>=0;i--){
-    const eb=hostile[i],candidates=shotContactGrid.query(eb.x,eb.y,eb.r+largest+1);
-    for(let k=candidates.length-1;k>=0;k--){
-      const pb=candidates[k],rr=eb.r+pb.r+1;
-      if(removed.has(pb)||(eb.x-pb.x)**2+(eb.y-pb.y)**2>=rr*rr)continue;
-      spawnParticles((eb.x+pb.x)/2,(eb.y+pb.y)/2,6,'#fff',.8);removed.add(pb);hostile.splice(i,1);break;
+  shotContactGrid.rebuild(hostile);
+  let reach=0;
+  for(const e of hostile)reach=Math.max(reach,e.r+Math.hypot(e.x-(e.prevX??e.x),e.y-(e.prevY??e.y)));
+  const hits=[],spent=new Set(),destroyed=new Set();
+  for(const s of shots){
+    const x=s.prevX??s.x,y=s.prevY??s.y;
+    const near=shotContactGrid.query((x+s.x)/2,(y+s.y)/2,reach+s.r+Math.hypot(s.x-x,s.y-y)/2);
+    for(const e of near){
+      const step={prevX:x-(e.prevX??e.x),prevY:y-(e.prevY??e.y),x:s.x-e.x,y:s.y-e.y};
+      const t=bulletEntry(step,{x:0,y:0},s.r+e.r);
+      if(Number.isFinite(t))hits.push({s,e,t});
     }
   }
-  if(removed.size)state.bullets=shots.filter(s=>!removed.has(s));
+  hits.sort((a,b)=>a.t-b.t);
+  for(const {s,e,t} of hits){
+    if(spent.has(s)||destroyed.has(e))continue;
+    spent.add(s);
+    e.cancelHP=(e.cancelHP??e.r**2)-s.r**2;
+    e.cancelHit=state.time;
+    const x=(s.prevX??s.x)*(1-t)+s.x*t,y=(s.prevY??s.y)*(1-t)+s.y*t;
+    if(e.cancelHP<=0){
+      destroyed.add(e);
+      spawnParticles(x,y,Math.ceil(3+e.r*.85),e.tint||'#ffe29b',.65+e.r*.035);
+    }else spawnParticles(x,y,3,'#fff3cd',.45);
+  }
+  if(spent.size)state.bullets=shots.filter(s=>!spent.has(s));
+  if(destroyed.size)state.enemyBullets=hostile.filter(e=>!destroyed.has(e));
 }
 
 function update_shieldBlocking(dt) {
@@ -1051,7 +1067,7 @@ function update_darts(dt) {
           } else {
             const idx = state.enemies.indexOf(d.target);
             if (idx !== -1) {
-              d.target.hp -= 1 * attackMultiplier(d.target);
+              d.hurtTarget(target,1 * attackMultiplier(d.target));
               d.target.hitFlash = 0.12;
               if (d.target.hp <= 0) killEnemy(idx);
             }

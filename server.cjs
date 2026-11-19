@@ -8,7 +8,13 @@ const rooms=new Map();
 const sockets=new Map();
 const streams=new Map();
 const allowedOrigins=new Set((process.env.ALLOWED_ORIGINS||'https://ekarealoficial.github.io,http://localhost:3000').split(',').map(origin=>origin.trim()).filter(Boolean));
-const types='tackler splitter cannon frostMage normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss worm singular fractal clock crown'.split(' ');
+// Entity references and simulation-only choreography need not cross the wire.
+function gameWire(key,value){
+  if(['owner','target','prevX','prevY','tracks'].includes(key))return;
+  if(key==='events' && Array.isArray(value))return value.filter(e=>e.kind!=='volley' && e.start<=this.age+.1 && e.end>=this.age);
+  return value;
+}
+const types='tackler splitter cannon frostMage normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss worm singular fractal clock crown beacon twins heart monolith'.split(' ');
 const rates=[0.5,1,1.5,2,3];
 function requireValue(ok,message,status=400){if(!ok)throw Object.assign(new Error(message),{status});}
 function settings(s) {
@@ -58,7 +64,7 @@ const server=http.createServer(async(req,res)=>{
   }
   function json(status,data){
     res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});
-    res.end(JSON.stringify(data,(key,value)=>key==='owner'||key==='target'?undefined:value));
+    res.end(JSON.stringify(data,gameWire));
   }
   try{
     const url=new URL(req.url,'http://localhost');
@@ -105,7 +111,7 @@ const server=http.createServer(async(req,res)=>{
         if(!room.members.has(data.token)||!rooms.has(room.code)){res.end();return;}
         if(res.writableNeedDrain)return;
         const snapshot=room.game.snapshot(data.token);
-        res.write(JSON.stringify(snapshot,(key,value)=>key==='owner'||key==='target'?undefined:value)+'\n');
+        res.write(JSON.stringify(snapshot,gameWire)+'\n');
       },50);
       res.on('close',()=>{clearInterval(timer);if(streams.get(data.token)===res)streams.delete(data.token);});
       return;
@@ -153,8 +159,7 @@ wsServer.on('connection',ws=>{
           if(!room.members.has(token)||!rooms.has(room.code)){ws.close(1000);return;}
           if(ws.readyState!==WebSocket.OPEN || ws.bufferedAmount>32768 || serial-seen>=8)return;
           const state=room.game.snapshot(token);
-          ws.send(JSON.stringify({type:'state',serial:++serial,state},(k,v)=>
-            k==='owner'||k==='target'||k==='prevX'||k==='prevY'?undefined:v));
+          ws.send(JSON.stringify({type:'state',serial:++serial,state},gameWire));
         },40);
         return;
       }

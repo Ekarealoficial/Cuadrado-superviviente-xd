@@ -110,3 +110,11 @@ body.rotated{width:100dvh;height:100dvw;transform-origin:0 0;transform:translate
 .invGrid small:nth-last-child(-n+2){grid-column:1/-1}
 #touchPanel .invGrid button[aria-pressed=true]{outline:1px solid var(--accent);background:#263047}
 #touchPanel .invGrid button,#touchPanel .invSlots button{touch-action:pan-y}
+
+#sandboxDebug{display:block;white-space:pre-line;font:11px/1.45 monospace;color:#a5f3d6}
+#sandboxDebug[hidden],#labTool[hidden]{display:none}
+.labSelect,.labChoice{display:flex;gap:6px;padding:5px 8px;align-items:center;text-align:left;background:#16222e;color:#e0edfa;border:1px solid #374958;border-radius:5px}
+.labSelect{flex-direction:column;align-items:stretch}
+.labSelect select{min-width:0;width:100%;background:#0c1722;color:#e0edfa;border:1px solid #607584;padding:7px}
+.labChoice input{accent-color:#8de0ba;width:18px;height:18px;flex:none}
+.mobile .labChoice{min-height:38px}

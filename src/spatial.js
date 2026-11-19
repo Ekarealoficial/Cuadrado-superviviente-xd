@@ -9,6 +9,12 @@ class SpatialGrid {
   }
   query(x,y,r) {
     const result=[];
+    // A giant projectile can cover more empty cells than the grid contains.
+    if((2*r/this.size+1)**2>Math.max(64,this.cells.size*3)){
+      for(const cell of this.cells.values())for(const item of cell)
+        if(Math.abs(item.x-x)<=r&&Math.abs(item.y-y)<=r)result.push(item);
+      return result;
+    }
     for(let cy=Math.floor((y-r)/this.size);cy<=Math.floor((y+r)/this.size);cy++)
       for(let cx=Math.floor((x-r)/this.size);cx<=Math.floor((x+r)/this.size);cx++)
         result.push(...(this.cells.get(cx+','+cy)||[]));

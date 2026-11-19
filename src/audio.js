@@ -138,6 +138,10 @@ for(const [i,name] of ['resonance','chain','reaction','tide','crush','crushBeat'
 }
 // Each boss has a timbre, and each attack has a different pitch contour and beat length.
 for(const [family,moves,base,wave] of [
+  ['beacon',['tracking','curtain','sweep','refraction','emitters','fusion','overload'],155,'sawtooth'],
+  ['twins',['link','exchange','pulses','pincer','binary','positiveStorm','negativeStorm','absorb'],330,'triangle'],
+  ['heart',['pistons','turret','transmission','discharge','shock','rebuild','machineCycle','leak'],118,'square'],
+  ['monolith',['stomp','wall','avalanche','impact','rhythm','landing'],74,'triangle'],
   ['fractal',['cuts','lunge','fault','replicas','prison','collapse'],210,'sawtooth'],
   ['clock',['hands','seconds','pendulum','ticks','rewind','zero','chime'],440,'sine'],
   ['crown',['garden','petals','dance','stars','inverse','rain','flower'],580,'triangle']
@@ -148,8 +152,24 @@ for(const [family,moves,base,wave] of [
     BOSS_SCORES[name+'Beat']={notes:[[hz,.08,wave,.14,hz*.64],[hz*.5,.18,'sine',.12,hz*.24,.025]]};
     BOSS_SCORES[name+'End']={notes:[[hz,.20,'triangle',.10,hz*.3]]};
   });
+  BOSS_SCORES[family+'FinalBeat']={notes:[[base*1.5,.28,wave,.15,base*.7],[base*.5,.35,'sine',.17,base*.25]]};
   BOSS_SCORES[family+'Phase']={notes:[[base*.35,.42,wave,.16,base],[base*1.5,.3,'sine',.12,base*2,.28]]};
   BOSS_SCORES[family+'Omen']={notes:[[base,.10,wave,.10,base*.8]]};
   BOSS_SCORES[family+'Release']={notes:[[base,.65,'sine',.19,base*.35],[base*2,.4,'triangle',.09,base,.08]]};
   BOSS_SCORES[family+'Death']={notes:[[base,.8,wave,.14,base*.16],[base*1.5,.9,'sine',.13,base*.3,1.1]],noise:[.55,.14,3200,300]};
+}
+
+BOSS_SCORES.clockRelease={notes:[[440,2.1,'sine',.22,419],[883,1.65,'sine',.12,848],[1217,1.2,'triangle',.07,1078]],noise:[.26,.06,1800,260]};
+
+BOSS_SCORES.fusionBeat={notes:[[82,.83,'sawtooth',.13,46],[160,.75,'sine',.23,32]],noise:[.64,.18,5700,550]};
+BOSS_SCORES.stompBeat={notes:[[91,.36,'sine',.3,28],[165,.1,'square',.055,62]],noise:[.22,.18,1850,180]};
+BOSS_SCORES.rhythmBeat={notes:[[120,.22,'triangle',.2,34]],noise:[.13,.17,2500,180]};
+BOSS_SCORES.refractionBeat={notes:[[690,.19,'sine',.13,250],[1030,.24,'triangle',.095,600,.07],[1360,.21,'sine',.09,620,.13]]};
+BOSS_SCORES.binaryBeat={notes:[[330,.16,'triangle',.16,440],[495,.20,'sine',.13,370,.05]]};
+BOSS_SCORES.heartRelease={notes:[[72,.85,'sine',.29,25],[148,.38,'sawtooth',.11,38]],noise:[.62,.2,3200,210]};
+BOSS_SCORES.monolithRelease={notes:[[83,.9,'triangle',.22,23],[47,1.2,'sine',.24,26]],noise:[.65,.17,1600,180]};
+
+for(let i=0;i<4;i++){
+  const pitch=410*2**(i/5);
+  BOSS_SCORES['emitter'+i]={notes:[[pitch,.11,'triangle',.14,pitch*1.35],[pitch*1.5,.16,'sine',.12,pitch*.52,.045]]};
 }

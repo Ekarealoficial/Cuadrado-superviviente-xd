@@ -603,9 +603,20 @@ function renderEnemyShots(){
       brush.arc(half-shot.r*.22,half-shot.r*.22,shot.r*.38,0,TAU);brush.fill();
       enemyShotSprites.set(key,sprite);
     }
-    if(shot.square){ctx.fillStyle=color;ctx.fillRect(shot.x-shot.r,shot.y-shot.r,2*shot.r,2*shot.r);continue;}
+    if(shot.square){ctx.fillStyle=color;ctx.fillRect(shot.x-shot.r,shot.y-shot.r,2*shot.r,2*shot.r);}
+    else {
     if(shot.planet)for(let i=5;i>0;i--){ctx.globalAlpha=(6-i)*.09;disk(shot.x-shot.vx*i*.019,shot.y-shot.vy*i*.019,shot.r*(1-i*.12),color);}
-    ctx.globalAlpha=1;ctx.drawImage(sprite,shot.x-sprite.width/2,shot.y-sprite.height/2);
+    ctx.globalAlpha=1;ctx.drawImage(sprite,shot.x-sprite.width/2,shot.y-sprite.height/2);}
+    if(shot.cancelHP!==undefined){
+      const wear=1-shot.cancelHP/(shot.r*shot.r);
+      ctx.save();ctx.translate(shot.x,shot.y);ctx.rotate(shot.r);
+      ctx.strokeStyle=state.time-shot.cancelHit<.12?'#fff':'#ffe4bd';ctx.lineWidth=1+wear;
+      for(let i=0;i<Math.ceil(3*wear);i++){
+        ctx.rotate(2.2);ctx.beginPath();ctx.moveTo(shot.r,0);
+        ctx.lineTo(shot.r*.66,-2);ctx.lineTo(shot.r*(.55-.4*wear),1);ctx.stroke();
+      }
+      ctx.restore();
+    }
   }
 }
 function renderEntities4(view=state,p=state.player) {
