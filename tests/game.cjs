@@ -309,7 +309,7 @@ test('Una arena, una escala y una entrega por muerte durante un encuentro triple
  const run=game();run("spawnEncounter(['fractal','clock','crown']);const group=livingBosses();");
  assert.ok(run('state.bossEncounters===1 && group.every(b=>b.maxHp===1200) && new Set(group.map(b=>b.id)).size===3 && state.arena.w===1366 && state.arena.h===768'));
  for(let i=0;i<3;i++){
-   run('startPatternFinal(group['+i+']);killBoss(group['+i+']);for(let k=0;k<450 && !group['+i+']._dying;k++){updateBoss(1/60,group['+i+']);render()}');
+   run('startPatternFinal(group['+i+']);killBoss(group['+i+']);for(let k=0;k<1200 && !group['+i+']._dying;k++){updateBoss(1/60,group['+i+']);render()}');
    assert.equal(run('state.cardRelics.length'),2*(i+1));assert.equal(run('!!state.arena'),i<2);
  }
  run("spawnEncounter(['clock','crown'])");assert.ok(run('livingBosses().every(b=>b.maxHp===1500)'));
@@ -391,7 +391,7 @@ for(const kind of ['beacon','twins','heart','monolith'])test('Laboratorio y cicl
    run("sandboxAttack(b,'"+move+"');");
    assert.equal(run('b.state'),move);
    assert.ok(run('b.events.length>0'),move);
-   run("for(let i=0;i<1100 && b.state!=='recover';i++){state.time+=1/60;updateBoss(1/60,b);update_enemyProjectiles(1/60);patternContact(b,state.player);if(i%6===0)render()}");
+   run("for(let i=0;i<2400 && b.state!=='recover';i++){state.time+=1/60;updateBoss(1/60,b);update_enemyProjectiles(1/60);patternContact(b,state.player);if(i%6===0)render()}");
    assert.ok(run("b.state==='recover' && Number.isFinite(b.x) && b.parts?.some(q=>!Number.isFinite(q.x))!==true"),move);
  }
  run("setSandboxPhase(b,1);killBoss(b);const before=state.cardRelics.length;const dangerous=[];for(let i=0;i<500&&!b._dying;i++){state.time+=1/60;updateBoss(1/60,b);if(!b._dying)dangerous.push(patternShapes(b).some(s=>s.live)||state.enemyBullets.length>0);if(i%5===0)render()}");
@@ -432,4 +432,94 @@ test('Laboratorio protege la vida y limpia disparos sin borrar el encuentro ni l
  const run=game();run("playMode='sandbox';lab.god=true;spawnEncounter(['heart','twins']);const b=state.boss;state.bullets=[{r:4}];state.enemyDarts=[{}];state.enemyBullets=[{}];const hp=state.halfHearts;damagePlayer(2);clearSandboxShots()");
  assert.ok(run('state.halfHearts===hp && !state.enemyBullets.length && !state.enemyDarts.length && state.bullets.length===1 && livingBosses().length===2 && !state.bossCycle.length'));
  run('lab.god=false;damagePlayer(2)');assert.equal(run('hp-state.halfHearts'),2);
+});
+test('El frente llega a la esquina más lejana desde cualquier emisor y su velocidad depende de la arena',()=>{
+ const run=game();
+ const sizes=[[960,540],[1366,768],[1850,1140]];
+ const result=sizes.map(([w,h])=>JSON.parse(run(`state.arena={x:-310,y:80,w:${w},h:${h}};(()=>{
+   const a=state.arena,c=patternOrigin(),summary=[];
+   for(const q of [c,{x:a.x+80,y:a.y+a.h-110}])for(const square of [true,false]){
+     const b={safeSize:90,events:[],timer:0,age:0};wave(b,.2,q,square,0);const e=b.events[0];
+     const corners=[0,1,2,3].map(i=>({x:a.x+(i%2)*a.w,y:a.y+Math.floor(i/2)*a.h}));
+     const required=Math.max(...corners.map(p=>square?Math.max(Math.abs(q.x-p.x),Math.abs(q.y-p.y)):Math.hypot(q.x-p.x,q.y-p.y)));
+     summary.push([e.speed,e.end-e.on,34+e.speed*(e.end-e.on)>=required+45,b.timer>e.end]);
+   }
+   return JSON.stringify(summary);
+ })()`)));
+ for(const r of result)assert.ok(r.every(row=>row[2]&&row[3]));
+ assert.ok(result[2][0][0]>result[0][0][0] && result[2][0][1]>result[0][0][1]);
+});
+for(const [kind,moves] of Object.entries({fractal:['collapse'],clock:['chime','rewind'],heart:['shock'],monolith:['stomp','rhythm','impact'],twins:['pulses']})){
+ test('Alcance y daño progresivo de ondas de '+kind,()=>{
+   const run=game();run("spawnBoss({x:0,y:-90},'"+kind+"');const b=state.boss;");
+   for(const m of moves){
+     run("sandboxAttack(b,'"+m+"')");
+     const metrics=JSON.parse(run(`(()=>{
+       const a=state.arena,hit=[false,false,false,false],events=b.events.filter(e=>e.kind==='wave');
+       for(const e of events){
+         const q=e.origin;
+         for(let i=0;i<4;i++){
+           const p={x:a.x+(i%2?a.w-15:15),y:a.y+(i>=2?a.h-15:15),size:30};
+           const r=e.square?Math.max(Math.abs(q.x-p.x),Math.abs(q.y-p.y)):Math.hypot(q.x-p.x,q.y-p.y);
+           if(e.reach<r+15)throw Error('onda truncada');
+           const s=[];waveShapes(s,e,q,Math.max(0,(r-34)/e.speed),true);
+           hit[i] ||= s.some(v=>patternTouches(v,p));
+         }
+       }
+       return JSON.stringify([events.length,hit]);
+     })()`));
+     assert.ok(metrics[0]>0,m);
+     if(['chime','stomp','collapse','rhythm','impact','shock'].includes(m))assert.deepEqual(metrics[1],[true,true,true,true],m);
+   }
+ });
+}
+test('Sobrecarga del Faro conserva una ruta continua a velocidad de marcha con 6–10 haces simultáneos',()=>{
+ const run=game();run("spawnBoss({x:-140,y:80},'beacon');const b=state.boss;setSandboxPhase(b,4);state.player.size=64;beginPattern(b,'overload')");
+ const [peak,maxSpeed]=JSON.parse(run(`(()=>{let peak=0,v=0,prev;
+   for(let i=0;i<b.timer*120;i++){
+     b.age=i/120;const p={...beaconPassage(b,b.age),size:64},sh=patternShapes(b);
+     if(sh.some(s=>s.live&&patternTouches(s,p)))throw Error('Paso cerrado en '+b.age);
+     peak=Math.max(peak,b.events.filter(e=>e.kind==='ray'&&b.age>=e.on&&b.age<=e.end).length);
+     if(prev)v=Math.max(v,120*Math.hypot(p.x-prev.x,p.y-prev.y));prev=p;
+   }return JSON.stringify([peak,v]);})()`));
+ assert.ok(peak>=6&&peak<=10);assert.ok(maxSpeed<320);
+});
+test('Olas dirigidas a jugadores separados y rebobinado por el mismo carril',()=>{
+ const run=game();run("spawnBoss({x:0,y:0},'clock');const b=state.boss;setSandboxPhase(b,3);roomTargets=[{x:-260,y:120,size:30},{x:260,y:-120,size:64}];beginPattern(b,'seconds');for(let i=0;i<230;i++)updateBoss(1/60,b);");
+ assert.ok(run("b.events.filter(e=>e.kind==='dial').length===96 && [-260,260].every(x=>b.events.some(e=>e.kind==='dial'&&e.origin.x===x))"));
+ run("beginPattern(b,'rewind');const [out,back]=b.events.filter(e=>e.kind==='rail');");
+ assert.ok(run('JSON.stringify(out.path)===JSON.stringify([...back.path].reverse()) && out.lengths.at(-1)/Math.hypot(state.arena.w,state.arena.h)>.79 && Math.abs((out.end-out.on)/(back.end-back.on)-2.5)<.001'));
+ run("state.enemyBullets=[];for(let i=0;i<240;i++)updateBoss(1/60,b)");
+ assert.ok(run('state.enemyBullets.length>=40&&state.enemyBullets.length<=60'));
+});
+test('Los nuevos enemigos se desbloquean por encuentro completo y el relevo tarda 25 segundos reales',()=>{
+ const run=game();run("state.time=40;spawnEncounter(['boss','boss']);killBoss(state.boss);");
+ assert.equal(run('state.completedEncounters'),0);
+ run("killBoss(state.boss);spawnEncounter(['boss','boss']);killBoss(state.boss);");
+ assert.equal(run('state.completedEncounters'),1);run('killBoss(state.boss);rules.difficulty=3;gameRandom=()=>.19');
+ assert.equal(run("baseEnemyType=()=>'normal';chooseEnemyType(120)"),'normal');
+ assert.notEqual(run('chooseEnemyType(130)'),'pulseRing');assert.equal(run('chooseEnemyType(195)'),'pulseRing');
+ run("baseEnemyType=()=>'fast'");assert.equal(run('chooseEnemyType(195)'),'erratic');
+ run("baseEnemyType=()=>'tank'");assert.equal(run('chooseEnemyType(195)'),'tank');
+ run("state.time=75;spawnBoss();killBoss();");assert.equal(run('chooseEnemyType(300)'),'rebound');
+ run("baseEnemyType=()=>'shooter'");assert.equal(run('chooseEnemyType(300)'),'twinCannon');
+ run("rules.disabled=['twinCannon']");assert.notEqual(run('chooseEnemyType(300)'),'twinCannon');
+});
+test('Sandbox permite superponer fases, probar esquinas y convertir mil balas intactas',()=>{
+ const run=game();run("playMode='sandbox';spawnBoss({x:0,y:-100},'fractal');const b=state.boss;executeSandboxPair(b,'replicas','cuts');");
+ assert.ok(run("b.state==='cuts'&&b.phase>=2&&b.events.some(e=>e.kind==='copy')"));
+ run('state.player.size=61;for(let i=0;i<4;i++){labCorner(i);if(state.player.size!==61)throw Error()}');
+ run('labBarrage(1000);state.viewWidth=10000;state.viewHeight=10000;invertProjectiles()');
+ assert.equal(run('state.bullets.filter(s=>s.inverted).length'),1000);
+});
+test('Los relevos anuncian sus disparos, bloquean la dirección y rebotan contra paredes',()=>{
+  const run=game();
+  run("const p={x:300,y:0};const ring=createEnemy('pulseRing',0,0),gun=createEnemy('twinCannon',0,0),runner=createEnemy('erratic',0,0),ball=createEnemy('rebound',0,0);const step=(enemy,dt,t=p)=>updateAdvancedEnemy(enemy,t,dt,dt,300);for(const e of [ring,gun,runner]){e.shootCd=0;step(e,.01);}");
+  assert.ok(run("[ring,gun,runner].every(e=>e.phase==='aim') && !state.enemyBullets.length"));
+  run("step(ring,.53);const radial=state.enemyBullets.splice(0);step(gun,.62);step(gun,.24);");
+  assert.ok(run("radial.length===ring.pulseCount && [6,8].includes(radial.length) && state.enemyBullets.length===10"));
+  run("const start=runner.x;step(runner,.37,{x:-100,y:0});step(runner,.10,{x:-100,y:0});");
+  assert.ok(run("runner.x>start+60"));
+  run("currentWalls=[{x:32,y:-100,w:30,h:200}];step(ball,.12);const x=ball.x;step(ball,.10)");
+  assert.ok(run("ball.boost>0 && ball.x<x-15 && ball.bounced===state.time"));
 });

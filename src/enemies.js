@@ -1,6 +1,10 @@
 'use strict';
 /* =============== ENEMIGOS =============== */
 const ENEMY_TYPES = {
+  pulseRing:{size:31,hp:5,speed:105,color:'#8e55ce',xp:6},
+  erratic:{size:22,hp:3,speed:178,color:'#ff993b',xp:5},
+  twinCannon:{size:42,hp:10,speed:73,color:'#af404b',xp:10},
+  rebound:{size:55,hp:15,speed:113,color:'#294e9b',xp:10},
   tackler: {size:28,hp:5,speed:130,color:'#ff9865',xp:6},
   splitter: {size:42,hp:8,speed:53,color:'#5cff9a',xp:4},
   cannon: {size:48,hp:12,speed:74,color:'#ffab4c',xp:10},
@@ -19,10 +23,17 @@ const ENEMY_TYPES = {
 // Transfers part of a donor's scheduled spawns over a 20-second transition.
 const rotations={normal:[5,'splitter',.55],fast:[15,'tackler',.65],
   shooter:[25,'cannon',.65],invoker:[35,'frostMage',.7]};
+const advancedRotations={normal:[2,'pulseRing',.37],fast:[2,'erratic',.43],
+  shooter:[3,'twinCannon',.43],tank:[3,'rebound',.54]};
 function chooseEnemyType(t){
-  const donor=baseEnemyType(t),swap=rotations[donor];
+  const donor=baseEnemyType(playMode==='sandbox'&&lab.spawnWaves?Math.max(120,t):t),swap=rotations[donor];
   if(state.firstBossDefeatAt == null) return donor==='dardante'?'shooter':donor;
   const elapsed = t - state.firstBossDefeatAt * rules.difficulty;
+  const next=advancedRotations[donor];
+  if(next && state.completedEncounters>=next[0] && !rules.disabled.includes(next[1])){
+    const elapsedReal=t/rules.difficulty-state.unlockTimes[next[0]-1];
+    if(gameRandom()<next[2]*clamp(elapsedReal/25,0,1))return next[1];
+  }
   if(swap && elapsed>=swap[0] && !rules.disabled.includes(swap[1]) &&
       gameRandom()<swap[2]*Math.min(1,(1+elapsed-swap[0])/20))return swap[1];
   return donor;
@@ -122,5 +133,49 @@ function spawnPotion(walls) {
     state.potions.push({ x, y, type: isLarge ? 'large' : 'small', value: isLarge ? 2 : 1, life: 45, maxLife: 45, bob: gameRandom()*TAU });
     if (state.potions.length > 6) state.potions.shift();
     return;
+  }
+}
+
+function updateAdvancedEnemy(e,p,dt,travel,d){
+  const aim=Math.atan2(p.y-e.y,p.x-e.x);
+  e.hitFlash=Math.max(0,e.hitFlash-dt);e.shootCd-=dt;e.wob+=dt*5;
+  function move(angle,speed){return moveWithWalls(e,Math.cos(angle)*speed*travel,Math.sin(angle)*speed*travel,currentWalls);}
+  function shoot(a,speed,r){state.enemyBullets.push({x:e.x,y:e.y,vx:speed*Math.cos(a),vy:speed*Math.sin(a),r,tint:e.color,life:4,damage:1});}
+  if(e.type==='rebound'){
+    e.heading??=aim;e.boost=Math.max(0,(e.boost||0)-dt);
+    if(!e.boost)e.heading+=clamp(Math.atan2(Math.sin(aim-e.heading),Math.cos(aim-e.heading)),-dt*1.7,dt*1.7);
+    const hit=move(e.heading,e.speed*(e.boost?1.9:1));
+    if(hit.blockedX||hit.blockedY){
+      if(hit.blockedX)e.heading=Math.PI-e.heading;if(hit.blockedY)e.heading=-e.heading;
+      e.boost=.72;e.bounced=state.time;
+    }
+  }else if(e.type==='erratic'){
+    if(e.phase==='rush'){
+      move(e.heading,640);if(e.shootCd<=0){e.phase='walk';e.shootCd=gameRand(1.1,2.1);}
+    }else if(e.phase==='aim'){
+      if(e.shootCd<=0){e.phase='rush';e.shootCd=.20;}
+    }else{
+      move(aim+.82*Math.sin(e.wob*2.6),e.speed);
+      if(e.shootCd<=0&&d<460){e.phase='aim';e.heading=aim;e.shootCd=.36;}
+    }
+  }else if(e.type==='pulseRing'){
+    if(e.phase==='aim'){
+      if(e.shootCd<=0){
+        const n=e.pulseCount||8;
+        for(let i=0;i<n;i++)shoot(e.heading+i*TAU/n,230,5);
+        e.phase='walk';e.shootCd=2.48;
+      }
+    }else{
+      move(aim,e.speed);if(e.shootCd<=0){e.phase='aim';e.heading=aim;e.pulseCount=gameRandom()<.5?6:8;e.shootCd=.52;}
+    }
+  }else if(e.phase==='aim'||e.phase==='second'){
+    if(e.shootCd<=0){
+      const second=e.phase==='second';
+      for(let i=-2;i<=2;i++)shoot(e.heading+(i+(second?.35:-.35))*.125,second?335:285,5);
+      e.phase=second?'walk':'second';e.shootCd=second?2.35:.23;
+    }
+  }else{
+    if(d>365||d<240)move(aim,d>365?e.speed:-e.speed*.75);
+    e.heading=aim;if(d<660&&e.shootCd<=0){e.phase='aim';e.shootCd=.61;}
   }
 }

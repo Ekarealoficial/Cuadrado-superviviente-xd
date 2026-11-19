@@ -1,5 +1,5 @@
 'use strict';
-let motion=[],receivedAt=0,netPingMs=null;
+let motion=[],patternClocks=[],receivedAt=0,netPingMs=null;
 let lastPositions=new Map();
 function viewLead(now){
   if(!receivedAt)return 0;
@@ -7,7 +7,7 @@ function viewLead(now){
 }
 function prepareMotion(old,next,now){
   reconcilePlayer(old,next);
-  motion=[]; receivedAt=now;
+  motion=[];patternClocks=[];receivedAt=now;
   const positions=new Map();
   function track(group,e,index){
     if(next.stopUntil>next.time && group!=='peers')return;
@@ -30,6 +30,7 @@ function prepareMotion(old,next,now){
   }
   for(const b of [next.boss,...(next.extraBosses||[])].filter(Boolean)){
     const key='boss'+b.id;
+    if(next.stopUntil<=next.time&&PATTERN_BOSSES[b.kind]&&!b.waitFinal)patternClocks.push({b,clock:b.clock,age:b.age});
     for(const part of b.parts||[])track(key+'component',part,part.index);
     for(const piece of b.pieces||[])for(const seg of piece.parts)track(key+'segment',seg,seg.segmentId);
     track(key,b,0);b.balls.forEach((e,i)=>track(key+'ball',e,i));
@@ -45,13 +46,21 @@ function animateMotion(now){
     const tx=x+vx*dt,ty=y+vy*dt;
     if(!pointInWall(tx,ty,currentWalls)){e.x=tx;e.y=ty;}
   }
+  for(const {b,age,clock} of patternClocks){
+    b.age=age+dt;b.clock=clock+dt;
+    for(const e of b.events||[])if(b.age>=e.on&&b.age<=e.end){
+      const u=clamp((b.age-e.on)/(e.end-e.on),0,1);
+      if(e.kind==='rail')Object.assign(b,railPoint(e,u));
+      if(e.kind==='dash'){const body=e.index<0?b:b.parts[e.index];Object.assign(body,mixPoint(e.origin,e.to,u));}
+    }
+  }
 }
 
 let inputHistory=[], correction={x:0,y:0}, previewShots=[], unconfirmedTime=0;
 let previewLasers=[],localCharge=0;
 let commandNumber=0, previewCooldown=0, pendingTap=false, previewTap=false;
 function resetPresentation(){
-  previewLasers=[];localCharge=0;netPingMs=null;lastPositions.clear();motion=[]; receivedAt=0; inputHistory=[]; correction={x:0,y:0};
+  previewLasers=[];localCharge=0;netPingMs=null;lastPositions.clear();motion=[];patternClocks=[]; receivedAt=0; inputHistory=[]; correction={x:0,y:0};
   previewShots=[]; commandNumber=0; previewCooldown=0; pendingTap=false; previewTap=false;
   unconfirmedTime=0;
 }

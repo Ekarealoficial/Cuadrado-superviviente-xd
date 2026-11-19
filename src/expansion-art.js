@@ -150,3 +150,20 @@ function drawExpansionCast(p){
   }
   ctx.restore();
 }
+function advancedEnemyArt(e,r){
+  if(!['erratic','pulseRing','rebound','twinCannon'].includes(e.type))return false;
+  ctx.save();ctx.translate(e.x,e.y);
+  const charging=e.phase==='aim',light=charging?'#fff9e5':'#ffd39f';
+  if(e.type==='pulseRing'){
+    strokeRing(0,0,r+3,charging?'#f7cbff':'#c988ff',3,e.wob,e.wob+5.1);
+    if(charging)for(let i=0;i<e.pulseCount;i++){const a=e.heading+i*TAU/e.pulseCount;energyLine(polarPoint({x:0,y:0},r,a),polarPoint({x:0,y:0},r+10,a),light,2);}
+  }else if(e.type==='rebound'){
+    strokeRing(0,0,r,'#e8f5ff',4);const t=state.time-(e.bounced??-10);
+    if(t<.4){ctx.globalAlpha=1-t/.4;strokeRing(0,0,r+85*t,'#afdfff',2);}
+  }else{
+    ctx.rotate(e.heading||0);
+    if(e.type==='erratic'){etchedSquare(r*.64,Math.PI/4,light,2);if(charging)energyLine({x:r,y:0},{x:r+104,y:0},light,2);}
+    else for(const y of [-r*.48,r*.48]){disk(r-1,y,5,light);if(charging||e.phase==='second')strokeRing(r-1,y,8,'#ffb0a0',2);}
+  }
+  ctx.restore();return true;
+}

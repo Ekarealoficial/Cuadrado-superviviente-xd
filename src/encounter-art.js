@@ -101,6 +101,10 @@ function drawEncounter(b){
       strokeRing(q.x,q.y,20+u*27,'#fff0e7',2);
     }
     if(e.kind==='block'&&!e.fired){ctx.save();ctx.translate(q.x,q.y-100*(1-u));panelSquare(10+18*u,c,.3*(1-u));ctx.restore();}
+    if(e.kind==='ray'&&e.spin&&b.age<e.on){
+      const length=Math.min(state.arena.w,state.arena.h)*.36,span=e.spin*(e.end-e.on);
+      ctx.save();ctx.setLineDash([5,9]);strokeRing(q.x,q.y,length,c+'88',1.5,Math.min(e.angle,e.angle+span),Math.max(e.angle,e.angle+span));ctx.restore();
+    }
     if(e.kind==='path')for(const v of e.points.slice(1,-1)){ctx.save();ctx.translate(v.x,v.y);etchedSquare(6+u*9,t*3,c,2);ctx.restore();}
     if(e.kind==='ray'&&b.age<e.on){strokeRing(q.x,q.y,10+(1-u)*24,c,2);if(e.impact)strokeRing(q.x,q.y,39+u*22,'#ffe6fd',4);}
   }

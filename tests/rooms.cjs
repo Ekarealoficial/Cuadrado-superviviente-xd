@@ -156,3 +156,32 @@ test('Dos clientes reciben la misma resistencia y desaparición de una bala gran
  for(let i=0;i<120;i++)r.tick(1/30);
  assert.deepEqual(seen('a'),[]);assert.deepEqual(seen('b'),[]);
 });
+test('Una salva compacta conserva IDs, cancelación y trayectorias para dos clientes',()=>{
+  const {packHostileShots,unpackHostileShots}=require('../src/shot-wire.js');
+  const room=engine({difficulty:1,xp:1,pvp:false,disabled});
+  for(const id of ['a','b'])room.add(id,{});
+  const pool=room.snapshot('a').enemyBullets;
+  for(let i=0;i<500;i++)pool.push({x:i,y:300,r:i%2?6:11,vx:i,vy:-6,life:7,damage:1,...(i%3?{}:{square:true,cancelHP:33,curve:.12})});
+  room.tick(1/30);
+  for(const id of ['a','b']){
+    const raw=room.snapshot(id).enemyBullets;
+    const expected=JSON.parse(JSON.stringify(raw,(k,v)=>['prevX','prevY'].includes(k)?undefined:v));
+    const packet=JSON.stringify(packHostileShots(raw));
+    assert.deepEqual(unpackHostileShots(JSON.parse(packet)),expected);
+    assert.ok(packet.length<JSON.stringify(expected).length*.8);
+  }
+});
+test('Segundos perdidos alterna objetivos separados en la simulación de sala',()=>{
+  const room=engine({difficulty:3,xp:1,pvp:false,disabled:[...disabled.filter(t=>t!=='clock'),'worm']});
+  for(const id of ['a','b']){room.add(id,{});room.snapshot(id).player.invuln=10000;}
+  let boss;
+  for(let i=0;i<2400&&!boss;i++){room.tick(1/30);boss=room.snapshot('a').boss;}
+  assert.equal(boss.kind,'clock');
+  const xs=[-200,210];
+  for(const [i,id] of ['a','b'].entries())Object.assign(room.snapshot(id).player,{x:xs[i],y:20});
+  boss.state='recover';boss.timer=.01;boss.deck=['seconds'];
+  for(let i=0;i<75;i++)room.tick(1/30);
+  const warnings=id=>room.snapshot(id).boss.events.filter(e=>e.kind==='dial').map(e=>e.origin.x);
+  assert.deepEqual(warnings('a'),warnings('b'));
+  for(const x of xs)assert.ok(warnings('a').some(v=>Math.abs(v-x)<1));
+});

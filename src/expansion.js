@@ -2,6 +2,11 @@
 const ICE_FALL=.65, ICE_BURST=.26;
 const iceVictims=new WeakMap();
 function updateExpansionEnemy(e,p,dt,travel,d){
+  if(['pulseRing','erratic','twinCannon','rebound'].includes(e.type)){
+    updateAdvancedEnemy(e,p,dt,travel,d);
+    if(d>Math.max(W,H)+900)state.enemies.splice(state.enemies.indexOf(e),1);
+    return true;
+  }
   if(!['cannon','tackler','frostMage'].includes(e.type))return false;
   const a=Math.atan2(p.y-e.y,p.x-e.x);
   function walk(angle,speed){moveWithWalls(e,Math.cos(angle)*speed*travel,Math.sin(angle)*speed*travel,currentWalls);}

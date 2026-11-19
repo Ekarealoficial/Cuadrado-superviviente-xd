@@ -170,6 +170,7 @@ function render() {
     ctx.fillText(f.text, f.x, f.y);
   }
   ctx.globalAlpha = 1;
+  if(playMode==='sandbox'&&lab.hitboxes)drawLabHitboxes();
   ctx.restore();
 
   if (state.flash > 0) {
@@ -304,9 +305,11 @@ function renderEntities0() {
     ctx.save();
     ctx.shadowColor = e.color; ctx.shadowBlur = 18;
     ctx.fillStyle = e.hitFlash > 0 ? '#ffffff' : e.slowUntil > state.time ? '#85eaff' : e.color;
-    ctx.beginPath(); ctx.arc(e.x, e.y, r, 0, TAU); ctx.fill();
+    if(e.type==='erratic'||e.type==='twinCannon')ctx.fillRect(e.x-r,e.y-r,2*r,2*r);
+    else{ctx.beginPath();ctx.arc(e.x,e.y,r,0,TAU);ctx.fill();}
     ctx.shadowBlur = 0;
     drawExpansionEnemy(e,r);
+    const hasOwnArt=advancedEnemyArt(e,r);
     if (e.type === 'shooter') {
       const a = Math.atan2(p.y - e.y, p.x - e.x);
       ctx.save();
@@ -392,7 +395,7 @@ function renderEntities0() {
       ctx.beginPath(); ctx.arc(e.x, e.y, r*0.35, 0, TAU); ctx.fill();
       ctx.fillStyle = 'rgba(255,255,255,0.7)';
       ctx.beginPath(); ctx.arc(e.x, e.y, r*0.15, 0, TAU); ctx.fill();
-    } else {
+    } else if(!hasOwnArt){
       ctx.strokeStyle = 'rgba(0,0,0,0.4)'; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.arc(e.x, e.y, r*0.65, 0, TAU); ctx.stroke();
       ctx.fillStyle = 'rgba(0,0,0,0.6)';
@@ -586,9 +589,13 @@ function renderEntities2() {
 // Reuse the same glow for every projectile of a given size and palette.
 const enemyShotSprites=new Map();
 function renderEnemyShots(){
+  const halfW=W/(2*state.cam.zoom)+15,halfH=H/(2*state.cam.zoom)+15;
   for(const shot of state.enemyBullets){
-    if(Math.abs(shot.x-state.cam.x)>W/(2*state.cam.zoom)+shot.r+15 || Math.abs(shot.y-state.cam.y)>H/(2*state.cam.zoom)+shot.r+15)continue;
-    const color=shot.tint||'#ffd0a8',key=color+'-'+shot.r;
+    if(Math.abs(shot.x-state.cam.x)>halfW+shot.r || Math.abs(shot.y-state.cam.y)>halfH+shot.r)continue;
+    const color=shot.tint||'#ffd0a8';
+    if(shot.square){ctx.fillStyle=color;ctx.fillRect(shot.x-shot.r,shot.y-shot.r,2*shot.r,2*shot.r);}
+    else{
+    const key=color+'-'+shot.r;
     let sprite=enemyShotSprites.get(key);
     if(!sprite){
       sprite=document.createElement('canvas');
@@ -603,8 +610,6 @@ function renderEnemyShots(){
       brush.arc(half-shot.r*.22,half-shot.r*.22,shot.r*.38,0,TAU);brush.fill();
       enemyShotSprites.set(key,sprite);
     }
-    if(shot.square){ctx.fillStyle=color;ctx.fillRect(shot.x-shot.r,shot.y-shot.r,2*shot.r,2*shot.r);}
-    else {
     if(shot.planet)for(let i=5;i>0;i--){ctx.globalAlpha=(6-i)*.09;disk(shot.x-shot.vx*i*.019,shot.y-shot.vy*i*.019,shot.r*(1-i*.12),color);}
     ctx.globalAlpha=1;ctx.drawImage(sprite,shot.x-sprite.width/2,shot.y-sprite.height/2);}
     if(shot.cancelHP!==undefined){

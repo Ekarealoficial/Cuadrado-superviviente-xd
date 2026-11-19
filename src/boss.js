@@ -123,6 +123,7 @@ function killBoss(b = state.boss, completed = false) {
     return;
   }
   b._dying = true;
+  state.firstBossDefeatAt??=state.time;
   state.enemyBullets=state.enemyBullets.filter(s=>s.source!==b.id);
   state.cosmicZones=state.cosmicZones.filter(s=>s.source!==b.id);
   state.bossBombs=state.bossBombs.filter(s=>s.source!==b.id);
@@ -131,7 +132,6 @@ function killBoss(b = state.boss, completed = false) {
     state.remnants.push({kind:b.kind,x:b.x,y:b.y,born:state.time,color:b.color});
     bossCue(b.kind+'Release',b);
   }
-  state.firstBossDefeatAt ??= state.time;
   spawnParticles(b.x, b.y, 80, b.color, 2);
   spawnParticles(b.x, b.y, 40, '#ffffff', 1.5);
   state.shake = 40;
@@ -162,6 +162,8 @@ function killBoss(b = state.boss, completed = false) {
     state.bossLaserActive = livingBosses().some(other => other.kind==='boss' && other.phase >= 3);
     return;
   }
+  state.completedEncounters=(state.completedEncounters||0)+1;
+  if(state.completedEncounters<=3)(state.unlockTimes||=[])[state.completedEncounters-1]=state.time;
   state.bossActive = false;
   state.arena = null;
   state.bossBombs = [];
@@ -213,7 +215,7 @@ function startBossAttack(type, b = state.boss) {
   } else if (type === 'balls') {
     b.state = 'attack';
     b.timer = 0.6;
-    const ballSpeed = b.phase >= 2 ? 900 : 700;
+    const ballSpeed = [0,700,930,1080][b.phase];
     for (const ball of b.balls) {
       if (ball.state !== 'attached') continue;
       const a = Math.atan2(p.y - ball.y, p.x - ball.x);
@@ -229,7 +231,7 @@ function startBossAttack(type, b = state.boss) {
   }
 }
 function getBossIdleTime(b) {
-  if (b.phase >= 3) return 0.9;
+  if (b.phase >= 3) return 0.66;
   if (b.phase >= 2) return 1.3;
   return 1.9;
 }

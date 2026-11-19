@@ -24,11 +24,11 @@ function addPlanets(b){
 }
 function incomingMass(b){
   bossCue('massPull',b);b.state='attract';b.absorbed=[];
-  b.massWaves=MASS_WAVES-1;b.timer=MASS_INTERVAL;emitMassWave(b);
+  b.massInterval=MASS_INTERVAL/(1+.14*(b.phase-1));b.massWaves=MASS_WAVES-1;b.timer=b.massInterval;emitMassWave(b);
 }
 function emitMassWave(b){
   const a=state.arena;
-  for(let i=0;i<MASS_PER_WAVE;i++){
+  for(let i=0;i<MASS_PER_WAVE+4*(b.phase-1);i++){
     const vertical=gameRandom()<.5,side=gameRandom()<.5?-38:38;
     const x=vertical?a.x+(side>0?a.w:0)+side:gameRand(a.x,a.x+a.w);
     const y=vertical?gameRand(a.y,a.y+a.h):a.y+(side>0?a.h:0)+side;
@@ -134,7 +134,7 @@ function updateSingular(b,dt){
   }
   if(b.state==='attract'){
     if(b.massWaves>0){
-      if(b.timer<=0){emitMassWave(b);b.massWaves--;b.timer+=MASS_INTERVAL;}
+      if(b.timer<=0){emitMassWave(b);b.massWaves--;b.timer+=b.massInterval;}
       return;
     }
     if(!state.enemyBullets.some(shot=>shot.inward===b.id)){b.state='repel';b.timer=.58;bossCue('massHold',b);}
@@ -150,12 +150,12 @@ function updateSingular(b,dt){
     for(const planet of b.planets){
       for(const [i,tier] of planet.moons.entries()){
         const pos=moonPosition(planet,i,b.orbitTime);
-        cosmicShot(pos.x,pos.y,aimAtPlayer(pos.x,pos.y)+(i-1.5)*.065,370+40*tier,tier,{tint:planet.tint,source:b.id});
+        cosmicShot(pos.x,pos.y,angleTo(pos,bossPrey(b))+(i-1.5)*.065,370+40*tier,tier,{tint:planet.tint,source:b.id});
       }
       planet.moons=[];
     }
   }
-  b.state='drift';b.timer=1.45;
+  b.state='drift';b.timer=1.45-.31*(b.phase-1);
 }
 function planetContact(b,p){
   if(p.invuln>0 || b.state==='final')return;

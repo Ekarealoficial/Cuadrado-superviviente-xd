@@ -3,7 +3,7 @@
   rules = settings;
   configureCardUpgrades();
   const world = newState();
-  const shared = 'encounterRoster nextBossId groupSize bossCues bossCueId cardRelics remnants cosmicZones extraBosses firstBossDefeatAt iceZones stopStarted stopUntil time enemies enemyBullets enemyDarts orbs potions spawnTimer potionTimer boss bossEncounters bossActive arena bossBombs bossLasers bossLaserActive bossLaserTimer bossSpawnTimer bossCycle bossOmen enemyHpMult spawnRateMult adaptiveCheckTimer'.split(' ');
+  const shared = 'encounterRoster nextBossId groupSize bossCues bossCueId cardRelics remnants cosmicZones extraBosses completedEncounters unlockTimes firstBossDefeatAt iceZones stopStarted stopUntil time enemies enemyBullets enemyDarts orbs potions spawnTimer potionTimer boss bossEncounters bossActive arena bossBombs bossLasers bossLaserActive bossLaserTimer bossSpawnTimer bossCycle bossOmen enemyHpMult spawnRateMult adaptiveCheckTimer'.split(' ');
   const party = new Map();
   function add(id, profile) {
     const personal = newState();

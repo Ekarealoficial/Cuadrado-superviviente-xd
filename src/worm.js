@@ -156,11 +156,11 @@ function updateWormPiece(piece,phase,dt,a){
       if(piece.timer<=0){piece.mode='rush';piece.timer=phase===2?.25:.48;bossCue('wormRush',h);}
       break;
     case 'rush':
-      speed=1450;
+      speed=phase===2?1730:1450;
       if(piece.timer<=0){
         speed=0;
         if(phase===2 && --piece.dashes>0)wormWindup(piece,true);
-        else{if(phase===2)bossCue('wormRest',h);piece.mode=phase===2?'rest':'curve';piece.timer=phase===2?3.2:2.4;}
+        else{if(phase===2)bossCue('wormRest',h);piece.mode=phase===2?'rest':'curve';piece.timer=phase===2?2.65:2.4;}
       }
       break;
     case 'rest':

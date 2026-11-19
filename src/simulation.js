@@ -1,14 +1,16 @@
 'use strict';
 /* =============== UPDATE =============== */
 function update(dt, worldStep = true, commands = null) {
-  for (let i = state.particles.length - 1; i >= 0; i--) {
-    const pt = state.particles[i];
+  let survivingParticles=0;
+  const damp=Math.max(0,1-5*dt);
+  for (const pt of state.particles) {
     pt.life -= dt;
-    if (pt.life <= 0) { state.particles.splice(i, 1); continue; }
+    if (pt.life <= 0)continue;
     pt.x += pt.vx * dt; pt.y += pt.vy * dt;
-    const damp = Math.max(0, 1 - 5 * dt);
+    state.particles[survivingParticles++]=pt;
     pt.vx *= damp; pt.vy *= damp;
   }
+  state.particles.length=survivingParticles;
   for (let i = state.floats.length - 1; i >= 0; i--) {
     const f = state.floats[i];
     f.life -= dt; f.y += f.vy * dt; f.vy *= 0.92;
@@ -488,23 +490,20 @@ function update_playerProjectiles(dt) {
 }
 
 function update_enemyProjectiles(dt) {
-  const p=state.player;
-  // Balas enemigas
-  for (let i = state.enemyBullets.length - 1; i >= 0; i--) {
-    const b = state.enemyBullets[i];
+  const shots=state.enemyBullets;
+  let write=0;
+  for(const b of shots){
     b.prevX=b.x;b.prevY=b.y;
-    if((b.release!==undefined||b.curve) && dt>0)curveEnemyShot(b,dt);
-    if(b.inward && advanceInward(b,dt)){state.enemyBullets.splice(i,1);continue;}
-    b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
-    if (b.life <= 0) { state.enemyBullets.splice(i, 1); continue; }
-    let hitWall = false;
-    if(!b.inward)for (const w of currentWalls) if (aabbOverlapCircle(b.x, b.y, b.r, w)) { hitWall = true; break; }
-    if (hitWall) {
-      spawnParticles(b.x, b.y, 4, '#ff8c42', 0.5);
-      state.enemyBullets.splice(i, 1);
+    if((b.release!==undefined||b.curve)&&dt>0)curveEnemyShot(b,dt);
+    if(b.inward&&advanceInward(b,dt))continue;
+    b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;
+    if(b.life<=0)continue;
+    if(!b.inward&&currentWalls.some(w=>aabbOverlapCircle(b.x,b.y,b.r,w))){
+      spawnParticles(b.x,b.y,4,'#ff8c42',.5);continue;
     }
+    shots[write++]=b;
   }
-
+  shots.length=write;
 
 }
 
@@ -515,13 +514,13 @@ function update_projectileCancellation(){
   shotContactGrid.rebuild(hostile);
   let reach=0;
   for(const e of hostile)reach=Math.max(reach,e.r+Math.hypot(e.x-(e.prevX??e.x),e.y-(e.prevY??e.y)));
-  const hits=[],spent=new Set(),destroyed=new Set();
+  const hits=[],spent=new Set(),destroyed=new Set(),relative={},origin={x:0,y:0};
   for(const s of shots){
     const x=s.prevX??s.x,y=s.prevY??s.y;
     const near=shotContactGrid.query((x+s.x)/2,(y+s.y)/2,reach+s.r+Math.hypot(s.x-x,s.y-y)/2);
     for(const e of near){
-      const step={prevX:x-(e.prevX??e.x),prevY:y-(e.prevY??e.y),x:s.x-e.x,y:s.y-e.y};
-      const t=bulletEntry(step,{x:0,y:0},s.r+e.r);
+      relative.prevX=x-(e.prevX??e.x);relative.prevY=y-(e.prevY??e.y);relative.x=s.x-e.x;relative.y=s.y-e.y;
+      const t=bulletEntry(relative,origin,s.r+e.r);
       if(Number.isFinite(t))hits.push({s,e,t});
     }
   }
@@ -542,6 +541,7 @@ function update_projectileCancellation(){
 }
 
 function update_shieldBlocking(dt) {
+  if(!state.shields.length)return;
   const p=state.player;
   // Escudos bloquean
   for (let i = state.enemyBullets.length - 1; i >= 0; i--) {
@@ -590,6 +590,7 @@ function update_shieldPush(dt) {
 }
 
 function update_enemyProjectileHits(dt) {
+  if(state.player.invuln>0)return;
   const p=state.player;
   // Bala enemiga vs jugador
   for (let i = state.enemyBullets.length - 1; i >= 0; i--) {
@@ -599,6 +600,7 @@ function update_enemyProjectileHits(dt) {
       if (visibleContact(b,p,rr)) {
         damagePlayer(b.damage||1);
         state.enemyBullets.splice(i, 1);
+        if(p.invuln>0)break;
       }
     }
   }
@@ -611,7 +613,7 @@ function update_spawning(dt) {
   // Spawn
   if (!state.bossActive) {
     state.spawnTimer -= dt;
-    if (playMode!=='sandbox' && state.spawnTimer <= 0) {
+    if ((playMode!=='sandbox'||lab.spawnWaves) && state.spawnTimer <= 0) {
       spawnEnemy();
       const interval = Math.max(0.55, 1.7 - state.time * rules.difficulty * 0.009) * state.spawnRateMult;
       state.spawnTimer = interval * gameRand(0.80, 1.25);

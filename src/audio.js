@@ -161,6 +161,9 @@ for(const [family,moves,base,wave] of [
 
 BOSS_SCORES.clockRelease={notes:[[440,2.1,'sine',.22,419],[883,1.65,'sine',.12,848],[1217,1.2,'triangle',.07,1078]],noise:[.26,.06,1800,260]};
 
+BOSS_SCORES.pendulumBeat={notes:[[775,.075,'triangle',.13,385],[235,.16,'sine',.13,88]],noise:[.09,.08,3600,620]};
+BOSS_SCORES.rewindBeat={notes:[[180,.16,'triangle',.12,920],[610,.28,'sine',.12,170,.06]]};
+BOSS_SCORES.zeroBeat={notes:[[294,.18,'sine',.12,280],[588,.10,'triangle',.07,490,.04]]};
 BOSS_SCORES.fusionBeat={notes:[[82,.83,'sawtooth',.13,46],[160,.75,'sine',.23,32]],noise:[.64,.18,5700,550]};
 BOSS_SCORES.stompBeat={notes:[[91,.36,'sine',.3,28],[165,.1,'square',.055,62]],noise:[.22,.18,1850,180]};
 BOSS_SCORES.rhythmBeat={notes:[[120,.22,'triangle',.2,34]],noise:[.13,.17,2500,180]};

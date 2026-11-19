@@ -12,7 +12,7 @@ const MOVE_NAMES={tracking:'Láser de seguimiento',curtain:'Cortina de láseres'
  link:'Enlace peligroso',exchange:'Intercambio cruzado',pulses:'Pulsos alternos',pincer:'Pinza',binary:'Doble núcleo',positiveStorm:'Polaridad positiva',negativeStorm:'Polaridad negativa',
  pistons:'Pistones',turret:'Torreta rotatoria',transmission:'Transmisión de energía',discharge:'Descarga del núcleo',shock:'Generador de ondas',rebuild:'Reensamblaje',machineCycle:'Sobrecarga mecánica',leak:'Fuga de energía',
  stomp:'Pisotón sísmico',wall:'Muralla en avance',avalanche:'Alud de bloques',impact:'Barrido de impacto',rhythm:'Ritmo de destrucción',
- cuts:'Corte cartesiano',lunge:'Embestida fractal',fault:'Falla',replicas:'Réplicas',prison:'Prisión',collapse:'Colapso fractal',hands:'Agujas',seconds:'Segundos perdidos',pendulum:'Péndulo',ticks:'Tiempo fragmentado',rewind:'Rebobinado',zero:'Hora cero',chime:'Campanadas',garden:'Jardín de proyectiles',petals:'Pétalos descendentes',dance:'Danza',stars:'Constelación',inverse:'Órbita inversa',rain:'Lluvia infinita',flower:'Flor final'};
+ cuts:'Corte cartesiano',lunge:'Embestida fractal',fault:'Falla',replicas:'Réplicas',prison:'Prisión',collapse:'Colapso fractal',hands:'Agujas',seconds:'Segundos perdidos',pendulum:'Péndulo',ticks:'Tiempo fragmentado',rewind:'Rebobinado',zero:'Hora cero',chime:'Última campanada',garden:'Jardín de proyectiles',petals:'Pétalos descendentes',dance:'Danza',stars:'Constelación',inverse:'Órbita inversa',rain:'Lluvia infinita',flower:'Flor final'};
 for(const m of ['curtain','sweep','refraction','overload','fusion','link','binary','machineCycle','wall','rhythm','stomp','landing','leak','final'])HEAVY_MOVES.add(m);
 const POLAR=['#ffa54d','#58e9ff'];
 const ROLES=['turret','transmission','pistons','shock'];
@@ -69,16 +69,13 @@ function makeScore(b){
 }
 function cue(b,kind,start,warn,duration,data={}){
   b.events.push({kind,start,on:start+warn,end:start+warn+duration,...data});
-  b.timer=Math.max(b.timer,start+warn+duration+.25);
+  b.timer=Math.max(b.timer,start+warn+duration+.25-b.age);
 }
 function travel(b,index,from,to,start,duration){
   b.tracks.push({index,from:point(from),to:point(to),start,duration});
 }
 function ray(b,start,warn,duration,origin,angle,width,extra={}){
   cue(b,'ray',start,warn,duration,{origin:point(origin),angle,width,...extra});
-}
-function wave(b,start,origin,square,index,extra={}){
-  cue(b,'wave',start,.48,1.75,{origin:point(origin),square,angle:index*Math.PI/2,width:11,speed:310,...extra});
 }
 function volley(b,start,origin,count,speed,turn,extra={}){
   cue(b,'volley',start,.18,.1,{origin:point(origin),count,speed,turn,...extra});
@@ -91,48 +88,65 @@ function emitterFan(b,start,final=false){
   const c=patternOrigin(),a=state.arena;
   b.postStart=start;b.postEnd=start+3.14;
   b.posts=Array.from({length:4},(_,i)=>({x:c.x+Math.cos(i*Math.PI/2)*a.w*.32,y:c.y+Math.sin(i*Math.PI/2)*a.h*.32}));
-  for(const [i,q] of b.posts.entries())ray(b,start+i*.53,.9,.32,q,final?angleTo(q,c)+i*.13:angleTo(q,bossPrey(b)),23,{post:i});
+  for(const [i,q] of b.posts.entries())ray(b,start+i*(final?.53:.27),final?.9:.64,final?.32:.48,q,final?angleTo(q,c)+i*.13:angleTo(q,bossPrey(b)),23,{post:i});
 }
-function sweep(b,start,turn=1){ray(b,start,b.phase>2?.88:1,b.phase>2?1.88:2,b,b.angle,33,{opposed:true,spin:turn*(2*Math.PI/3)/(b.phase>2?1.88:2)});}
-function fusion(b,start,duration=1){ray(b,start,1.4,duration,b,b.angle,90,{impact:16});}
+function sweep(b,start,turn=1){ray(b,start,b.phase>2?.72:.82,b.phase>2?1.3:1.58,b,b.angle,33,{opposed:true,spin:turn*(2*Math.PI/3)/(b.phase>2?1.3:1.58)});}
+function fusion(b,start,duration=1){ray(b,start,1.02,duration,b,b.angle,90,{impact:16});}
+function laserCurtain(b,start,vertical,n){
+  const a=state.arena,span=vertical?a.w:a.h;
+  // Switch banks on the beat. Adjacent beams always leave a body-sized lane.
+  const slots=Math.min(n,Math.max(2,Math.floor(span/((b.safeSize||30)+27))));
+  for(let bank=0;bank<3;bank++)for(let i=0;i<slots;i++){
+    const f=(i+.35+.30*(bank%2))/slots;
+    const q={x:a.x+(vertical?f*a.w:0),y:a.y+(vertical?0:f*a.h)};
+    ray(b,start+bank*.67+(i%2)*.08,.6,.4,q,vertical?Math.PI/2:0,19);
+  }
+}
 function scheduleBeacon(b,m){
+  const ph=b.phase,late=ph>=3;
   if(m==='tracking'){
-    const n=3+Math.floor(gameRandom()*3);
-    for(let i=0;i<n;i++)ray(b,i*2.06,1.3,.6,b,b.angle,49,{track:1});
+    for(let k=0;k<3+ph;k++)for(let j=0;j<(late?3:2);j++)
+      ray(b,k*(1.75-.075*ph),1.12-.05*ph,.43,b,b.angle,34,{track:.75-.04*ph,aimOffset:(j?j===1?.32:-.32:0),targetBeat:k});
   }else if(m==='curtain'){
-    b.vertical=!b.vertical;const a=state.arena,n=7;
-    for(let k=0;k<3;k++)for(let i=k%2;i<n;i+=k===2?4:2){
-      const f=(i+.5)/n,q={x:a.x+(b.vertical?f*a.w:0),y:a.y+(b.vertical?0:f*a.h)};
-      ray(b,(b.phase>2?.52:.6)*k,1,.38,q,b.vertical?Math.PI/2:0,32);
-    }
+    b.vertical=!b.vertical;laserCurtain(b,0,b.vertical,ph===1?3:ph===2?5:7);
   }else if(m==='sweep')sweep(b,0);
-  else if(m==='refraction')cue(b,'path',0,1.1,.7,{points:reflectedPath(b,b.angle,2+Math.floor(gameRandom()*2)),width:30});
+  else if(m==='refraction')cue(b,'path',0,.83,.58,{points:reflectedPath(b,b.angle,2+Math.floor(gameRandom()*2)),width:27});
   else if(m==='emitters')emitterFan(b,0);
-  else if(m==='fusion')fusion(b,0);
-  else {sweep(b,0);sweep(b,3.2,-1);emitterFan(b,6.4);fusion(b,9.6,.55);}
+  else if(m==='fusion')fusion(b,0,.76);
+  else{
+    b.laserGate=true;sweep(b,0);emitterFan(b,.16);
+    laserCurtain(b,2.35,true,8);sweep(b,2.24,-1);
+    laserCurtain(b,4.9,false,7);fusion(b,5.13,.65);
+  }
 }
 function scheduleTwins(b,m){
   const c=patternOrigin(),a=state.arena,p=bossPrey(b),[pos,neg]=b.parts;
   if(m==='link'||m==='binary'){
-    cue(b,'orbit',0,1, m==='link'?3.6:3,{radius:m==='link'?210:85,center:c});
-    if(m==='link')cue(b,'link',0,1,3.6,{width:21});
+    cue(b,'orbit',0,1, m==='link'?3.6:3,{wide:m==='link',radius:m==='link'?210:85,center:c});
+    if(m==='link'){
+      cue(b,'link',0,1,3.6,{width:24});
+      for(let k=0;k<5;k++)for(const q of b.parts)volley(b,2.55+k*.3,q,8,245,k*.28,{part:q.index,color:q.color});
+    }
     else{
       for(let k=0;k<12;k++)for(const q of b.parts)volley(b,.9+k*.25,q,6,200,k*.18+q.index*.28,{part:q.index,color:q.color,square:!q.index});
       for(const q of b.parts)wave(b,4.15,q,!q.index,q.index,{part:q.index});
     }
   }else if(m==='exchange'||m==='pincer'){
-    const n=m==='exchange'?3+Math.floor(gameRandom()*3):1;
+    const n=m==='exchange'?6+Math.floor(gameRandom()*4):1;
     let pair=b.parts.map(point);
-    if(m==='pincer'){pair=[{x:a.x+80,y:c.y-80},{x:a.x+a.w-80,y:c.y+80}];b.parts.forEach((q,i)=>travel(b,i,q,pair[i],0,.42));}
+    {pair=[{x:a.x+60,y:clamp(p.y-a.h*.16,a.y+55,a.y+a.h-55)},{x:a.x+a.w-60,y:clamp(p.y+a.h*.16,a.y+55,a.y+a.h-55)}];b.parts.forEach((q,i)=>travel(b,i,q,pair[i],0,.42));}
     for(let k=0;k<n;k++){
-      const start=(m==='pincer'?.46:0)+k*1.43;
+      const start= .46+k*(.97-.045*b.phase);
       const ends=m==='exchange'?[pair[1],pair[0]]:pair.map(q=>{const v=polarPoint(q,Math.hypot(q.x-p.x,q.y-p.y)+130,angleTo(q,p));return boundedPoint(v.x,v.y,50);});
       pair.forEach((q,i)=>{
-        cue(b,'dash',start,.8,.35,{origin:q,to:ends[i],width:74,index:i});
-        travel(b,i,q,ends[i],start+.8,.35);
+        cue(b,'dash',start,m==='exchange'?.55:.8,m==='exchange'?.19:.35,{origin:q,to:ends[i],width:80,index:i});
+        travel(b,i,q,ends[i],start+(m==='exchange'?.55:.8),m==='exchange'?.19:.35);
         if(m==='pincer')wave(b,start+1.15,ends[i],!i,i);
       });
-      if(m==='exchange')volley(b,start+.82,mixPoint(...pair,.5),10,210,k*.27,{gaps:true});
+      if(m==='exchange'){
+        volley(b,start+.46,mixPoint(...pair,.5),16,245+k*4,k*.27,{gaps:true});
+        for(const [i,q] of ends.entries())volley(b,start+.56,q,8+b.phase*2,310,angleTo(q,p),{fan:.95,color:POLAR[i],square:!i});
+      }
       pair=ends;
     }
   }else if(m==='pulses'){
@@ -140,9 +154,16 @@ function scheduleTwins(b,m){
   }else if(m==='absorb'){wave(b,0,b.fallen,false,0,{color:b.fallen.color});}
   else{
     const q=activeParts(b)[0];if(!q)return;
-    for(let k=0;k<6;k++){
-      if(m==='positiveStorm'&&k%2===0)ray(b,k*.55,.68,.28,q,angleTo(q,p)+(k-2)*.19,26);
-      else volley(b,k*.55,q,m==='positiveStorm'?12:21,220,k*.19,{square:!q.index,color:q.color,gaps:true});
+    const positive=m==='positiveStorm',count=positive?9:12;
+    let from=point(q);
+    for(let k=0;k<count;k++){
+      const s=k*(positive?.36:.26),a0=k*.28;
+      if(positive){
+        const dest=boundedPoint(c.x+Math.cos(a0+q.index)*a.w*.36,c.y+Math.sin(a0*2)*a.h*.33,52);
+        travel(b,q.index,from,dest,s,.35);from=dest;
+        if(k%3===0)ray(b,s,.60,.31,dest,angleTo(dest,p),20);
+        volley(b,s+.18,q,32,265+k*7,a0,{part:q.index,color:q.color,square:true,gaps:true});
+      }else for(const sign of [-1,1])volley(b,s,q,27,sign>0?235:305,sign*a0,{part:q.index,color:q.color,gaps:true,curve:sign*.19});
     }
     wave(b,3,q,!q.index,1);
   }
@@ -151,20 +172,27 @@ function moduleAttack(b,role,start,short=false){
   const q=b.parts.find(v=>v.role===role);if(!q||q.hp<=0)return;
   const data={part:q.index},p=bossPrey(b);
   if(role==='pistons'){
-    let from=point(q);
-    for(let i=0;i<(short?1:3);i++){
-      const dest=polarPoint(from,400,angleTo(from,p)+i*.25),to=boundedPoint(dest.x,dest.y,30),s=start+i*1.25;
-      cue(b,'dash',s,.67,.35,{origin:from,to,width:44,index:q.index,...data});travel(b,q.index,from,to,s+.67,.35);from=to;
+    const a=state.arena,c=patternOrigin(),n=short?2:6+Math.floor(gameRandom()*3);
+    let from=point(q),side=from.x<c.x?1:-1;
+    for(let i=0;i<n;i++,side=-side){
+      const target=targetForBeat(b,i),to={x:c.x+side*(a.w/2-32),y:clamp(2*target.y-from.y,a.y+40,a.y+a.h-40)},s=start+i*.88;
+      cue(b,'dash',s,.53,.19,{origin:from,to,width:46,index:q.index,...data});travel(b,q.index,from,to,s+.53,.19);
+      for(const sign of [-1,1])volley(b,s+.54,to,5,280,angleTo(from,to)+sign*Math.PI/2,{fan:1,square:true,color:q.color,requires:q.index});
+      from=to;
     }
-    travel(b,q.index,from,q,start+(short?1:3)*1.25,.36);b.timer+=.4;
+    travel(b,q.index,from,q,start+n*.88,.36);b.timer=Math.max(b.timer,start+n*.88+.42);
   }else if(role==='transmission'){
-    for(const [i,other] of activeParts(b).filter(o=>o!==q).concat([b]).entries()){
-      cue(b,'wire',start+.38*i,.75,.47,{...data,targetIndex:other===b?-1:other.index,width:19});
+    const nodes=activeParts(b).filter(o=>o!==q).concat([b]);
+    for(const [i,other] of nodes.entries()){
+      const s=start+i*(b.phase===1?.42:.27);
+      cue(b,'wire',s,.68,.66,{...data,targetIndex:other===b?-1:other.index,width:18});
+      ray(b,s,.68,.88,q,angleTo(q,other),20,{requires:q.index,spin:(i%2?-1:1)*.25});
+      if(b.phase>=2&&other!==b)ray(b,s+.12,.62,.65,other,angleTo(q,other),16,{requires:other.index});
     }
   }else if(role==='turret'){
     cue(b,'turretOrbit',start,.35,short?1:2.7,{...data,angle:angleTo(b,q)});
     for(let i=0;i<(short?4:10);i++)volley(b,start+.3+i*.25,q,9,220,i*.22,{...data,color:q.color});
-  }else for(let i=0;i<(short?1:2);i++)wave(b,start+i*.9,q,false,i,data);
+  }else for(let i=0;i<(short?2:3+b.phase);i++)wave(b,start+i*.66,q,i%3===1,i,{speed:340+i*59,requires:q.index});
 }
 function scheduleHeart(b,m){
   if(ROLES.includes(m))moduleAttack(b,m,0);
@@ -173,9 +201,9 @@ function scheduleHeart(b,m){
     if(q&&b.repairs>0){b.repairs--;b.repairHP=b.hp;cue(b,'repair',0,2,.2,{index:q.index});}
   }else if(m==='machineCycle')['turret','transmission','shock','pistons'].forEach((role,i)=>moduleAttack(b,role,i*1.1,true));
   else{
-    for(let i=0;i<(m==='leak'?7:4);i++){
-      volley(b,.75+i*.51,b,20,195+12*(i%3),i*.18,{gaps:true});
-      if(m==='leak'&&i%2===0)ray(b,i*.51,.8,.26,b,b.angle+i*.6,19);
+    for(let i=0;i<(m==='leak'?14:4+b.phase);i++){
+      volley(b,.55+i*(m==='leak'?.25:.44),b,m==='leak'?42:20+4*b.phase,210+55*(i%3),i*.16,{gaps:true});
+      if(m==='leak'&&i>=6&&i%2===0)for(const side of [-1,1])ray(b,i*.25,.64,.39,b,b.angle+side*i*.31,17);
     }
     if(m==='leak')cue(b,'burnout',3.6,.52,.1);
   }
@@ -189,23 +217,44 @@ function debris(b,start,n){
 function scheduleMonolith(b,m){
   const a=state.arena,c=patternOrigin();
   if(m==='stomp'||m==='rhythm'){
-    let s=m==='stomp'?.52:.32;
-    for(let i=0;i<(m==='stomp'?3:6);i++){wave(b,s,b,m==='stomp'||i%2===0,i);s+=m==='stomp'?.87:1.12-i*.105;}
+    let s=.24;
+    const n=m==='stomp'?5+Math.floor(gameRandom()*3):9;
+    for(let i=0;i<n;i++){wave(b,s,b,i%2===0,i,{speed:325+i*35});s+=m==='stomp'?.72:1.04-i*.093;}
   }else if(m==='wall'){
-    for(let k=0;k<2;k++)cue(b,'wall',2.75*k,.95,2.4,{horizontal:!k,reverse:gameRandom()<.5,door:gameRand(.3,.7)});
-  }else if(m==='avalanche')debris(b,0,12);
-  else{
-    const q={x:a.x+122,y:clamp(bossPrey(b).y,a.y+120,a.y+a.h-120)},to={x:a.x+a.w-122,y:q.y};
-    travel(b,-1,b,q,0,.7);cue(b,'dash',.7,1.05,.52,{origin:q,to,width:205,index:-1});
-    travel(b,-1,q,to,1.75,.52);wave(b,2.27,to,true,2);b.timer+=.6;
+    const rounds=3+Math.floor(gameRandom()*2),n=4+Math.floor(gameRandom()*4);
+    let s=0;
+    for(let k=0;k<rounds;k++){
+      const door=.5+.14*Math.sin(k*1.2);
+      for(let i=0;i<n;i++){
+        cue(b,'wall',s,.76,1.48,{horizontal:(i+k)%2===0,reverse:(i+k)%3===1,door});
+        s+=i%3===1?.13:.83;
+      }
+      s+=.72;
+    }
+  }else if(m==='avalanche'){
+    for(const [k,count] of [6,8,10,13].entries())cue(b,'blockRound',k*.88,0,.01,{round:k,count});
+    b.timer=4.35;
+  }else{
+    const n=4+Math.floor(gameRandom()*3);let from=point(b),s=0;
+    for(let i=0;i<n;i++){
+      const q={x:i%2?a.x+a.w-118:a.x+118,y:clamp(bossPrey(b).y+Math.sin(i*1.5)*a.h*.23,a.y+118,a.y+a.h-118)};
+      const to={x:2*c.x-q.x,y:q.y},run=i===n-1?.19:.27;
+      travel(b,-1,from,q,s,.36);cue(b,'dash',s+.36,.68,run,{origin:q,to,width:200,index:-1});
+      travel(b,-1,q,to,s+1.04,run);wave(b,s+1.04+run,to,i%2===0,i,{speed:400+i*35,impact:i===n-1?21:9});
+      from=to;s+=1.53;
+    }
   }
 }
 function beginEncounterMove(b,m){
-  makeScore(b);b.state=m;b.posts=null;b.angle=angleTo(b,bossPrey(b));b.charging=false;
+  makeScore(b);b.state=m;b.combo=null;b.laserGate=b.kind==='beacon'&&b.phase>=3&&['curtain','sweep','overload'].includes(m);b.posts=null;b.angle=angleTo(b,bossPrey(b));b.charging=false;
+  if(SCORED_MOVES.has(m))scheduleClassicScore(b,m);
   if(b.kind==='beacon')scheduleBeacon(b,m);
   if(b.kind==='twins')scheduleTwins(b,m);
   if(b.kind==='heart')scheduleHeart(b,m);
   if(b.kind==='monolith')scheduleMonolith(b,m);
+  if(b.phase>=3&&m==='sweep')addPatternLayer(b,'emitters');
+  if(b.phase>=3&&m==='curtain')addPatternLayer(b,'fusion');
+  if(b.phase>=2&&m==='transmission'&&b.parts[0].hp>0)addPatternLayer(b,'turret');
   b.timer=Math.max(.45,b.timer);bossCue((m==='absorb'?'pulses':m)+'Charge',b);
 }
 function finalNode(b,i,n){
@@ -218,7 +267,7 @@ function finalNode(b,i,n){
   return boundedPoint(q.x,q.y,25);
 }
 function scheduleFinal(b){
-  makeScore(b);b.state='final';const k=b.kind;
+  makeScore(b);b.combo=null;b.laserGate=false;b.state='final';const k=b.kind;
   if(k==='fractal'){
     for(let j=0;j<3;j++)for(let i=0;i<4;i++)volley(b,1+j*.76,b,8,175+40*j,j*.19,{node:i,nodes:4,square:true});
   }else if(k==='clock'){
@@ -241,7 +290,7 @@ function scheduleFinal(b){
     for(let j=0;j<3;j++)wave(b,.57+j*1.1,b,true,j);
     debris(b,.8,8);
   }
-  b.timer=FINAL_TIME[k];b.finalLength=b.timer;
+  b.timer=Math.max(FINAL_TIME[k],b.timer);b.finalLength=b.timer;
 }
 function eventOrigin(b,e){
   if(e.node!==undefined)return finalNode(b,e.node,e.nodes);
@@ -256,22 +305,33 @@ function tickScore(b,dt){
     if(body.hp>0)Object.assign(body,mixPoint(tr.from,tr.to,clamp((t-tr.start)/tr.duration,0,1)));
   }
   for(const e of b.events||[]){
-    if(t<e.start||t>e.end+dt||e.part!==undefined&&b.parts[e.part].hp<=0)continue;
-    if(e.track&&t<=e.start+e.track)e.angle=angleTo(e.origin,bossPrey(b));
+    if(e.kind==='wave'&&t<=e.end && (state.arena.w!==e.arenaW||state.arena.h!==e.arenaH||
+        state.arena.x!==e.arenaX||state.arena.y!==e.arenaY||e.part!==undefined&&t>=e.start)){
+      if(e.part!==undefined){e.requires=e.part;e.origin=point(b.parts[e.part]);delete e.part;}
+      const a=state.arena;e.reach=waveReach(a,e.origin,e.square,(b.safeSize||30)/2+22);
+      // An emitted front keeps its speed when another boss enlarges the arena.
+      e.end=e.on+(e.reach-34)/e.speed;e.arenaW=a.w;e.arenaH=a.h;e.arenaX=a.x;e.arenaY=a.y;
+      b.timer=Math.max(b.timer,e.end+.25-t);
+    }
+    if(t<e.start||t>e.end+dt||(e.part!==undefined&&b.parts[e.part].hp<=0||e.requires!==undefined&&b.parts[e.requires].hp<=0))continue;
+    tickArenaEvent(b,e,t);
+    if(e.track&&t<=e.start+e.track)e.angle=angleTo(e.origin,targetForBeat(b,e.targetBeat||0))+(e.aimOffset||0);
     if(e.kind==='orbit'){
       e.from??=b.parts.map(point);
-      const turn=Math.max(0,t-e.on)*(b.state==='binary'?2.3:.53);
-      b.parts.forEach((q,i)=>{const dest=polarPoint(e.center,e.radius,i*Math.PI+turn);
+      const turn=Math.max(0,t-e.on)*(e.wide?1.01:2.3);
+      b.parts.forEach((q,i)=>{const a=state.arena,theta=i*Math.PI+turn;
+        const dest=e.wide?{x:e.center.x+(a.w*.43)*Math.cos(theta),y:e.center.y+a.h*(.31*Math.sin(theta)+.1*Math.sin(2*theta+i))}:polarPoint(e.center,e.radius,theta);
         Object.assign(q,mixPoint(e.from[i],dest,clamp((t-e.start)/.85,0,1)));});
     }
     if(e.kind==='turretOrbit')Object.assign(b.parts[e.part],polarPoint(b,140,e.angle+Math.max(0,t-e.on)*1.55));
     if(t<e.on||e.fired)continue;
     e.fired=true;b.lastBeat=b.clock;
     const q=eventOrigin(b,e);
+    fireArenaEvent(b,e);
     if(e.kind==='volley'){
       for(let i=0;i<e.count;i++){
         if(e.gaps&&i%Math.max(4,Math.floor(e.count/3))<2)continue;
-        patternShot(b,q,e.turn+i*TAU/e.count,e.speed,5,e.color||b.color,{square:e.square??b.kind==='fractal',curve:e.curve});
+        patternShot(b,q,e.turn+(e.fan?(i/(e.count-1)-.5)*e.fan:i*TAU/e.count),e.speed,5,e.color||b.color,{square:e.square??b.kind==='fractal',curve:e.curve});
       }
     }
     if(e.kind==='repair'&&b.hp>b.repairHP-b.maxHp*.055){
@@ -290,9 +350,10 @@ function tickScore(b,dt){
 function scoreShapes(b){
   const out=[],t=b.age,a=state.arena;
   if(!a)return out;
-  function line(p,q,width,live){out.push({kind:'line',...point(p),xx:q.x,yy:q.y,width,live});}
+  const gate=b.laserGate&&b.kind==='beacon'?beaconPassage(b,t):null;
+  function line(p,q,width,live){beamSegments(out,p,q,width,live,gate,(b.safeSize||30)/2+26);}
   for(const e of b.events||[]){
-    if(t<e.start||t>e.end||e.part!==undefined&&b.parts[e.part].hp<=0)continue;
+    if(t<e.start||t>e.end||(e.part!==undefined&&b.parts[e.part].hp<=0||e.requires!==undefined&&b.parts[e.requires].hp<=0))continue;
     const live=t>=e.on,u=Math.max(0,t-e.on),q=eventOrigin(b,e);
     if(e.kind==='ray'){
       const angle=e.angle+u*(e.spin||0),len=Math.hypot(a.w,a.h)*1.1;
@@ -304,20 +365,21 @@ function scoreShapes(b){
     }else if(e.kind==='link')line(b.parts[0],b.parts[1],e.width,live);
     else if(e.kind==='dash'){
       if(!live)line(e.origin,e.to,e.width,false);
-      else {const body=e.index<0?b:b.parts[e.index];out.push({kind:'disk',...point(body),r:e.width/2,live:true,index:0});}
-    }else if(e.kind==='block')out.push({kind:'box',...point(q),r:e.r,live});
-    else if(e.kind==='wave'){
-      const r=46+u*e.speed,gap=Math.max(92,(b.safeSize||30)+55);
-      if(!e.square)out.push({kind:'arc',...point(q),r,angle:e.angle,gap:Math.max(.53,Math.min(1.3,gap/(2*r))),width:11,live});
       else{
-        const corners=[[-1,-1],[1,-1],[1,1],[-1,1]].map(([x,y])=>({x:q.x+r*x,y:q.y+r*y}));
-        for(let i=0;i<4;i++){
-          const p=corners[i],v=corners[(i+1)%4],door=(Math.round(e.angle/(Math.PI/2))+4)%4;
-          if(i===door||i===(door+2)%4){
-            const h=Math.min(.49,gap/(4*r));line(p,mixPoint(p,v,.5-h),11,live);line(mixPoint(p,v,.5+h),v,11,live);
-          }else line(p,v,11,live);
-        }
+        const frac=clamp(u/(e.end-e.on),0,1),prev=clamp((u-(b.step||1/60))/(e.end-e.on),0,1);
+        line(mixPoint(e.origin,e.to,prev),mixPoint(e.origin,e.to,frac),e.width,true);
       }
+    }else if(e.kind==='block')out.push({kind:'box',...point(q),r:e.r,live});
+    else if(e.kind==='rail'){
+      if(!live)for(let i=1;i<e.path.length;i++)line(e.path[i-1],e.path[i],4,false);
+      else if(!e.outward){
+        const prev=railPoint(e,clamp((t-e.on-(b.step||1/60))/(e.end-e.on),0,1));
+        line(prev,railPoint(e,u/(e.end-e.on)),b.size,true);
+      }
+    }else if(e.kind==='dial'||e.kind==='faultZone'){
+      out.push({kind:e.kind==='dial'?'disk':'box',...point(q),r:e.r,live,index:e.index,progress:clamp((t-e.start)/(e.on-e.start),0,1)});
+    }else if(e.kind==='wave'){
+      waveShapes(out,e,q,u,live);
     }else if(e.kind==='wall'){
       const n=e.horizontal?11:17,span=e.horizontal?a.h:a.w;
       const progress=clamp(u/(e.end-e.on),0,1),d=e.reverse?1-progress:progress;

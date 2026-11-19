@@ -1,5 +1,5 @@
 'use strict';
-const ENEMY_NAMES={tackler:'Tacleador',splitter:'Divisor',cannon:'Cañón',frostMage:'Hechicero helado',normal:'Normal',fast:'Veloz',tank:'Tanque',shooter:'Tirador',invoker:'Invocador',teleporter:'Teletransportador',kamikaze:'Kamikaze',dardante:'Dardante',juggernaut:'Juggernaut',...BOSS_NAMES};
+const ENEMY_NAMES={pulseRing:'Anillo pulsante',erratic:'Cuadrado errático',twinCannon:'Cañón gemelo',rebound:'Círculo rebotador',tackler:'Tacleador',splitter:'Divisor',cannon:'Cañón',frostMage:'Hechicero helado',normal:'Normal',fast:'Veloz',tank:'Tanque',shooter:'Tirador',invoker:'Invocador',teleporter:'Teletransportador',kamikaze:'Kamikaze',dardante:'Dardante',juggernaut:'Juggernaut',...BOSS_NAMES};
 let netSession=null, queuedActions=[], inventoryChoice=null;
 const multiplayerServer = String(window.MULTIPLAYER_SERVER_URL || '').replace(/\/$/, '');
 function handleNetKey(e){
@@ -71,7 +71,7 @@ function initializeMenu(){
   }
   el('sandbox').onclick=()=>{
     rules={difficulty:1,xp:1,disabled:[],color:'#4df3ff'};
-    restart();Object.assign(lab,{god:false,speed:1,debug:false,bossId:0});lab.group.clear();sandboxEnemy='normal';start('sandbox');sandboxHint();
+    restart();Object.assign(lab,{god:false,speed:1,debug:false,hitboxes:false,spawnWaves:false,bossId:0});lab.group.clear();sandboxEnemy='normal';start('sandbox');sandboxHint();
   };
   el('labTool').onclick=()=>openSandboxPanel('lab');
   el('sandboxClose').onclick=closeSandboxPanel;
@@ -113,12 +113,13 @@ function initializeMenu(){
     try{
       const r=await roomRequest(creating?'create':'join',{code,settings:multiplayerSettings,profile});
       resetPresentation();
-      rules={...r.settings,color:profile.color};state=r.state;netSession={code:r.code,token:r.token};start('online');
+      rules={...r.settings,color:profile.color};state=r.state;netSession={code:r.code,token:r.token,shotFormat:1};start('online');
       const session=netSession;
       let socket=null,live=false,lastFrameSent=0,seen=0,nextPing=0,nextAttempt=0,lastStateAt=0;
       let fallbackBusy=0,lastFallback=-Infinity;
       function accept(next){
         if(session!==netSession || next.time<state.time || (next.ack??0)<(state.ack??0))return;
+        if(next.shotTable){next.enemyBullets=unpackHostileShots(next.shotTable);delete next.shotTable;}
         const now=performance.now();
         lastStateAt=now;
         prepareMotion(state,next,now);

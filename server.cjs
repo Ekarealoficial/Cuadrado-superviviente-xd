@@ -3,6 +3,17 @@ const fs=require('node:fs');
 const path=require('node:path');
 const crypto=require('node:crypto');
 const engine=require('./room-engine.cjs');
+const {packHostileShots}=require('./src/shot-wire.js');
+function clientSnapshot(room,token,compact){
+  const snapshot=room.game.snapshot(token);
+  if(compact&&snapshot.enemyBullets.length>=64){
+    if(room.shotTime!==snapshot.time){
+      room.packedShots=packHostileShots(snapshot.enemyBullets);room.shotTime=snapshot.time;
+    }
+    snapshot.shotTable=room.packedShots;delete snapshot.enemyBullets;
+  }
+  return snapshot;
+}
 const {WebSocketServer,WebSocket}=require('ws');
 const rooms=new Map();
 const sockets=new Map();
@@ -14,7 +25,7 @@ function gameWire(key,value){
   if(key==='events' && Array.isArray(value))return value.filter(e=>e.kind!=='volley' && e.start<=this.age+.1 && e.end>=this.age);
   return value;
 }
-const types='tackler splitter cannon frostMage normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss worm singular fractal clock crown beacon twins heart monolith'.split(' ');
+const types='pulseRing erratic twinCannon rebound tackler splitter cannon frostMage normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss worm singular fractal clock crown beacon twins heart monolith'.split(' ');
 const rates=[0.5,1,1.5,2,3];
 function requireValue(ok,message,status=400){if(!ok)throw Object.assign(new Error(message),{status});}
 function settings(s) {
@@ -119,7 +130,7 @@ const server=http.createServer(async(req,res)=>{
     requireValue(action==='input'||action==='step','No encontrado',404);
     room.members.set(data.token,Date.now());
     submitInput(room,data.token,data);
-    return json(200,action==='input'?{}:room.game.snapshot(data.token));
+    return json(200,action==='input'?{}:clientSnapshot(room,data.token,data.shotFormat===1));
   }catch(e){json(e.status||500,{error:e.status?e.message:'Error del servidor'});}
 });
 function submitInput(room,token,data){
@@ -138,7 +149,7 @@ server.on('upgrade',(req,socket,head)=>{
   wsServer.handleUpgrade(req,socket,head,ws=>wsServer.emit('connection',ws));
 });
 wsServer.on('connection',ws=>{
-  let room,token,timer,serial=0,seen=0;
+  let room,token,timer,serial=0,seen=0,compact=false;
   const authTimer=setTimeout(()=>ws.close(1008),5000);
   ws.on('error',()=>ws.terminate());
   ws.on('close',()=>{
@@ -149,7 +160,7 @@ wsServer.on('connection',ws=>{
     try{
       const data=JSON.parse(raw);
       if(!room){
-        room=rooms.get(data.code); token=data.token;
+        room=rooms.get(data.code);token=data.token;compact=data.shotFormat===1;
         if(!room?.members.has(token)){ws.close(1008);return;}
         clearTimeout(authTimer);
         sockets.get(token)?.close(1000);
@@ -158,7 +169,7 @@ wsServer.on('connection',ws=>{
         timer=setInterval(()=>{
           if(!room.members.has(token)||!rooms.has(room.code)){ws.close(1000);return;}
           if(ws.readyState!==WebSocket.OPEN || ws.bufferedAmount>32768 || serial-seen>=8)return;
-          const state=room.game.snapshot(token);
+          const state=clientSnapshot(room,token,compact);
           ws.send(JSON.stringify({type:'state',serial:++serial,state},gameWire));
         },40);
         return;
