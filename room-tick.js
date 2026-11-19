@@ -3,7 +3,7 @@
   rules = settings;
   configureCardUpgrades();
   const world = newState();
-  const shared = 'bossCues bossCueId cardRelics cosmicZones extraBosses firstBossDefeatAt iceZones stopStarted stopUntil time enemies enemyBullets enemyDarts orbs potions spawnTimer potionTimer boss bossEncounters bossActive arena bossBombs bossLasers bossLaserActive bossLaserTimer bossSpawnTimer bossCycle bossOmen enemyHpMult spawnRateMult adaptiveCheckTimer'.split(' ');
+  const shared = 'encounterRoster nextBossId groupSize bossCues bossCueId cardRelics remnants cosmicZones extraBosses firstBossDefeatAt iceZones stopStarted stopUntil time enemies enemyBullets enemyDarts orbs potions spawnTimer potionTimer boss bossEncounters bossActive arena bossBombs bossLasers bossLaserActive bossLaserTimer bossSpawnTimer bossCycle bossOmen enemyHpMult spawnRateMult adaptiveCheckTimer'.split(' ');
   const party = new Map();
   function add(id, profile) {
     const personal = newState();
@@ -18,13 +18,14 @@
   function tick(dt) {
     for(const group of [world.enemies,world.enemyBullets,world.enemyDarts])
       for(const e of group)rememberPosition(e,world.time);
-    if(world.boss){
-      for(const piece of world.boss.pieces||[])for(const part of piece.parts)rememberPosition(part,world.time);
-      rememberPosition(world.boss,world.time);
-      for(const ball of world.boss.balls)rememberPosition(ball,world.time);
-      for(const planet of world.boss.planets||[])rememberPosition(planet,world.time);
+    for(const boss of [world.boss,...world.extraBosses].filter(Boolean)){
+      for(const piece of boss.pieces||[])for(const part of piece.parts)rememberPosition(part,world.time);
+      rememberPosition(boss,world.time);
+      for(const ball of boss.balls)rememberPosition(ball,world.time);
+      for(const planet of boss.planets||[])rememberPosition(planet,world.time);
     }
     const ready = [...party.values()].filter(m=>!m.state.over);
+    roomTargets=ready.map(m=>m.state.player);
     const focus = ready[Math.floor(world.time/3)%ready.length];
     for (const member of new Set([focus,...party.values()])) {
       if (!member) continue;
@@ -80,7 +81,8 @@
       update(dt,member===focus,commands);
       // The focus advances boss AI once. Its active attacks can hit every player.
       if(world.stopUntil<=world.time && world.boss && member!==focus && !state.over && state.player.invuln<=0){
-        const p=state.player,b=world.boss;
+        const p=state.player;
+        for(const b of livingBosses()){
         const near=(object,radius)=>Math.hypot(p.x-object.x,p.y-object.y)<radius;
         if(b.pieces)wormContact(b);
         for(const ball of b.balls)blockBossBall(ball);
@@ -88,10 +90,11 @@
         else if(b.balls.some(ball=>ball.state==='flying' && visibleContact(ball,p,ball.r+p.size/2))
           || world.bossBombs.some(bomb=>bomb.exploded && bomb.fadeTimer===0 && near(bomb,100))
           || world.bossLasers.some(laser=>laser.state==='active' && laserHits(p.x,p.y,p.size/2,laser.x,laser.y,laser.angle,laser.width,3000)))damagePlayer(1);
+        }
       }
       if(world.arena) {
         const a=world.arena,p=state.player;
-        p.x=clamp(p.x,a.x+15,a.x+a.w-15); p.y=clamp(p.y,a.y+15,a.y+a.h-15);
+        fitPlayerInArena(p,a);
       }
     }
     if(settings.pvp && world.stopUntil<=world.time) for(const attacker of party.values()) {
@@ -132,6 +135,7 @@
         const s=m.state, p=s.player;
         return {...m.profile,netId:wireId(m),x:p.x,y:p.y,size:p.size,angle:p.angle,
           vx:p.vx,vy:p.vy,backShots:p.backShots,dashTimer:p.dashTimer,invuln:p.invuln,
+          scalePulse:p.scalePulse,geometryFX:p.geometryFX,kinetic:p.kinetic,movingTime:p.movingTime,crush:p.crush,anchor:p.anchor,army:p.army&&{n:p.army.n},needles:p.needles,
           pulses:p.pulses?.filter(hit=>world.time-hit.born<.7),fury:p.fury,missingHealth:1-s.halfHearts/s.maxHalfHearts,beam:p.beam,plasma:p.plasma,cast:p.cast,iceUntil:p.iceUntil,field:p.field,burst:p.burst,impact:p.impact,blades:p.blades,echoes:p.echoes,
           drones:s.drones,shields:s.shields,darts:s.darts.map(({x,y,angle,type})=>({x,y,angle,type})),
           laserCharging:s.laserCharging,laserChargeTime:s.laserChargeTime,lasersFiring:s.lasersFiring,over:s.over};

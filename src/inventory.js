@@ -18,7 +18,7 @@ function drawInventory() {
   ctx.font = '16px system-ui, sans-serif';
   const hovered=state.inventoryCardRects.find(r=>mouse.x>=r.x && mouse.x<=r.x+r.w && mouse.y>=r.y && mouse.y<=r.y+r.h);
   const detail=SPECIAL_CARDS.find(c=>c.id===hovered?.id);
-  ctx.fillText(detail?.desc || 'Selecciona una carta y luego un slot. Clic derecho para quitarla.',W/2,120,W-36);
+  wrapText(detail?.desc || 'Selecciona una carta y luego una ranura. Clic derecho para quitarla.',W/2,104,Math.max(220,W-54),17);
   ctx.restore();
 
   const availCards = SPECIAL_CARDS.filter(c => state.specialCards[c.id] && state.specialCards[c.id].totalCards > 0);

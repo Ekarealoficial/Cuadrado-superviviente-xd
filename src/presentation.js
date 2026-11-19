@@ -28,10 +28,11 @@ function prepareMotion(old,next,now){
   for(const group of ['peers','enemies','bullets','enemyBullets','enemyDarts','orbs','potions']){
     (next[group]||[]).forEach((e,i)=>track(group,e,i));
   }
-  if(next.boss){
-    for(const piece of next.boss.pieces||[])for(const seg of piece.parts)track('worm',seg,seg.segmentId);
-    track('boss',next.boss,0);
-    next.boss.balls.forEach((e,i)=>track('ball',e,i));
+  for(const b of [next.boss,...(next.extraBosses||[])].filter(Boolean)){
+    const key='boss'+b.id;
+    for(const piece of b.pieces||[])for(const seg of piece.parts)track(key+'segment',seg,seg.segmentId);
+    track(key,b,0);b.balls.forEach((e,i)=>track(key+'ball',e,i));
+    for(const [i,q] of (b.planets||[]).entries())track(key+'planet',q,i);
   }
   lastPositions=positions;
   previewLasers=previewLasers.filter(l=>l.commandId>(next.ack ?? 0));
@@ -54,10 +55,7 @@ function resetPresentation(){
   unconfirmedTime=0;
 }
 function clampToArena(p,arena){
-  if(!arena)return;
-  const h=p.size/2;
-  p.x=clamp(p.x,arena.x+h,arena.x+arena.w-h);
-  p.y=clamp(p.y,arena.y+h,arena.y+arena.h-h);
+  fitPlayerInArena(p,arena);
 }
 function reconcilePlayer(old,next){
   const p=next.player, previous=old.player;
@@ -131,7 +129,7 @@ function predictLocalFrame(now,dt){
       const travel=Math.hypot(b.x-b.prevX,b.y-b.prevY);
       const targets=enemyGrid.query(b.x,b.y,45+b.r+travel);
       if(state.boss){
-        targets.push(...bossTargets(),...state.boss.balls.filter(ball=>ball.state!=='attached'));
+        targets.push(...bossTargets(),...livingBosses().flatMap(b=>b.balls.filter(ball=>ball.state!=='attached')));
       }
       if(targets.some(e=>bulletEntry(b,e,(e.size?e.size/2:e.r)+b.r)!==Infinity))b.life=0;
     }

@@ -113,7 +113,7 @@ function render() {
   }
 
   presentBossCues();
-  drawCosmicWorld();
+  drawCosmicWorld();drawBossRemnants();
   drawExpansionWorld();
   renderEntities0();
   renderEntities1();
@@ -126,7 +126,7 @@ function render() {
   renderEntities8();
   for(const body of [p,...(state.peers||[])]){
     ctx.save();
-    drawExpansionCast(body);
+    drawGeometryCards(body);drawExpansionCast(body);
     drawCardFeedback(body);
     if(body.field)drawGravityField(body.field);
     drawCombatPulses(body);
@@ -211,6 +211,10 @@ function drawPlayerBody(p) {
     const blink = p.invuln > 0 && Math.floor(p.invuln * 18) % 2 === 0;
     ctx.save();
     ctx.translate(p.x, p.y);
+    if(p.scalePulse){
+      const t=clamp((state.time-p.scalePulse.born)/.25,0,1);
+      const k=1+(p.scalePulse.kind==='mini'?-.24:.24)*Math.sin(Math.PI*t);ctx.scale(k,k);
+    }
     ctx.save();
     ctx.rotate(p.angle);
     ctx.shadowColor = p.color || rules.color;
@@ -225,6 +229,7 @@ function drawPlayerBody(p) {
     ctx.shadowColor = p.color || rules.color;
     ctx.shadowBlur = 22;
     ctx.fillStyle = blink ? 'rgba(255,255,255,0.25)' : (p.color || rules.color);
+    if(p.size<10){ctx.strokeStyle=p.color||rules.color;ctx.lineWidth=1;ctx.strokeRect(-5,-5,10,10);}
     const h = p.size / 2;
     ctx.fillRect(-h, -h, p.size, p.size);
     ctx.shadowBlur = 0;
@@ -411,6 +416,7 @@ function renderEntities1() {
  const p=state.player;
   // Boss
   for (const b of livingBosses()) {
+    if(PATTERN_BOSSES[b.kind]){drawPatternBoss(b);continue;}
     if(b.pieces){drawWorm(b);continue;}
     if(b.kind==='singular'){drawSingular(b);continue;}
     for (const ball of b.balls) {
@@ -545,6 +551,7 @@ function renderEntities2() {
   // Balas jugador
   ctx.save();
   for (const b of (playMode==='online' && previewShots.length ? state.bullets.concat(previewShots) : state.bullets)) {
+    if(b.style||b.persist){const t=.012+.004*Math.log1p(b.persist||0);ctx.strokeStyle=SHOT_INK[b.style]||'#8faeda';ctx.lineWidth=Math.max(1,b.r*.8);ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.lineTo(b.x-b.vx*t,b.y-b.vy*t);ctx.stroke();}
     if (b.dupli > 0) { ctx.shadowColor = '#ff4dd2'; ctx.shadowBlur = 16; ctx.fillStyle = '#ffd1f0'; }
     else if (b.homing) { ctx.shadowColor = '#a855f7'; ctx.shadowBlur = 16; ctx.fillStyle = '#e9d5ff'; }
     else if (b.drone) { ctx.shadowColor = '#4dff88'; ctx.shadowBlur = 14; ctx.fillStyle = '#d9ffe3'; }
@@ -580,6 +587,7 @@ function renderEntities2() {
 const enemyShotSprites=new Map();
 function renderEnemyShots(){
   for(const shot of state.enemyBullets){
+    if(Math.abs(shot.x-state.cam.x)>W/(2*state.cam.zoom)+shot.r+15 || Math.abs(shot.y-state.cam.y)>H/(2*state.cam.zoom)+shot.r+15)continue;
     const color=shot.tint||'#ffd0a8',key=color+'-'+shot.r;
     let sprite=enemyShotSprites.get(key);
     if(!sprite){
@@ -595,7 +603,9 @@ function renderEnemyShots(){
       brush.arc(half-shot.r*.22,half-shot.r*.22,shot.r*.38,0,TAU);brush.fill();
       enemyShotSprites.set(key,sprite);
     }
-    ctx.drawImage(sprite,shot.x-sprite.width/2,shot.y-sprite.height/2);
+    if(shot.square){ctx.fillStyle=color;ctx.fillRect(shot.x-shot.r,shot.y-shot.r,2*shot.r,2*shot.r);continue;}
+    if(shot.planet)for(let i=5;i>0;i--){ctx.globalAlpha=(6-i)*.09;disk(shot.x-shot.vx*i*.019,shot.y-shot.vy*i*.019,shot.r*(1-i*.12),color);}
+    ctx.globalAlpha=1;ctx.drawImage(sprite,shot.x-sprite.width/2,shot.y-sprite.height/2);
   }
 }
 function renderEntities4(view=state,p=state.player) {

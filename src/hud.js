@@ -187,7 +187,8 @@ function drawHUD() {
     ctx.restore();
   }
 
-  if (state.boss) {
+  if(state.extraBosses?.length)drawGroupBars(W/2-210,97,420);
+  else if (state.boss) {
     const worm=state.boss.kind==='worm',singular=state.boss.kind==='singular';
     const bw = Math.min(W - 100, 600);
     const bx = (W - bw) / 2;

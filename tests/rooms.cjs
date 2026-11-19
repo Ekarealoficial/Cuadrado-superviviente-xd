@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const engine=require('../room-engine.cjs');
-const disabled='normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss singular'.split(' ');
+const disabled='normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss singular fractal clock crown'.split(' ');
 for(const pvp of [false,true])test('Combate compartido con PvP '+pvp,()=>{
   const game=engine({difficulty:1,xp:1,pvp,disabled});
   game.add('a',{name:'Azul',color:'#3399ff'});
@@ -97,4 +97,35 @@ test('Dos jugadores ven las singularidades del aviso y las reliquias tienen un s
  a.cardRelics.push({x:a.player.x,y:a.player.y});r.tick(1/30);
  const rewards=['a','b'].map(id=>r.snapshot(id).bonusPicks).sort();
  assert.deepEqual(rewards,[0,1]);assert.equal(r.snapshot('b').cardRelics.length,0);
+});
+test('Los dos integrantes de una dupla dañan a los dos jugadores y mueren de forma independiente',()=>{
+ const r=engine({difficulty:3,xp:1,disabled:[...disabled.filter(id=>id!=='fractal' && id!=='clock'),'worm'],pvp:false});
+ for(const id of ['a','b']){r.add(id,{name:id});r.snapshot(id).player.invuln=10000;}
+ function until(condition,limit=2300){for(let i=0;i<limit;i++){if(condition(r.snapshot('a')))return;r.tick(1/30);}assert.fail('El encuentro no avanzó');}
+ function finish(b){b.hp=.01;b.venomTime=.5;b.venomDps=10;}
+ for(let i=0;i<2;i++){until(s=>s.boss);finish(r.snapshot('a').boss);until(s=>!s.boss);}
+ until(s=>s.extraBosses.length===1);
+ const s=r.snapshot('a'),group=[s.boss,...s.extraBosses];
+ assert.equal(s.bossEncounters,3);assert.equal(s.groupSize,2);assert.equal(group[0].maxHp,group[1].maxHp);
+ for(const b of group){
+   const other=group.find(o=>o!==b);other.state='recover';other.timer=5;
+   Object.assign(b,{state:b.kind==='fractal'?'cuts':'hands',age:1,timer:2,beat:1,angle:0,vertical:true,offset:100});
+   const x=b.kind==='fractal'?s.arena.x+100:b.x+100*Math.cos(.18),y=b.kind==='fractal'?s.arena.y+140:b.y+100*Math.sin(.18);
+   const hp=['a','b'].map(id=>r.snapshot(id).halfHearts);
+   for(const id of ['a','b'])Object.assign(r.snapshot(id).player,{x,y,invuln:0});
+   r.tick(1/30);
+   for(const [i,id] of ['a','b'].entries())assert.equal(r.snapshot(id).halfHearts,hp[i]-2);
+ }
+ finish(group[0]);until(s=>s.extraBosses.length===0);assert.ok(r.snapshot('b').arena);
+ finish(group[1]);until(s=>!s.boss);assert.equal(r.snapshot('b').arena,null);
+});
+test('El ancla de un jugador suspende las balas compartidas y devuelve proyectiles visibles a ambos',()=>{
+ const r=engine({difficulty:1,xp:1,disabled,pvp:false});
+ for(const id of ['a','b'])r.add(id,{name:id});
+ const a=r.snapshot('a');a.slots[0]='anchor';Object.assign(a.specialCards.anchor,{totalCards:1,charges:1,maxCharges:1});
+ a.enemyBullets.push({x:40,y:0,vx:-30,vy:0,r:6,life:.1});
+ r.input('a',{},[{kind:'slot',i:0}]);r.tick(1/30);
+ assert.equal(r.snapshot('b').peers[0].anchor.held.length,1);assert.equal(r.snapshot('b').enemyBullets.length,0);
+ for(let i=0;i<121;i++)r.tick(1/30);
+ assert.ok(r.snapshot('b').bullets.some(s=>s.style==='anchor'&&s.vx>0));assert.equal(r.snapshot('a').player.anchor,null);
 });

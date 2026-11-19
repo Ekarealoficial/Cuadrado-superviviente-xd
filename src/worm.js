@@ -54,7 +54,7 @@ function steerWorm(piece,target,step){
 }
 function wormWindup(piece,random){
   const h=piece.parts[0],a=state.arena;
-  let angle=random?gameRand(0,TAU):Math.atan2(state.player.y-h.y,state.player.x-h.x);
+  let angle=random?gameRand(0,TAU):Math.atan2(bossPrey({id:piece.bossId||1}).y-h.y,bossPrey({id:piece.bossId||1}).x-h.x);
   if(random){
     if((h.x<a.x+100 && Math.cos(angle)<0)||(h.x>a.x+a.w-100 && Math.cos(angle)>0))angle=Math.PI-angle;
     if((h.y<a.y+100 && Math.sin(angle)<0)||(h.y>a.y+a.h-100 && Math.sin(angle)>0))angle=-angle;
@@ -119,12 +119,12 @@ function updateWorm(b,dt){
     addFloat(state.player.x,state.player.y-70,'¡ESTAMPIDA ESMERALDA!',b.color);
     state.shake=18;
   }
-  for(const piece of b.pieces)updateWormPiece(piece,b.phase,dt,a);
+  for(const piece of b.pieces){piece.bossId=b.id;updateWormPiece(piece,b.phase,dt,a);}
   const head=b.pieces[0].parts[0];b.x=head.x;b.y=head.y;
   wormContact(b);
 }
 function updateWormPiece(piece,phase,dt,a){
-  const h=piece.parts[0],p=state.player;
+  const h=piece.parts[0],p=bossPrey({id:piece.bossId||1});
   for(const s of piece.parts){s.prevX=s.x;s.prevY=s.y;}
   const travel=moveTime(h,dt);
   piece.wave+=travel;piece.timer-=dt;
@@ -146,7 +146,7 @@ function updateWormPiece(piece,phase,dt,a){
           const attack=Math.floor(gameRandom()*3);
           if(attack===0){bossCue('wormZig',h);piece.mode='zigzag';piece.timer=3.5;}
           if(attack===1)wormWindup(piece,false);
-          if(attack===2)startWormLines(piece);
+          if(attack===2){if(canCoverArena(livingBosses().find(b=>b.id===piece.bossId)))startWormLines(piece);else wormWindup(piece,false);}
           speed=0;
         }
       }

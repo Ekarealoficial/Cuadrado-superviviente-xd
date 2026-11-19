@@ -3,9 +3,11 @@ function drawBossOmen(){
   const omen=state.bossOmen;
   if(!omen)return;
   const age=Math.max(0,state.time-omen.start);
-  const worm=omen.kind==='worm',color=worm?'#46ffa5':omen.kind==='singular'?'#ffd265':'#ff477f';
+  const worm=(omen.group||[omen.kind]).includes('worm'),color=worm?'#46ffa5':omen.kind==='singular'?'#ffd265':'#ff477f';
   ctx.save();
-  if(age<2.1 && omen.kind!=='singular'){
+  const group=omen.group||[omen.kind];
+  drawGroupOmen(group,age);
+  if(age<2.1 && (group.includes('boss')||group.includes('worm'))){
     const t=age/2.1,x=-100+(W+200)*t,y=H*(.48-.13*Math.sin(t*Math.PI));
     ctx.shadowColor=color;ctx.shadowBlur=15;
     if(worm){
@@ -22,12 +24,12 @@ function drawBossOmen(){
       ctx.fillStyle='#ffe3ef';ctx.beginPath();ctx.arc(x-8,y-8,7,0,TAU);ctx.fill();
     }
   }
-  const label=BOSS_NAMES[omen.kind]+' · '+Math.ceil(Math.max(0,state.bossSpawnTimer/rules.difficulty))+' s';
+  const label=(group.length>1?(group.length===2?'ENCUENTRO DOBLE':group.length===3?'ENCUENTRO TRIPLE':'ENCUENTRO DE '+group.length+' JEFES')+' · ':'')+group.map(id=>BOSS_NAMES[id]).join(' + ')+' · '+Math.ceil(Math.max(0,state.bossSpawnTimer/rules.difficulty))+' s';
   ctx.globalAlpha=.95;ctx.textAlign='center';ctx.font='bold 13px system-ui';
   ctx.fillStyle='#10101b';ctx.shadowBlur=0;
   const top=mobileDevice?51:64,w=ctx.measureText(label).width+24;
   ctx.fillRect((W-w)/2,top,w,23);ctx.fillStyle=color;ctx.fillRect((W-w)/2,top,3,23);
-  ctx.fillText(label,W/2,top+16);ctx.restore();
+  ctx.fillText(label,W/2,top+16,W-24);ctx.restore();
 }
 
 function drawWorm(b){

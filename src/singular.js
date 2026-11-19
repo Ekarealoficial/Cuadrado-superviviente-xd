@@ -33,7 +33,7 @@ function emitMassWave(b){
     const x=vertical?a.x+(side>0?a.w:0)+side:gameRand(a.x,a.x+a.w);
     const y=vertical?gameRand(a.y,a.y+a.h):a.y+(side>0?a.h:0)+side;
     const speed=Math.hypot(x-b.x,y-b.y)/gameRand(1.6,3.4);
-    cosmicShot(x,y,Math.atan2(b.y-y,b.x-x),speed,randomTier(),{inward:b.id,life:5});
+    cosmicShot(x,y,Math.atan2(b.y-y,b.x-x),speed,randomTier(),{source:b.id,inward:b.id,life:5});
   }
 }
 function advanceInward(shot,dt){
@@ -43,36 +43,40 @@ function advanceInward(shot,dt){
   if(dist<boss.size/2+speed*dt){boss.absorbed.push(shot.damage);return true;}
   shot.vx=dx/dist*speed;shot.vy=dy/dist*speed;return false;
 }
-function solarVolley(){
-  const p=state.player;bossCue('solarCharge',p);
+function solarVolley(source){
+  const p=source?bossPrey({id:source}):state.player;bossCue('solarCharge',p);
   for(let i=0;i<3;i++){
     const a=i*TAU/3+gameRand(-.6,.6),r=i?gameRand(115,200):0;
-    state.cosmicZones.push({type:'solar',x:p.x+r*Math.cos(a),y:p.y+r*Math.sin(a),
+    state.cosmicZones.push({type:'solar',source,x:p.x+r*Math.cos(a),y:p.y+r*Math.sin(a),
       angle:gameRand(0,TAU),age:0,windup:.68,duration:.98});
   }
 }
-function summonWells(n){
-  const p=state.player,start=gameRand(0,TAU);bossCue('voidWell',p);
+function summonWells(n,source){
+  const p=source?bossPrey({id:source}):state.player,start=gameRand(0,TAU);bossCue('voidWell',p);
   for(let i=0;i<n;i++){
     const a=start+i*TAU/n,r=gameRand(70,145);
-    state.cosmicZones.push({type:'well',x:p.x+r*Math.cos(a),y:p.y+r*Math.sin(a),r:158,age:0,windup:.52,duration:3.15});
+    state.cosmicZones.push({type:'well',source,off:3.15,x:p.x+r*Math.cos(a),y:p.y+r*Math.sin(a),r:158,age:0,windup:.52,duration:3.8});
   }
 }
 function blinkBeam(b){
-  bossCue('voidBlink',b);Object.assign(b,arenaSpot(230));
-  const a=aimAtPlayer(b.x,b.y),dx=Math.cos(a),dy=Math.sin(a),length=Math.hypot(state.arena.w,state.arena.h);
+  b.state='compress';b.timer=.15;bossCue('voidBlink',b);
+}
+function openBeam(b){
+  Object.assign(b,arenaSpot(230));bossCue('beamCharge',b);
+  const target=bossPrey(b),a=Math.atan2(target.y-b.y,target.x-b.x),dx=Math.cos(a),dy=Math.sin(a),length=Math.hypot(state.arena.w,state.arena.h);
   const points=[{x:b.x,y:b.y}];
-  const targetDistance=Math.hypot(b.x-state.player.x,b.y-state.player.y);
+  const targetDistance=Math.hypot(b.x-target.x,b.y-target.y);
   for(let d=120;d<length+160;d+=150){
     const bend=gameRand(-80,80)*clamp(Math.abs(targetDistance-d)/220,0,1);points.push({x:b.x+d*dx-bend*dy,y:b.y+d*dy+bend*dx});
   }
-  state.cosmicZones.push({type:'beam',points,width:100,age:0,windup:.48,duration:.86});
-  b.state='blink';b.timer=.99;b.remaining--;
+  state.cosmicZones.push({type:'beam',source:b.id,points,width:100,age:0,windup:.48,off:.86,duration:1.08});
+  b.state='blink';b.timer=1.12;b.remaining--;
 }
 function startSingularAttack(b,attack){
   if(attack==='attract'){incomingMass(b);return;}
+  if(attack==='blink' && !canCoverArena(b)){b.state='drift';b.timer=.32;b.deck.push('blink');return;}
   if(attack==='blink'){b.remaining=4+Math.floor(gameRandom()*3);blinkBeam(b);return;}
-  if(attack==='solar'){solarVolley();b.state='solar';b.timer=.95;return;}
+  if(attack==='solar'){solarVolley(b.id);b.state='solar';b.timer=.95;return;}
   bossCue('lunarAim',b);b.state='lunar';b.timer=.85;
   for(const planet of b.planets)planet.moons=Array.from({length:4},randomTier);
 }
@@ -81,7 +85,7 @@ function startSingularFinal(b){
   finalCredit.set(b,state);addPlanets(b);
   for(const planet of b.planets){
     cosmicShot(planet.x,planet.y,aimAtPlayer(planet.x,planet.y),530,3,
-      {tint:planet.tint,r:planet.r+4,planet:true});
+      {tint:planet.tint,r:planet.r+4,planet:true,source:b.id});
   }
   b.planets=[];bossCue('starCollapse',b);state.shake=Math.max(10,state.shake);
 }
@@ -91,10 +95,12 @@ function updateSingular(b,dt){
     b.burstCd-=dt;
     if(b.burstCd<=0){
       b.burstCd=.12;
-      for(let i=0;i<4;i++)cosmicShot(b.x,b.y,gameRand(0,TAU),gameRand(240,540),randomTier());
+      for(let i=0;i<4;i++)cosmicShot(b.x,b.y,gameRand(0,TAU),gameRand(240,540),randomTier(),{source:b.id});
     }
     if(b.timer<=0){
-      bossCue('starNova',b);state.cosmicZones.push({type:'nova',x:b.x,y:b.y,r:165,age:0,windup:0,duration:.32});
+      state.enemyBullets=state.enemyBullets.filter(s=>s.source!==b.id);
+      state.cosmicZones=state.cosmicZones.filter(z=>z.source!==b.id);
+      bossCue('starNova',b);state.cosmicZones.push({type:'nova',x:b.x,y:b.y,r:310,age:0,windup:0,duration:.82});
       const active=state;state=finalCredit.get(b)||active;killBoss(b,true);state=active;
     }
     return;
@@ -108,15 +114,16 @@ function updateSingular(b,dt){
   }
   if(b.phase===3){
     b.ambient-=dt;
-    if(b.ambient<=0){solarVolley();summonWells(1);b.ambient=3.8;}
+    if(b.ambient<=0){solarVolley(b.id);summonWells(1,b.id);b.ambient=3.8;}
   }
   b.trailCd=(b.trailCd||0)-dt;
   if(b.trailCd<=0){
     b.trailCd=.09;b.trail.push({x:b.x+gameRand(-18,18),y:b.y+gameRand(-18,18),t:b.orbitTime});
     if(b.trail.length>17)b.trail.shift();
   }
+  if(b.state==='compress'){if(b.timer<=0)openBeam(b);return;}
   if(b.state==='drift'){
-    const t=b.orbitTime,p=state.player,a=Math.atan2(p.y-b.y,p.x-b.x)+.9*Math.sin(t*1.3);
+    const t=b.orbitTime,p=bossPrey(b),a=Math.atan2(p.y-b.y,p.x-b.x)+.9*Math.sin(t*1.3);
     b.x=clamp(b.x+Math.cos(a)*125*moveTime(b,dt),state.arena.x+b.size/2,state.arena.x+state.arena.w-b.size/2);
     b.y=clamp(b.y+Math.sin(a)*125*moveTime(b,dt),state.arena.y+b.size/2,state.arena.y+state.arena.h-b.size/2);
     if(b.timer<=0){
@@ -135,7 +142,7 @@ function updateSingular(b,dt){
   }
   if(b.timer>0)return;
   if(b.state==='repel'){
-    for(const tier of b.absorbed)cosmicShot(b.x,b.y,gameRand(0,TAU),gameRand(290,520),tier);
+    for(const tier of b.absorbed)cosmicShot(b.x,b.y,gameRand(0,TAU),gameRand(290,520),tier,{source:b.id});
     b.absorbed=[];state.shake=Math.max(10,state.shake);bossCue('massEject',b);
   }else if(b.state==='blink' && b.remaining){blinkBeam(b);return;}
   else if(b.state==='lunar'){
@@ -143,7 +150,7 @@ function updateSingular(b,dt){
     for(const planet of b.planets){
       for(const [i,tier] of planet.moons.entries()){
         const pos=moonPosition(planet,i,b.orbitTime);
-        cosmicShot(pos.x,pos.y,aimAtPlayer(pos.x,pos.y)+(i-1.5)*.065,370+40*tier,tier,{tint:planet.tint});
+        cosmicShot(pos.x,pos.y,aimAtPlayer(pos.x,pos.y)+(i-1.5)*.065,370+40*tier,tier,{tint:planet.tint,source:b.id});
       }
       planet.moons=[];
     }
@@ -181,7 +188,7 @@ function cosmicContact(z,p){
 }
 function pullIntoWells(p,dt,walls){
   for(const z of state.cosmicZones||[]){
-    if(z.type!=='well'||z.age<z.windup)continue;
+    if(z.type!=='well'||z.age<z.windup||z.age>=z.off)continue;
     const dx=z.x-p.x,dy=z.y-p.y,d=Math.hypot(dx,dy);
     if(d>0 && d<z.r){const pull=Math.min(d,dt*195*(1-d/z.r))/d;moveWithWalls(p,dx*pull,dy*pull,walls);}
   }
@@ -191,13 +198,18 @@ function updateCosmicZones(dt,worldStep){
     const z=state.cosmicZones[i];
     if(worldStep){
       const before=z.age;z.age+=dt;
+      if(z.type==='well' && before<z.off-.4 && z.age>=z.off-.4)bossCue('wellFuse',z);
+      if(before<z.off && z.age>=z.off){
+        bossCue(z.type==='beam'?'beamDecay':'wellBurst',z.points?.[0]||z);
+        if(z.type==='well')state.shake=Math.max(state.shake,5);
+      }
       if(before<z.windup && z.age>=z.windup){
         if(z.type==='solar')bossCue('solarStrike',z);
-        if(z.type==='beam')bossCue('voidBeam',z.points[0]);
+        if(z.type==='beam'){bossCue('voidBeam',z.points[0]);state.shake=Math.max(state.shake,6);}
       }
     }
     if(z.age>=z.duration){if(worldStep)state.cosmicZones.splice(i,1);continue;}
-    if(z.age<z.windup)continue;
+    if(z.age<z.windup || z.age>=z.off || z.type==='nova')continue;
     if(z.type==='solar' && z.age<z.windup+.06)state.shake=Math.max(state.shake,8);
     if(!cosmicContact(z,state.player))continue;
     const hits=cosmicHits.get(z)||new WeakSet();

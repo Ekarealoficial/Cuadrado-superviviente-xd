@@ -98,3 +98,15 @@ body.rotated{width:100dvh;height:100dvw;transform-origin:0 0;transform:translate
  #touchPanel[data-view=reward] button{display:grid;grid-template-columns:42px 1fr;align-items:center;column-gap:8px;border-top-width:1px;border-left:3px solid var(--accent)}
  #touchPanel[data-view=reward] canvas{grid-row:span 2}
 }
+#touchPanel[data-view=inventory]{padding:0 14px 14px;overscroll-behavior:contain;z-index:7}
+.invHead{position:sticky;top:0;z-index:1;background:#17202e;display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid #465366}
+.invSlots{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;margin:10px 0}
+#touchPanel .invSlots button{margin:0;display:grid;justify-items:center;align-content:center;gap:1px;min-height:56px;padding:3px}
+#touchPanel .invSlots canvas{width:25px;height:25px}
+.invDetail{padding:8px 10px;border-left:2px solid #8a83d9;background:#101523;line-height:1.45}
+.invGrid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(208px,100%),1fr));gap:7px;margin-top:9px}
+#touchPanel .invGrid button{margin:0;display:grid;grid-template-columns:34px 1fr;align-content:start;align-items:center;gap:3px 7px;text-align:left;border-left:3px solid var(--accent);padding:8px}
+#touchPanel .invGrid canvas{grid-row:span 2;width:32px;height:32px}
+.invGrid small:nth-last-child(-n+2){grid-column:1/-1}
+#touchPanel .invGrid button[aria-pressed=true]{outline:1px solid var(--accent);background:#263047}
+#touchPanel .invGrid button,#touchPanel .invSlots button{touch-action:pan-y}

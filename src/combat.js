@@ -7,14 +7,14 @@ function spawnBullet(x, y, angle, speed, opts, list = state.bullets) {
     x, y,
     vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
     r: opts.radius !== undefined ? opts.radius : 4,
-    life: 1.6, viewDelay:opts.viewDelay || 0,
+    life: 1.6*(1+.15*(state.player.persist||0)),persist:state.player.persist||0,style:opts.style, viewDelay:opts.viewDelay || 0,
     venom: state.player.venom || 0,
     volley: opts.volley, lane: opts.lane,
     drone: !!opts.drone,
     bounces: opts.bounces || 0,
     homing: !!opts.homing,
     dupli: opts.dupli || 0,
-    damage: opts.damage !== undefined ? opts.damage : 1
+    damage: (opts.damage ?? 1)*(state.player.movingTime>=2?1+.05*(state.player.kinetic||0):1)
   });
 }
 
@@ -23,7 +23,7 @@ function shoot(n, commandId = 0, preview = null) {
   const list = preview || state.bullets;
   const random = commandId ? makeRng(commandId) : gameRandom;
   const volley = commandId || (p.volley + 1);
-  if (!preview) p.volley = volley;
+  if (!preview){p.volley=volley;geometryVolley(p);}
   function line(angle, speed, lane) {
     const a = angle + (random() - .5) * .03;
     const x = p.x + Math.cos(a) * (p.size/2 + 6);
@@ -84,15 +84,16 @@ function damagePlayer(amount, piercesPlasma=false) {
   amount = amount || 1;
   const p = state.player;
   if (p.invuln > 0) return;
-  if (p.armor && gameRandom() < stackingChance(0.10, p.armor)) {
-    p.invuln = 1;
+  const blocks=p.armor?chanceCount(.10*1.5**(p.armor-1)):0;
+  if (blocks) {
+    p.invuln = blocks;
     cardPulse('armor',p);
     addFloat(p.x, p.y - 30, 'Armadura', '#99baff');
     return;
   }
   const absorbed=Math.min(amount,state.blueHealth);state.blueHealth-=absorbed;
   state.halfHearts -= amount-absorbed;
-  p.invuln = 1.0;
+  p.invuln = 1.0;defensiveReaction(p);
   state.shake = 20 + amount * 5;
   state.flash = 0.4;
   state.flashRGB = '255,60,100';

@@ -28,10 +28,13 @@ function tryBlink() {
   const valid = (x, y) => {
     const a = state.arena;
     if (a && (x-radius<a.x || y-radius<a.y || x+radius>a.x+a.w || y+radius>a.y+a.h)) return false;
-    const walls = [];
-    for (let cy=Math.floor((y-radius)/CHUNK_SIZE); cy<=Math.floor((y+radius)/CHUNK_SIZE); cy++)
-      for (let cx=Math.floor((x-radius)/CHUNK_SIZE); cx<=Math.floor((x+radius)/CHUNK_SIZE); cx++) walls.push(...getChunk(cx,cy).walls);
-    return !walls.some(w => aabbOverlapBox(x,y,state.player.size,w));
+    if(a)return true;
+    for(let cy=Math.floor((y-radius)/CHUNK_SIZE);cy<=Math.floor((y+radius)/CHUNK_SIZE);cy++){
+      for(let cx=Math.floor((x-radius)/CHUNK_SIZE);cx<=Math.floor((x+radius)/CHUNK_SIZE);cx++){
+        if(getChunk(cx,cy).walls.some(w=>aabbOverlapBox(x,y,state.player.size,w)))return false;
+      }
+    }
+    return true;
   };
   if (state.arena) {
     tx = clamp(tx, state.arena.x+radius, state.arena.x+state.arena.w-radius);

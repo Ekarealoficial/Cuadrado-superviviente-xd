@@ -13,7 +13,8 @@ function drawTouchHUD(){
   ctx.fillStyle='#2b3745';ctx.fillRect(9,25,w-18,4);
   ctx.fillStyle='#68e8cc';ctx.fillRect(9,25,(w-18)*clamp(state.xp/state.xpNeeded,0,1),4);
   ctx.textAlign='left';ctx.font='11px system-ui';ctx.fillStyle='#bed0dd';ctx.fillText(state.kills+' bajas · '+state.score+' pts',9,33);
-  if(boss){
+  if(state.extraBosses?.length)drawGroupBars(0,48,w);
+  else if(boss){
     ctx.fillStyle=boss.color;ctx.fillText(BOSS_NAMES[boss.kind||'boss']+' · F'+boss.phase,9,51);
     ctx.fillStyle='#362c39';ctx.fillRect(9,68,w-18,4);ctx.fillStyle=boss.color;
     ctx.fillRect(9,68,(w-18)*clamp(boss.hp/boss.maxHp,0,1),4);
@@ -124,21 +125,33 @@ window.addEventListener('DOMContentLoaded',()=>{
         const desc=document.createElement('small');desc.textContent=c.desc;b.append(desc);b.prepend(cardIcon(c));b.style.setProperty('--accent',c.color);
       }
     }else if(view==='inventory'){
-      title.textContent='Inventario';button(panel,'Cerrar',bag);
-      const h=document.createElement('p');h.textContent='Selecciona una carta y toca una ranura para equiparla.';panel.append(h);
-      const row=document.createElement('div');row.className='equipRow';panel.append(row);
+      const head=document.createElement('div');head.className='invHead';panel.append(head);
+      title.textContent='Inventario';head.append(title);button(head,'Cerrar',bag);
+      const row=document.createElement('div');row.className='invSlots';panel.append(row);
+      function note(node,text){const small=document.createElement('small');small.textContent=text;node.append(small);return small;}
       for(const [i,id] of state.slots.entries()){
-        button(row,(i+1)+' · '+(SPECIAL_CARDS.find(c=>c.id===id)?.name||'Vacía'),()=>{
+        const c=SPECIAL_CARDS.find(c=>c.id===id);
+        const b=button(row,String(i+1),()=>{
           if(selected===null)return;
           const card=selected||null;
           if(playMode==='online')queuedActions.push({kind:'equip',i,card});else state.slots[i]=card;
         });
+        b.setAttribute('aria-label','Ranura '+(i+1)+' · '+(c?.name||'Vacía'));
+        if(c){b.append(cardIcon(c));note(b,'').dataset.charge=id;}else note(b,'Vacía');
       }
+      const active=SPECIAL_CARDS.find(c=>c.id===selected);
+      const detail=document.createElement('p');detail.className='invDetail';panel.append(detail);
+      detail.textContent=active?active.name+' · '+active.desc:selected===''?'Toca la ranura que quieras vaciar.':'Selecciona una carta y toca la ranura donde quieras equiparla.';
+      button(panel,'Vaciar una ranura',()=>{selected='';}).setAttribute('aria-pressed',String(selected===''));
+      const grid=document.createElement('div');grid.className='invGrid';panel.append(grid);
       for(const c of SPECIAL_CARDS.filter(c=>state.specialCards[c.id]?.totalCards)){
-        const b=button(panel,c.name+' ×'+state.specialCards[c.id].totalCards,()=>{selected=c.id;});
-        b.setAttribute('aria-pressed',String(selected===c.id));b.style.borderLeftColor=c.color;
+        const b=button(grid,c.name,()=>{selected=c.id;});
+        b.prepend(cardIcon(c));b.style.setProperty('--accent',c.color);b.setAttribute('aria-pressed',String(selected===c.id));
+        const equipped=state.slots.flatMap((id,i)=>id===c.id?[i+1]:[]);
+        note(b,'×'+state.specialCards[c.id].totalCards+(state.specialCards[c.id].totalCards===1?' copia':' copias')+(equipped.length?' · Ranura '+equipped.join(', '):''));
+        note(b,'').dataset.charge=c.id;note(b,c.desc);
       }
-      button(panel,'Quitar de una ranura',()=>{selected='';}).setAttribute('aria-pressed',String(selected===''));
+      if(!grid.childElementCount)note(grid,'Aún no tienes cartas especiales.');
     }
   }
   updateTouchUI=()=>{
@@ -164,6 +177,14 @@ window.addEventListener('DOMContentLoaded',()=>{
       }
     }
     const key=view==='inventory'?[view,...state.slots,selected??'-'].join('|'):view==='reward'?view+state.level+'-'+state.bonusPicks+'-'+state.pendingLevelUps+state.cardChoices.map(c=>c.id).join():view;
-    if(key!==signature){populate(view);signature=key;}
+    if(key!==signature){
+      const scroll=signature.startsWith('inventory')?panel.scrollTop:0;
+      populate(view);signature=key;panel.scrollTop=scroll;
+    }
+    if(view==='inventory')for(const node of panel.querySelectorAll('[data-charge]')){
+      const sc=state.specialCards[node.dataset.charge];
+      const label=sc.charges?'Cargas '+sc.charges+'/'+sc.maxCharges:Math.ceil(sc.cooldown)+' s';
+      if(node.textContent!==label)node.textContent=label;
+    }
   };
 });

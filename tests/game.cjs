@@ -63,7 +63,7 @@ test('Probabilidades compuestas, crítico por ciclos y furia según la vida',()=
 });
 test('La explosión alcanza vecinos y congelación se extingue a los dos segundos',()=>{
   const run=game();
-  run("const a=createEnemy('tank',100,0),b=createEnemy('tank',135,0),c=createEnemy('tank',300,0);state.enemies=[a,b,c];state.player.explosive=10;state.player.frost=3;projectileImpact(a,{x:100,y:0,damage:1})");
+  run("const a=createEnemy('tank',100,0),b=createEnemy('tank',135,0),c=createEnemy('tank',300,0);state.enemies=[a,b,c];gameRandom=()=>0;state.player.explosive=1;state.player.frost=3;projectileImpact(a,{x:100,y:0,damage:1})");
   assert.equal(run('a.maxHp-a.hp'),2);
   assert.equal(run('b.maxHp-b.hp'),1);
   assert.equal(run('c.maxHp-c.hp'),0);
@@ -214,10 +214,8 @@ test('El aviso reserva un jefe veinte segundos antes en cada dificultad y agota 
    run('update_stormAndBossSchedule(.2);const announced'+String(rate).replace('.','_')+'=state.bossOmen.kind;state.bossSpawnTimer=.001;update_stormAndBossSchedule(.01)');
    assert.equal(run('state.boss.kind'),run('announced'+String(rate).replace('.','_')));
  }
- run('state.bossCycle=[];const order=Array.from({length:10},pickEncounter)');
- assert.ok(run('order.every((id,i)=>!i || id!==order[i-1])'));
- assert.equal(run("rules.disabled=['worm','singular'];pickEncounter()"),'boss');
- assert.equal(run("rules.disabled=['worm','boss','singular'];pickEncounter()"),null);
+ assert.equal(run("rules.disabled=Object.keys(BOSS_NAMES).filter(id=>id!=='boss');pickEncounter().join()"),'boss');
+ assert.equal(run("rules.disabled=Object.keys(BOSS_NAMES);pickEncounter()"),null);
 });
 test('Una bala corta el gusano en dos y la victoria llega al eliminar la última bola',()=>{
  const run=game();run("spawnBoss({x:0,y:100},'worm');const worm=state.boss,body=worm.pieces[0].parts,s=body[37];spawnBullet(s.x,s.y,0,900,{damage:s.hp});update_projectileHits()");
@@ -261,7 +259,7 @@ test('Cada reliquia permite una elección además de las subidas pendientes',()=
 test('El Círculo absorbe y devuelve las mismas masas, emite rayos y termina antes del botín',()=>{
  const run=game();run("spawnBoss({x:220,y:50},'singular');const b=state.boss;startSingularAttack(b,'attract');for(let i=0;i<720 && b.state!=='repel';i++){updateBoss(1/60);update_enemyProjectiles(1/60)}");
  assert.ok(run('b.orbitTime>8 && b.orbitTime<12'));assert.equal(run('b.absorbed.length'),220);run("const masses=[...b.absorbed].sort().join();updateBoss(.6);");assert.equal(run("state.enemyBullets.map(s=>s.damage).sort().join()"),run('masses'));
- run("startSingularAttack(b,'blink');const count=b.remaining+1;for(let i=0;i<count;i++)updateBoss(1);");
+ run("startSingularAttack(b,'blink');const count=b.remaining;for(let i=0;i<count;i++){updateBoss(.16);updateBoss(1.13);}");
  assert.ok(run("count>=4 && count<=6 && state.cosmicZones.filter(z=>z.type==='beam').length===count"));
  run("b.hp=b.maxHp*.5;updateBoss(.01);startSingularAttack(b,'lunar');");
  assert.ok(run('new Set(b.planets.map(p=>p.distance)).size===4 && b.planets.every(p=>p.moons.length===4)'));
@@ -291,4 +289,80 @@ test('Los planetas alcanzan al jugador lejos del núcleo',()=>{
  const run=game();
  run("spawnBoss({x:0,y:0},'singular');const b=state.boss;b.hp=b.maxHp/2;updateBoss(.01);const outer=b.planets.at(-1);Object.assign(state.player,{x:outer.x,y:outer.y});const hp=state.halfHearts;planetContact(b,state.player)");
  assert.ok(run('outer.distance>300 && hp-state.halfHearts===1'));
+});
+test('El catálogo de seis recorre sus 63 conjuntos y después conserva el máximo',()=>{
+ const sequence=()=>game()('JSON.stringify(Array.from({length:66},pickEncounter))');
+ const out=JSON.parse(sequence());assert.equal(JSON.stringify(out),sequence());
+ let start=0;
+ for(const [index,n] of [6,15,20,15,6,1].entries()){
+   const groups=out.slice(start,start+n);start+=n;
+   assert.ok(groups.every(g=>g.length===index+1 && new Set(g).size===g.length));
+   assert.equal(new Set(groups.map(g=>g.sort().join('+'))).size,n);
+ }
+ assert.ok(out.slice(63).every(g=>g.length===6));
+ const run=game();run("rules.disabled=Object.keys(BOSS_NAMES).filter(k=>!['fractal','clock','crown'].includes(k))");
+ const reduced=JSON.parse(run('JSON.stringify(Array.from({length:9},pickEncounter))'));
+ assert.deepEqual(reduced.map(g=>g.length),[1,1,1,2,2,2,3,3,3]);
+ assert.ok(reduced.flat().every(id=>['clock','fractal','crown'].includes(id)));
+});
+test('Una arena, una escala y una entrega por muerte durante un encuentro triple',()=>{
+ const run=game();run("spawnEncounter(['fractal','clock','crown']);const group=livingBosses();");
+ assert.ok(run('state.bossEncounters===1 && group.every(b=>b.maxHp===1200) && new Set(group.map(b=>b.id)).size===3 && state.arena.w===1366 && state.arena.h===768'));
+ for(let i=0;i<3;i++){
+   run('startPatternFinal(group['+i+']);killBoss(group['+i+']);for(let k=0;k<140;k++){updateBoss(1/60,group['+i+']);render()}');
+   assert.equal(run('state.cardRelics.length'),2*(i+1));assert.equal(run('!!state.arena'),i<2);
+ }
+ run("spawnEncounter(['clock','crown'])");assert.ok(run('livingBosses().every(b=>b.maxHp===1500)'));
+});
+for(const kind of ['fractal','clock','crown'])test('Todas las fases y ataques de '+kind+' existen en Canvas y la simulación',()=>{
+ const run=game();run("playMode='sandbox';spawnBoss(null,'"+kind+"');const b=state.boss;const spec=PATTERN_BOSSES[b.kind];");
+ for(let phase=2;phase<=3;phase++){
+   run('b.hp=b.maxHp*(spec.limits['+(phase-2)+']-.01);updateBoss(.01);render()');
+   assert.equal(run('b.phase'),phase);
+ }
+ const moves=JSON.parse(run('JSON.stringify(spec.moves.flat())'));
+ for(const m of moves){
+   run("state.enemyBullets=[];beginPattern(b,'"+m+"');for(let i=0;i<2000 && b.state!=='recover';i++){state.time+=1/30;updateBoss(1/30,b);update_enemyProjectiles(1/30);if(i%10===0)render()}");
+   assert.ok(run("b.state==='recover' && Number.isFinite(b.x) && Number.isFinite(b.y)"),m);
+ }
+});
+test('La abertura de prisión y las zonas de aviso usan la geometría de impacto',()=>{
+ const run=game();run("spawnBoss(null,'fractal');const b=state.boss;beginPattern(b,'prison');b.gap=0;b.trap={x:0,y:0};b.age=1;const shapes=patternShapes(b);");
+ assert.equal(run('shapes.some(s=>patternTouches(s,{x:0,y:-185,size:30}))'),false);
+ assert.equal(run('shapes.some(s=>patternTouches(s,{x:95,y:-185,size:30}))'),true);
+ run("b.age=.6");assert.equal(run('patternShapes(b).some(s=>s.live)'),false);
+});
+test('Un pozo estalla durante 650 ms sin atraer ni causar daño después del colapso',()=>{
+ const run=game();run("summonWells(1);const z=state.cosmicZones[0];z.age=z.off-.01;const p=state.player;Object.assign(p,{x:z.x+10,y:z.y});const hp=state.halfHearts;updateCosmicZones(.02,true);pullIntoWells(p,.1,[]);render()");
+ assert.ok(run("z.age>z.off && state.halfHearts===hp && p.x===z.x+10 && state.bossCues.some(c=>c.name==='wellBurst')"));
+ run('updateCosmicZones(.7,true)');assert.equal(run('state.cosmicZones.length'),0);
+});
+test('Miniatura y Gigantismo componen el mismo tamaño y cambian pared, contacto y límite real',()=>{
+ function resized(order){const run=game();for(const id of order)run("applyCard(CARD_TYPES.find(c=>c.id==='"+id+"'))");return run;}
+ const a=resized(['mini','giant','mini']),b=resized(['giant','mini','mini']);
+ assert.ok(Math.abs(a('state.player.size')-30*.94**2*1.08)<1e-10);assert.equal(a('state.player.size'),b('state.player.size'));
+ assert.ok(a('const p=state.player;p.x=0;moveWithWalls(p,200,0,[{x:60,y:-50,w:5,h:100}]);Math.abs(p.x+p.size/2-60)<1e-10'));
+ assert.ok(a('fitPlayerInArena(p,{x:0,y:0,w:10,h:12});p.x===5 && p.y===6'));
+ assert.ok(a('!visibleContact({x:p.x+p.size/2+4.1,y:p.y},p,p.size/2+4)'));
+});
+test('Colapso, ejército, ancla y corona se equipan, consumen carga y terminan',()=>{
+ const run=game();run("const p=state.player;const cast=id=>{applyCard(SPECIAL_CARDS.find(c=>c.id===id));state.slots[0]=id;useSlot(0)};cast('crush');const enemy=createEnemy('tank',p.crush.x,p.crush.y);state.enemies=[enemy];updateGeometryCards(p,1.5);");
+ assert.ok(run("enemy._dying && !p.crush && state.specialCards.crush.cooldown===38"));
+ run("cast('army');shoot(1);updateGeometryCards(p,.16);");assert.equal(run("state.bullets.filter(s=>s.style==='army').length"),2);
+ run("cast('anchor');state.enemyBullets=[{x:p.x+20,y:p.y,r:6,vx:-300,vy:0,life:.1}];updateGeometryCards(p,.5);");
+ assert.ok(run("p.anchor.held.length===1 && !state.enemyBullets.length"));run("updateGeometryCards(p,3.5)");
+ assert.ok(run("!p.anchor && state.bullets.some(s=>s.style==='anchor' && s.vx>0)"));
+ run("cast('needles');updateGeometryCards(p,.05);render();");assert.equal(run("state.bullets.filter(s=>s.style==='needles').length"),8);
+ run("updateGeometryCards(p,6.1)");assert.ok(run("!p.army && !p.needles"));
+});
+test('Marea cuenta ciclos, cinética pierde carga al parar y reacción respeta la inmunidad',()=>{
+ const run=game();run("const p=state.player;for(const id of ['persist','tide','kinetic','reaction'])applyCard(CARD_TYPES.find(c=>c.id===id));p.vx=100;updateGeometryCards(p,2);for(let i=0;i<7;i++)shoot(1);");
+ assert.equal(run("state.bullets.filter(s=>s.style==='tide').length"),5);assert.ok(run('state.bullets[0].damage===1.05 && state.bullets[0].life>1.8'));
+ run("p.vx=0;updateGeometryCards(p,.51);damagePlayer(1);damagePlayer(1)");
+ assert.ok(run("p.movingTime===0 && p.geometryFX.filter(z=>z.kind==='reaction').length===1"));
+});
+test('Resonancia cuenta doce impactos y Cadena sobre 100 % conserva descargas adicionales',()=>{
+ const run=game();run("const p=state.player,t=createEnemy('tank',30,0),n=createEnemy('tank',90,0);state.enemies=[t,n];p.resonance=1;for(let i=0;i<11;i++)geometryImpact(t,p);const before=n.hp;geometryImpact(t,p);");
+ assert.equal(run('before-n.hp'),1);run("p.resonance=0;p.chain=14;gameRandom=()=>.9;const hp=n.hp;geometryImpact(t,p);");
+ assert.equal(run('hp-n.hp'),2);
 });

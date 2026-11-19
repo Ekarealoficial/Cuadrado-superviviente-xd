@@ -122,7 +122,7 @@ function initializeMenu(){
         lastStateAt=now;
         prepareMotion(state,next,now);
         state=next;state.inventorySelection=inventoryChoice;
-        currentWalls=getVisibleChunks(state.cam).concat(state.arena?.walls||[]);
+        currentWalls=state.arena?state.arena.walls:getVisibleChunks(state.cam);
         const ping=netPingMs==null?'…':Math.round(netPingMs)+' ms';
         el('playerInfo').textContent=profile.name+' · X '+Math.round(state.player.x)+'  Y '+Math.round(state.player.y)+' · Código '+session.code+' · Ping '+ping;
       }

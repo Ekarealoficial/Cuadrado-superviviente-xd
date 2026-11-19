@@ -32,6 +32,10 @@ function drawCardIcon(cx, cy, size, card, color, surface=ctx) {
   ctx.lineWidth = Math.max(3, size * 0.12);
   ctx.lineCap = 'round'; ctx.lineJoin = 'round';
   const s = size * 0.5;
+  if(card.icon){
+    paintGeometryIcon(ctx,card.id,s);
+    ctx.restore();return;
+  }
   switch (card.id) {
     case 'kame': case 'activeHeal': case 'reverse': case 'plasma': case 'timeBreak':
       ctx.lineWidth=2;ctx.beginPath();ctx.arc(0,0,s*.84,0,TAU);ctx.stroke();

@@ -29,16 +29,16 @@ function update(dt, worldStep = true, commands = null) {
     state.cam.x += (targetCamX - state.cam.x) * Math.min(1, 10 * dt);
     state.cam.y += (targetCamY - state.cam.y) * Math.min(1, 10 * dt);
   }
-  const targetZoom=p.frameTime>0 ? 0.86 : 1;
+  const targetZoom=(p.frameTime>0?.86:1)*Math.max(.35,Math.min(1,130/p.size));
   state.cam.zoom += (targetZoom - state.cam.zoom) * Math.min(1, 4.5 * dt);
-  currentWalls = getVisibleChunks(state.cam);
-  if (state.bossActive && state.arena) currentWalls = currentWalls.concat(state.arena.walls);
+  currentWalls=state.bossActive && state.arena?state.arena.walls:getVisibleChunks(state.cam);
 
   if (state.over) { state.overTimer += dt; return; }
   if (playMode !== 'online' && (state.cardChoices || state.inventoryOpen)) return;
 
   if (worldStep) {
     state.time += dt;
+    while(state.remnants?.length && state.time-state.remnants[0].born>2)state.remnants.shift();
     while(state.bossCues.length && state.time-state.bossCues[0].time>1.25)state.bossCues.shift();
   }
   state.levelTimer += dt;
@@ -51,7 +51,7 @@ function update(dt, worldStep = true, commands = null) {
   updateExpansion(dt,worldStep);
   if(state.stopUntil<=state.time){
     updateCosmicZones(dt,worldStep);
-    for(const boss of livingBosses())if(boss.kind==='singular')planetContact(boss,p);
+    for(const boss of livingBosses())if(boss.kind==='singular')planetContact(boss,p);else if(PATTERN_BOSSES[boss.kind])patternContact(boss,p);
   }
   collectCardRelics();
   if(state.stopUntil<=state.time)updateCardFields(dt,worldStep);
@@ -83,27 +83,29 @@ function update(dt, worldStep = true, commands = null) {
 
 function projectileImpact(target, bullet, factor = 1) {
   const p = state.player;
+  geometryImpact(target,p);
   poisonHit(target, bullet);
   if (p.frost) {
     cardPulse('frost',target);
     target.slow = Math.max(target.slowUntil > state.time ? target.slow : 0, Math.min(1, p.frost / 10));
-    target.slowUntil = state.time + 2;
+    target.slowUntil = state.time + 2 + Math.max(0,p.frost-10)*.2;
   }
   const damage = bullet.damage * attackMultiplier(target) * factor;
   target.hp -= damage;
-  if (!p.explosive || gameRandom() >= stackingChance(.15, p.explosive)) return;
+  const bursts=p.explosive?chanceCount(.15*1.5**(p.explosive-1)):0;
+  if(!bursts)return;
   spawnParticles(bullet.x, bullet.y, 22, '#ff9c52', 1.4);
   Sfx.play('explode', 80);
-  target.hp -= damage;
+  target.hp -= damage*bursts;
   for (const e of state.enemies.slice()) {
     if (e === target || e._dying || Math.hypot(e.x-bullet.x,e.y-bullet.y) > 80+e.size/2) continue;
-    e.hp -= damage;
+    e.hp -= damage*bursts;
     e.hitFlash = .15;
     if (e.hp <= 0) killEnemy(state.enemies.indexOf(e));
   }
   for (const boss of bossTargets()) {
     if (boss === target || Math.hypot(boss.x-bullet.x,boss.y-bullet.y)>80+boss.size/2) continue;
-    boss.hp -= damage;
+    boss.hp -= damage*bursts;
     if (boss.hp <= 0) finishTarget(boss);
   }
 }
@@ -145,7 +147,7 @@ function updateCardFields(dt,worldStep) {
   p.blades=[];
   for(let i=0;i<(p.swords||0);i++){
     const angle=state.time*3+i*TAU/p.swords;
-    p.blades.push({x:p.x+Math.cos(angle)*64,y:p.y+Math.sin(angle)*64,angle});
+    p.blades.push({x:p.x+Math.cos(angle)*(49+p.size/2),y:p.y+Math.sin(angle)*(49+p.size/2),angle});
   }
   if(!p.field && !p.blades.length && !p.frameTime && !worldStep)return;
   const targets=state.enemies.concat(bossTargets());
@@ -177,7 +179,7 @@ function updateCardFields(dt,worldStep) {
     for(const blade of p.blades)if(Math.hypot(e.x-blade.x,e.y-blade.y)<e.size/2+13)
       damage+=12*dt*attackMultiplier(e);
     if(p.frameTime>0 && Math.hypot(p.vx,p.vy)>30 && Math.hypot(e.x-p.x,e.y-p.y)<(e.size+p.size)/2+5){
-      damage+=(29+5*state.specialCards.frames.totalCards)*dt*attackMultiplier(e);
+      damage+=(29+5*state.specialCards.frames.totalCards)*(1+.12*(p.giant||0))*dt*attackMultiplier(e);
       e.hitFlash=.12;
       if(!p.impact || state.time-p.impact.born>.14)
         p.impact={x:(p.x+e.x)/2,y:(p.y+e.y)/2,born:state.time};
@@ -279,17 +281,22 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
     const rate=rules.difficulty;
     state.bossSpawnTimer-=dt*rate;
     if(!state.bossOmen && state.bossSpawnTimer<=20*rate){
-      const kind=pickEncounter();
-      if(kind){
-        state.bossOmen={kind,start:state.time};
-        if(kind==='singular')summonWells(2);
+      const group=pickEncounter();
+      if(group){
+        state.bossOmen={kind:group[0],group,start:state.time};
+        if(group.includes('singular'))summonWells(2);
       }
       else state.bossSpawnTimer=180;
     }
-    if(state.bossOmen?.kind==='singular' && state.time-state.bossOmen.start>9 && !state.bossOmen.second){
+    if(state.bossOmen?.group.includes('singular') && state.time-state.bossOmen.start>9 && !state.bossOmen.second){
       summonWells(2);state.bossOmen.second=true;
     }
-    if(state.bossSpawnTimer<=0 && state.bossOmen)spawnBoss(null,state.bossOmen.kind);
+    const omen=state.bossOmen;
+    if(omen && state.time>=(omen.pulse||0)){
+      for(const kind of omen.group)if(PATTERN_BOSSES[kind])bossCue(kind+'Omen',state.player);
+      omen.pulse=state.time+Math.max(.28,state.bossSpawnTimer/rate*.11);
+    }
+    if(state.bossSpawnTimer<=0 && state.bossOmen)spawnEncounter(state.bossOmen.group);
   }
   checkAdaptive(dt * rules.difficulty);
 
@@ -328,11 +335,7 @@ function applyControl(dt, direction, command) {
   state.viewDelay=Number.isFinite(command?.[6]) ? clamp(state.time-command[6],0,.18) : 0;
   const p=state.player;
   movePlayer(p,dt,direction.x,direction.y,currentWalls);
-  if (command && state.arena) {
-    const a=state.arena,h=p.size/2;
-    p.x=clamp(p.x,a.x+h,a.x+a.w-h);
-    p.y=clamp(p.y,a.y+h,a.y+a.h-h);
-  }
+  fitPlayerInArena(p,state.arena);
   if (p.dashTimer > 0) {
     p.invuln = Math.max(p.invuln, 0.05);
     spawnParticles(p.x, p.y, 1, p.color || rules.color, 0.7);
@@ -359,7 +362,7 @@ function applyControl(dt, direction, command) {
 
   const wm = getWorldMouse();
   p.angle = command ? command[4] : Math.atan2(wm.y - p.y, wm.x - p.x);
-  p.fireCd -= dt;
+  p.fireCd-=dt;
 
   // Disparo / carga láser
   if (command ? command[5] && !state.inventoryOpen && !state.cardChoices : mouse.down) {
@@ -367,13 +370,11 @@ function applyControl(dt, direction, command) {
       state.laserCharging = true;
       state.laserChargeTime += dt;
       if (p.fireCd <= 0 && p.shots > 1) {
-        shoot(p.shots - 1,command?.[0]);
-        p.fireCd = p.fireCdBase;
+        shootDue(p,p.shots-1,dt,command);
       }
     } else {
       if (p.fireCd <= 0) {
-        shoot(p.shots,command?.[0]);
-        p.fireCd = p.fireCdBase;
+        shootDue(p,p.shots,dt,command);
       }
     }
   } else {
@@ -382,6 +383,19 @@ function applyControl(dt, direction, command) {
       state.laserCharging = false;
       state.laserChargeTime = 0;
     }
+  }
+}
+function shootDue(p,lines,dt,command){
+  const interval=Math.max(p.fireCdBase,Number.MIN_VALUE);
+  const count=interval>=dt?1:Math.max(1,Math.floor((dt+(p.volleyRemainder||0))/interval));
+  p.volleyRemainder=interval>=dt?0:(dt+(p.volleyRemainder||0))%interval;
+  p.fireCd=interval;
+  const free=playerBulletLimit(p)-state.bullets.length;
+  const batches=Math.max(1,Math.min(count,Math.ceil(free/Math.max(1,lines+p.backShots))));
+  for(let i=0;i<batches;i++){
+    const before=state.bullets.length;
+    shoot(lines,command?.[0]);
+    if(count>batches)for(let j=before;j<state.bullets.length;j++)state.bullets[j].damage*=count/batches;
   }
 }
 function update_movementAndWeapons(dt, worldStep = true, commands = null) {
@@ -406,8 +420,8 @@ function update_shieldPositions(dt) {
     const sh = state.shields[i];
     const baseAngle = (i / nShields) * TAU + state.time * 2.4;
     sh.angle = baseAngle;
-    sh.x = p.x + Math.cos(baseAngle) * 50;
-    sh.y = p.y + Math.sin(baseAngle) * 50;
+    sh.x = p.x + Math.cos(baseAngle) * (35+p.size/2);
+    sh.y = p.y + Math.sin(baseAngle) * (35+p.size/2);
   }
 
 
@@ -478,6 +492,7 @@ function update_enemyProjectiles(dt) {
   // Balas enemigas
   for (let i = state.enemyBullets.length - 1; i >= 0; i--) {
     const b = state.enemyBullets[i];
+    if(b.release!==undefined && dt>0)curveEnemyShot(b,dt);
     if(b.inward && advanceInward(b,dt)){state.enemyBullets.splice(i,1);continue;}
     b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
     if (b.life <= 0) { state.enemyBullets.splice(i, 1); continue; }
@@ -492,27 +507,22 @@ function update_enemyProjectiles(dt) {
 
 }
 
-function update_projectileCancellation(dt) {
-  const p=state.player;
-  // Cancelación
-  for (let i = state.enemyBullets.length - 1; i >= 0; i--) {
-    const eb = state.enemyBullets[i];
-    let cancelled = false;
-    for (let j = state.bullets.length - 1; j >= 0; j--) {
-      const pb = state.bullets[j];
-      const ddx = eb.x - pb.x, ddy = eb.y - pb.y;
-      const rr = eb.r + pb.r + 1;
-      if (ddx*ddx + ddy*ddy < rr*rr) {
-        spawnParticles((eb.x + pb.x)/2, (eb.y + pb.y)/2, 6, '#ffffff', 0.8);
-        state.bullets.splice(j, 1);
-        cancelled = true;
-        break;
-      }
+const shotContactGrid=new SpatialGrid(78);
+function update_projectileCancellation(){
+  const shots=state.bullets,hostile=state.enemyBullets;
+  if(!shots.length||!hostile.length)return;
+  shotContactGrid.rebuild(shots);
+  let largest=0;for(const shot of shots)largest=Math.max(largest,shot.r);
+  const removed=new Set();
+  for(let i=hostile.length-1;i>=0;i--){
+    const eb=hostile[i],candidates=shotContactGrid.query(eb.x,eb.y,eb.r+largest+1);
+    for(let k=candidates.length-1;k>=0;k--){
+      const pb=candidates[k],rr=eb.r+pb.r+1;
+      if(removed.has(pb)||(eb.x-pb.x)**2+(eb.y-pb.y)**2>=rr*rr)continue;
+      spawnParticles((eb.x+pb.x)/2,(eb.y+pb.y)/2,6,'#fff',.8);removed.add(pb);hostile.splice(i,1);break;
     }
-    if (cancelled) state.enemyBullets.splice(i, 1);
   }
-
-
+  if(removed.size)state.bullets=shots.filter(s=>!removed.has(s));
 }
 
 function update_shieldBlocking(dt) {
@@ -813,7 +823,7 @@ function update_projectileHits() {
     const range=45+shot.r+Math.hypot(dx,dy)/2+(shot.viewDelay||0)*1800;
     let first=Infinity, victim, surface, center, radius;
     function consider(body,owner,r) {
-      if (owner._dying) return;
+      if (owner._dying || owner.state==='final') return;
       const pos=combatPosition(body,shot.viewDelay);
       const t=bulletEntry(shot,pos,r+shot.r);
       if (t<first) { first=t;victim=owner;surface=body;center=pos;radius=r+shot.r; }

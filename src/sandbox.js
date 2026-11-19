@@ -22,6 +22,15 @@ function openSandboxPanel(tab){
     list.append(b);return b;
   }
   if(tab==='enemies'){
+    button('Invocar grupo habilitado','#db90ff',()=>{spawnEncounter(Object.keys(BOSS_NAMES).filter(id=>!rules.disabled.includes(id)));closeSandboxPanel();});
+    for(const b of livingBosses()){
+      button(BOSS_NAMES[b.kind]+' · avanzar fase',b.color,()=>{
+        const threshold=PATTERN_BOSSES[b.kind]?.limits[(b.phase||1)-1]??(b.pieces?.30:b.phase===1?.49:.28);
+        if(b.pieces)for(const piece of b.pieces)for(const part of piece.parts)part.hp=Math.min(part.hp,part.maxHp*.29);
+        else b.hp=Math.min(b.hp,b.maxHp*(threshold-.005));
+        closeSandboxPanel();
+      });
+    }
     for(const id of [...Object.keys(ENEMY_TYPES),...Object.keys(BOSS_NAMES)]){
       button(ENEMY_NAMES[id],ENEMY_TYPES[id]?.color||'#ff2255',()=>{
         sandboxEnemy=id;sandboxHint();closeSandboxPanel();

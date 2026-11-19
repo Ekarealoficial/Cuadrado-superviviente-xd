@@ -2,7 +2,8 @@
 function updateUILayout() {
   const available=SPECIAL_CARDS.filter(c=>state.specialCards[c.id]?.totalCards>0);
   const cols=3,w=Math.min(218,(W-40)/cols),top=142;
-  const h=Math.max(25,Math.min(56,(H-top-170)/3-5));
+  const rows=Math.max(1,Math.ceil(available.length/cols));
+  const h=Math.max(26,Math.min(56,(H-top-184)/rows-5));
   state.inventoryCardRects=available.map((c,i)=>({x:(W-cols*w)/2+i%cols*w,y:top+Math.floor(i/cols)*(h+5),w:w-5,h,id:c.id}));
   const slotsX=W/2-(5*SLOT_W+4*SLOT_GAP)/2;
   state.inventorySlotRects=Array.from({length:5},(_,i)=>({x:slotsX+i*(SLOT_W+SLOT_GAP),y:Math.max(top+Math.ceil(available.length/cols)*(h+5)+38,H-SLOT_H-55),w:SLOT_W,h:SLOT_H}));

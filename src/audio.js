@@ -113,6 +113,10 @@ const BOSS_SCORES={
   lunarVolley:{notes:[[980,.17,'triangle',.16,390],[820,.19,'triangle',.12,270,.09]],noise:[.16,.10,2900,760]},
   voidWell:{notes:[[146,.58,'triangle',.14,58],[221,.45,'sine',.12,69,.09]]},
   starCollapse:{notes:[[52,1.75,'sine',.30,122],[86,1.42,'sawtooth',.10,238,.18]],noise:[.78,.16,180,2900]},
+  wellFuse:{notes:[[90,.4,'triangle',.17,690]]},
+  wellBurst:{notes:[[185,.38,'sine',.28,32]],noise:[.24,.17,4800,350]},
+  beamCharge:{notes:[[120,.42,'triangle',.1,980],[210,.38,'sine',.08,1350]]},
+  beamDecay:{notes:[[800,.18,'triangle',.12,85]],noise:[.14,.11,4800,260]},
   starNova:{notes:[[210,.75,'sine',.31,24],[880,.47,'triangle',.14,170]],noise:[.66,.32,7500,220]}
 };
 function bossCue(name,origin){
@@ -128,4 +132,24 @@ function presentBossCues(){
     lastBossSound=cue.id;
     if(state.time-cue.time<.35)Sfx.play(cue.name,100);
   }
+}
+for(const [i,name] of ['resonance','chain','reaction','tide','crush','crushBeat','army','anchor','anchorBeat','needles','needlesBeat'].entries()){
+  const f=170+43*i;BOSS_SCORES[name]={notes:[[f,.18,'triangle',.13,f*1.6],[f*.66,.25,'sine',.11,f*.36,.06]]};
+}
+// Each boss has a timbre, and each attack has a different pitch contour and beat length.
+for(const [family,moves,base,wave] of [
+  ['fractal',['cuts','lunge','fault','replicas','prison','collapse'],210,'sawtooth'],
+  ['clock',['hands','seconds','pendulum','ticks','rewind','zero','chime'],440,'sine'],
+  ['crown',['garden','petals','dance','stars','inverse','rain','flower'],580,'triangle']
+]){
+  moves.forEach((name,i)=>{
+    const hz=base*2**(i/9);
+    BOSS_SCORES[name+'Charge']={notes:[[hz*.55,.34,wave,.10,hz],[hz,.16,'sine',.10,hz*1.25,.16]]};
+    BOSS_SCORES[name+'Beat']={notes:[[hz,.08,wave,.14,hz*.64],[hz*.5,.18,'sine',.12,hz*.24,.025]]};
+    BOSS_SCORES[name+'End']={notes:[[hz,.20,'triangle',.10,hz*.3]]};
+  });
+  BOSS_SCORES[family+'Phase']={notes:[[base*.35,.42,wave,.16,base],[base*1.5,.3,'sine',.12,base*2,.28]]};
+  BOSS_SCORES[family+'Omen']={notes:[[base,.10,wave,.10,base*.8]]};
+  BOSS_SCORES[family+'Release']={notes:[[base,.65,'sine',.19,base*.35],[base*2,.4,'triangle',.09,base,.08]]};
+  BOSS_SCORES[family+'Death']={notes:[[base,.8,wave,.14,base*.16],[base*1.5,.9,'sine',.13,base*.3,1.1]],noise:[.55,.14,3200,300]};
 }

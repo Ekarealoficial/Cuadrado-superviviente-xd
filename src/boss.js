@@ -16,22 +16,47 @@ function finishTarget(target) {
   else killEnemy(state.enemies.indexOf(target));
 }
 
-function pickEncounter() {
-  let pool=Object.keys(BOSS_NAMES).filter(id=>!rules.disabled.includes(id));
+function combinations(pool,size,index=0,prefix=[],out=[]){
+  if(prefix.length===size){out.push(prefix);return out;}
+  for(let i=index;i<=pool.length-size+prefix.length;i++)combinations(pool,size,i+1,[...prefix,pool[i]],out);
+  return out;
+}
+function pickEncounter(){
+  const pool=Object.keys(BOSS_NAMES).filter(id=>!rules.disabled.includes(id)).sort();
   if(!pool.length)return null;
-  let unused=pool.filter(id=>!state.bossCycle.includes(id));
-  if(!unused.length){
-    const last=state.bossCycle.at(-1);
-    state.bossCycle=[];
-    unused=pool.length>1?pool.filter(id=>id!==last):pool;
+  const roster=pool.join('+');
+  if(state.encounterRoster!==roster){state.encounterRoster=roster;state.groupSize=1;state.bossCycle=[];}
+  let groups=combinations(pool,state.groupSize).filter(g=>!state.bossCycle.includes(g.join('+')));
+  if(!groups.length){
+    state.groupSize=Math.min(pool.length,state.groupSize+1);state.bossCycle=[];
+    groups=combinations(pool,state.groupSize);
   }
-  const id=unused[Math.floor(gameRandom()*unused.length)];
-  state.bossCycle.push(id);
-  return id;
+  const chosen=groups[Math.floor(gameRandom()*groups.length)];
+  state.bossCycle.push(chosen.join('+'));return chosen;
+}
+let roomTargets=[];
+function bossPrey(b){return roomTargets.length?roomTargets[(b.id-1)%roomTargets.length]:state.player;}
+function spawnEncounter(group){
+  const p=state.player,occupied=livingBosses().flatMap(b=>b.pieces?b.pieces.flatMap(q=>q.parts):[b]);
+  if(!occupied.length){state.enemies=[];state.enemyDarts=[];state.enemyBullets=[];state.potions=[];}
+  const ordered=group.includes('worm')?['worm',...group.filter(id=>id!=='worm')]:group;
+  for(const kind of ordered){
+    const candidates=[];
+    for(const orbit of [1,.8])for(let i=0;i<30;i++){
+      const a=-Math.PI/2+i*TAU/30;
+      const x=p.x+Math.cos(a)*490*orbit,y=p.y+Math.sin(a)*252*orbit;
+      let space=Math.hypot(x-p.x,y-p.y)-p.size/2;
+      for(const body of occupied)space=Math.min(space,Math.hypot(x-body.x,y-body.y)-body.size/2);
+      candidates.push({x,y,space});
+    }
+    const pos=occupied.length?candidates.reduce((best,q)=>best.space>=q.space?best:q):candidates[0];
+    spawnBoss({x:pos.x,y:pos.y},kind);
+    const b=livingBosses().at(-1);occupied.push(...(b.pieces?b.pieces.flatMap(q=>q.parts):[b]));
+  }
 }
 
 function spawnBoss(position,kind='boss') {
-  state.bossEncounters = (state.bossEncounters || 0) + 1;
+  if(!state.boss)state.bossEncounters = (state.bossEncounters || 0) + 1;
   const bossHp = Math.round(BALANCE.bossHp * Math.pow(BALANCE.bossGrowth, state.bossEncounters - 1) * state.enemyHpMult);
   state.bossActive = true;
   state.bossOmen = null;
@@ -59,7 +84,7 @@ function spawnBoss(position,kind='boss') {
       { x: ax + aw, y: ay - 60, w: 60, h: ah + 120, isArena: true }
     ]
   };
-  const boss = kind==='singular' ? createSingular(position || {x:p.x,y:ay+180},bossHp) : kind==='worm' ? createWorm(position || {x:p.x,y:ay+180},bossHp) : {
+  const boss = PATTERN_BOSSES[kind]?createPatternBoss(kind,position||{x:p.x,y:ay+180},bossHp):kind==='singular' ? createSingular(position || {x:p.x,y:ay+180},bossHp) : kind==='worm' ? createWorm(position || {x:p.x,y:ay+180},bossHp) : {
     kind,
     x: position?.x ?? p.x, y: position?.y ?? ay + 200,
     size: 180,
@@ -71,6 +96,7 @@ function spawnBoss(position,kind='boss') {
       { side: 'right',  x: 0, y: 0, r: 36, state: 'attached', vx: 0, vy: 0, life: 0 }
     ]
   };
+  boss.id=++state.nextBossId;
   if (state.boss) state.extraBosses.push(boss);
   else state.boss = boss;
   if(!position){
@@ -85,11 +111,16 @@ function spawnBoss(position,kind='boss') {
 
 function killBoss(b = state.boss, completed = false) {
   if (!b || b._dying || !livingBosses().includes(b)) return;
+  if(PATTERN_BOSSES[b.kind] && !completed){if(b.state!=='final')startPatternFinal(b);return;}
   if(b.kind==='singular' && !completed){
     if(b.state!=='final')startSingularFinal(b);
     return;
   }
   b._dying = true;
+  if(PATTERN_BOSSES[b.kind]){
+    state.remnants.push({kind:b.kind,x:b.x,y:b.y,born:state.time,color:b.color});
+    bossCue(b.kind+'Release',b);
+  }
   state.firstBossDefeatAt ??= state.time;
   spawnParticles(b.x, b.y, 80, b.color, 2);
   spawnParticles(b.x, b.y, 40, '#ffffff', 1.5);
@@ -140,7 +171,7 @@ function explodeBossBomb(bomb) {
   const p = state.player;
   if (p.invuln <= 0) {
     const dx = p.x - bomb.x, dy = p.y - bomb.y;
-    if (dx*dx + dy*dy < radius*radius) damagePlayer(1);
+    if (dx*dx + dy*dy < (radius+p.size/2)**2) damagePlayer(1);
   }
   for (const b2 of state.bossBombs) {
     if (b2 === bomb || b2.exploded) continue;
@@ -150,7 +181,7 @@ function explodeBossBomb(bomb) {
 }
 
 function startBossAttack(type, b = state.boss) {
-  const p = state.player;
+  const p = bossPrey(b);
   if (type === 'dash') {
     b.state = 'dash_windup';
     b.timer = 0.7;
@@ -196,6 +227,7 @@ function updateBoss(dt, b = state.boss) {
   if (!b) return;
   const p = state.player;
 
+  if(PATTERN_BOSSES[b.kind]){updatePatternBoss(b,dt);if(b===state.boss)updateArenaHazards(dt);return;}
   if (b.pieces || b.kind==='singular') {
     if(b.pieces)updateWorm(b,dt);else updateSingular(b,dt);
     if(b===state.boss)updateArenaHazards(dt);
@@ -219,7 +251,7 @@ function updateBoss(dt, b = state.boss) {
     Sfx.play('bossroar', 200);
   }
 
-  const toPx = p.x - b.x, toPy = p.y - b.y;
+  const target=bossPrey(b),toPx = target.x - b.x, toPy = target.y - b.y;
   const dist = Math.hypot(toPx, toPy) || 1;
 
   if (b.state === 'idle') {
@@ -299,7 +331,7 @@ function updateArenaHazards(dt){
 
   if (state.bossLaserActive) {
     state.bossLaserTimer -= dt;
-    if (state.bossLaserTimer <= 0) {
+    if (state.bossLaserTimer <= 0 && !livingBosses().some(b=>HEAVY_MOVES.has(b.state))) {
       state.bossLaserTimer = 2.0;
       const edges = ['top', 'bottom', 'left', 'right'];
       const edge = edges[Math.floor(gameRandom() * 4)];

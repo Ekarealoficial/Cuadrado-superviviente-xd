@@ -13,23 +13,20 @@ function pointInWall(x, y, walls) {
   return false;
 }
 function moveWithWalls(entity, dx, dy, walls) {
-  let blockedX = false, blockedY = false;
-  entity.x += dx;
-  for (const w of walls) {
-    if (aabbOverlapBox(entity.x, entity.y, entity.size, w)) {
-      if (dx > 0) entity.x = w.x - entity.size/2;
-      else if (dx < 0) entity.x = w.x + w.w + entity.size/2;
-      blockedX = true;
-    }
+  const h=entity.size/2,x=entity.x,y=entity.y;
+  let endX=x+dx,endY=y+dy;
+  for(const w of walls){
+    if(y+h<=w.y||y-h>=w.y+w.h)continue;
+    if(dx>0 && x<=w.x-h && endX>w.x-h)endX=w.x-h;
+    else if(dx<0 && x>=w.x+w.w+h && endX<w.x+w.w+h)endX=w.x+w.w+h;
   }
-  entity.y += dy;
-  for (const w of walls) {
-    if (aabbOverlapBox(entity.x, entity.y, entity.size, w)) {
-      if (dy > 0) entity.y = w.y - entity.size/2;
-      else if (dy < 0) entity.y = w.y + w.h + entity.size/2;
-      blockedY = true;
-    }
+  for(const w of walls){
+    if(endX+h<=w.x||endX-h>=w.x+w.w)continue;
+    if(dy>0 && y<=w.y-h && endY>w.y-h)endY=w.y-h;
+    else if(dy<0 && y>=w.y+w.h+h && endY<w.y+w.h+h)endY=w.y+w.h+h;
   }
+  entity.x=endX;entity.y=endY;
+  const blockedX=endX!==x+dx,blockedY=endY!==y+dy;
   return { blockedX, blockedY };
 }
 function laserHits(x, y, radius, lx, ly, angle, width, range) {
@@ -103,4 +100,18 @@ function combatPosition(e,delay){
 function visibleContact(entity,p,radius){
   const pos=combatPosition(entity,state.viewDelay);
   return (p.x-pos.x)**2+(p.y-pos.y)**2<radius*radius;
+}
+
+function settleResizedPlayer(p){
+  if(state.arena)return;
+  const h=p.size/2,walls=getVisibleChunks(state.cam);
+  // Try the nearest face first. A second wall can rule out a candidate.
+  if(!walls.some(w=>aabbOverlapBox(p.x,p.y,p.size,w)))return;
+  const candidates=[];
+  for(const w of walls){
+    candidates.push({x:w.x-h,y:p.y},{x:w.x+w.w+h,y:p.y},{x:p.x,y:w.y-h},{x:p.x,y:w.y+w.h+h});
+  }
+  candidates.sort((a,b)=>Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y));
+  const clear=candidates.find(q=>!walls.some(w=>aabbOverlapBox(q.x,q.y,p.size,w)));
+  if(clear)Object.assign(p,clear);
 }

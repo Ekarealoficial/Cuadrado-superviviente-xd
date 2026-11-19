@@ -4,17 +4,18 @@ const START_HALF_HEARTS = 8;
 const START_MAGNET = 200;
 const BASE_BULLET_LIMIT = 200;
 function playerBulletLimit(p){
-  return BASE_BULLET_LIMIT + 50 * ((p.fireUpgrades || 0) + Math.max(0,p.shots-1) + p.backShots);
+  return BASE_BULLET_LIMIT + 50 * ((p.fireUpgrades || 0) + Math.max(0,p.shots-1) + p.backShots + (p.persist||0) + (p.tide||0) + (p.army?.n||0) + (p.needles?.n||0));
 }
 const BOSS_FIRST_TIME = 150;
 
 /* =============== CARTAS =============== */
 const CARD_TYPES = [
+  ...GEOMETRY_NORMALS.map(([id,name,desc,color,icon])=>({id,name,desc,color,icon,apply:addGeometryCard})),
   ...[['vampirism','Vampirismo','½ ❤ cada 16 − N bajas. Cada 16 copias, reinicia el ciclo y cura ½ ❤ más.','#ff608a'],
       ['explosive','Balas explosivas','15% de explotar al impactar e infligir daño de área. Cada copia multiplica la probabilidad por 1,5.','#ff9c52'],
-      ['frost','Congelación','Los impactos ralentizan durante 2 s. Cada copia añade 10 puntos de ralentización.','#85eaff'],
+      ['frost','Congelación','Los impactos ralentizan durante 2 s. Cada copia añade 10 puntos de ralentización. Tras congelar al 100 %, cada copia prolonga el efecto 0,2 s.','#85eaff'],
       ['critical','Golpe crítico','10% de daño doble. Cada copia añade 5 puntos. Al llegar a 100%, vuelve a 10% y aumenta el multiplicador.','#ffd95d'],
-      ['armor','Armadura','10% de ignorar un golpe. Cada copia multiplica la probabilidad por 1,5.','#99baff'],
+      ['armor','Armadura','10 % de bloquear. Cada copia multiplica la probabilidad por 1,5. Los bloqueos adicionales alargan la inmunidad.','#99baff'],
       ['fury','Furia','Por copia, cada 10% de vida perdida añade un 5% de daño.','#ff6868'],
       ['gravity','Singularidad','Atrae enemigos cada 7 s y estalla. Cada copia amplía el radio y el daño.','#b787ff'],
       ['venom','Veneno','Las balas envenenan. Cada copia aumenta el daño y la duración.','#8eff63'],
@@ -43,6 +44,7 @@ const CARD_TYPES = [
 ];
 const KAME_DPS=285;
 const expansionCards=[
+  ...GEOMETRY_SPECIALS,
   ['kame','Kamekameka','Rayo de '+KAME_DPS+' de daño/s durante 0,45 s. Cada copia añade una carga.',24,'#53dfff'],
   ['activeHeal','Regeneración activa','Cura 1 ❤ y +½ por copia. Con vida llena otorga corazones azules.',32,'#68b4ff'],
   ['reverse','Inversión','Convierte proyectiles en aliados guiados y dardos en explosivos. +1 carga por copia.',28,'#ff76ec'],
@@ -50,7 +52,7 @@ const expansionCards=[
   ['timeBreak','Tiempo roto','Detiene el combate 3 s. Cada copia añade 1 s.',48,'#ffe384']
 ];
 const SPECIAL_CARDS = [
-  ...expansionCards.map(([id,name,desc,cd,color])=>({id,name,color,desc:desc+' Recarga '+cd+' s.',apply:()=>{
+  ...expansionCards.map(([id,name,desc,cd,color,icon])=>({id,name,color,icon,desc:desc+' Recarga '+cd+' s.',apply:()=>{
     const sc=state.specialCards[id];sc.totalCards++;
     if(sc.totalCards===1 || id==='kame' || id==='reverse'){sc.maxCharges++;sc.charges++;}
   }})),
@@ -60,7 +62,7 @@ const SPECIAL_CARDS = [
   { id: 'thunderRain', name: 'Lluvia Truenos',desc: 'Rayos caen sobre todos los enemigos en pantalla. 3s base.', color: '#fbbf24' }
 ];
 
-// One source of truth for bounded stat upgrades and their displayed limits.
+// Multiplicative and additive upgrades share the same registry on client and server.
 const CARD_UPGRADES = {
  fire: {field:'fireCdBase',factor:0.85,label:'Intervalo entre disparos',unit:'s'},
  multi: {field:'shots',add:1,label:'Líneas frontales'},
@@ -89,18 +91,10 @@ function configureCardUpgrades() {
 
 
 // Effects and metadata share the same registry.
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='fire').apply = (p,card) => { p.fireCdBase = Math.max(0.08, p.fireCdBase * 0.85);
-};
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='multi').apply = (p,card) => { p.shots = p.shots + 1;
-};
 [...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='health').apply = (p,card) => {
       state.maxHalfHearts = state.maxHalfHearts + 1;
       state.halfHearts = Math.min(state.maxHalfHearts, state.halfHearts + 1);
 
-};
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='speed').apply = (p,card) => { p.speed = Math.min(520, p.speed * 1.10);
-};
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='back').apply = (p,card) => { p.backShots = p.backShots + 1;
 };
 [...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='drone1').apply = (p,card) => { {
       const lines = card.id === 'drone1' ? 1 : (card.id === 'drone2' ? 2 : 3);
@@ -120,20 +114,12 @@ function configureCardUpgrades() {
 
     }
 };
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='magnet').apply = (p,card) => { state.magnetRange = Math.min(800, state.magnetRange + 80);
-};
 [...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='shield').apply = (p,card) => { state.shields.push({ hp: 4, maxHp: 4, x: p.x, y: p.y, angle: 0 });
-};
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='bounce').apply = (p,card) => { p.bounces = p.bounces + 1;
-};
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='homing').apply = (p,card) => { p.homingChance = p.homingChance + 0.30;
 };
 [...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='dupli').apply = (p,card) => {
       p.dupliCount = p.dupliCount + 1;
       p.dupliChance = Math.min(1, p.dupliCount * 0.10);
 
-};
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='size').apply = (p,card) => { p.sizeLevel = p.sizeLevel + 1;
 };
 [...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='dart').apply = (p,card) => {
       state.darts.push({ type: 'normal', x: p.x, y: p.y, vx: 0, vy: 0, angle: 0, state: 'follow', target: null, bob: gameRandom() * TAU });
@@ -143,10 +129,6 @@ function configureCardUpgrades() {
       state.darts.push({ type: 'explosive', x: p.x, y: p.y, vx: 0, vy: 0, angle: 0, state: 'follow', target: null, bob: gameRandom() * TAU });
 
 };
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='rayolaser').apply = (p,card) => { p.laserCount = p.laserCount + 1;
-};
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='lightning').apply = (p,card) => { p.lightningCount = p.lightningCount + 1;
-};
 [...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='regen').apply = (p,card) => { {
       p.regenLevel++;
       const info = getRegenInfo(p.regenLevel);
@@ -155,8 +137,6 @@ function configureCardUpgrades() {
       if (p.regenTimer <= 0) p.regenTimer = p.regenInterval;
 
     }
-};
-[...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='greed').apply = (p,card) => { p.greedLevel = p.greedLevel + 1;
 };
 [...CARD_TYPES,...SPECIAL_CARDS].find(c=>c.id==='blink').apply = (p,card) => { {
       const sc = state.specialCards.blink;

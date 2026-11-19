@@ -35,7 +35,7 @@ function explodeKamikaze(e) {
   Sfx.play('explode', 60);
   const p = state.player;
   const ddx = p.x - e.x, ddy = p.y - e.y;
-  if (ddx*ddx + ddy*ddy < radius*radius && p.invuln <= 0) damagePlayer(1);
+  if (ddx*ddx + ddy*ddy < (radius+p.size/2)**2 && p.invuln <= 0) damagePlayer(1);
   for (let i = state.enemies.length - 1; i >= 0; i--) {
     const other = state.enemies[i];
     if (!other) continue;
@@ -64,8 +64,9 @@ function summonEnemies(invoker) {
 }
 
 function dropGreedBonus(e,xp) {
-  if (state.player.greedLevel > 0 && gameRandom() < 0.15 * state.player.greedLevel) {
-    spawnOrbs(e.x + gameRand(-30, 30), e.y + gameRand(-30, 30), xp * 0.7 * Math.max(1,0.15*state.player.greedLevel));
+  const bonuses=state.player.greedLevel?chanceCount(.15*state.player.greedLevel):0;
+  if (bonuses) {
+    spawnOrbs(e.x + gameRand(-30, 30), e.y + gameRand(-30, 30), xp*.7*bonuses);
     addFloat(e.x, e.y - 25, '¡XP extra!', '#fbbf24');
   }
 }

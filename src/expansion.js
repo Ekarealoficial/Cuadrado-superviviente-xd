@@ -78,13 +78,14 @@ function activateExpansion(id){
   sc.charges--;if(sc.cooldown<=0)sc.cooldown=sc.cooldownMax;
   const n=sc.totalCards,aim=getWorldMouse(),a=Math.atan2(aim.y-p.y,aim.x-p.x);
   p.cast={id,born:state.time};
-  if(id==='kame'){
+  if(GEOMETRY_SPECIALS.some(c=>c[0]===id))castGeometry(id,p,n,aim);
+  else if(id==='kame'){
     (p.beam ||= []).push({a,end:state.time+.45});
   }else if(id==='activeHeal'){
     if(state.halfHearts>=state.maxHalfHearts)state.blueHealth+=n+1;
     else state.halfHearts=Math.min(state.maxHalfHearts,state.halfHearts+n+1);
   }else if(id==='reverse')invertProjectiles();
-  else if(id==='plasma')p.plasma={r:62+12*(n-1),damage:5+3*(n-1),end:state.time+6};
+  else if(id==='plasma')p.plasma={r:p.size/2+47+12*(n-1),damage:5+3*(n-1),end:state.time+6};
   else {
     const end=state.time+2+n;
     if(end>state.stopUntil){state.stopStarted=state.time;state.stopUntil=end;}
@@ -93,7 +94,7 @@ function activateExpansion(id){
   Sfx.play(id==='kame'?'laser':'blink',80);
 }
 function expansionHit(e,damage){
-  if(e._dying)return;
+  if(e._dying || e.state==='final')return;
   e.hp-=damage*attackMultiplier(e);e.hitFlash=.14;
   if(e.hp<=0)finishTarget(e);
 }
@@ -104,6 +105,7 @@ function updateExpansion(dt,worldStep){
     for(const b of p.beam||[])b.end+=dt;
     return;
   }
+  updateGeometryCards(p,dt);
   if(p.beam){
     p.beam=p.beam.filter(b=>b.end>state.time);
     for(const beam of p.beam){
