@@ -128,7 +128,8 @@ function updateSingular(b,dt){
     b.y=clamp(b.y+Math.sin(a)*125*moveTime(b,dt),state.arena.y+b.size/2,state.arena.y+state.arena.h-b.size/2);
     if(b.timer<=0){
       if(!b.deck.length)b.deck=b.phase>1?['attract','solar','blink','lunar']:['attract','solar','blink'];
-      startSingularAttack(b,b.deck.splice(Math.floor(gameRandom()*b.deck.length),1)[0]);
+      const move=b.deck.splice(Math.floor(gameRandom()*b.deck.length),1)[0];startSingularAttack(b,move);
+      if(['attract','lunar'].includes(move)&&canCoverArena(b)&&gameRandom()<.48+.12*b.phase)solarVolley(b.id);
     }
     return;
   }

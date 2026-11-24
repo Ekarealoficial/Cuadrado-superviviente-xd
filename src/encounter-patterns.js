@@ -2,7 +2,7 @@
 // Choreographies use simulation seconds. Only the server (or solo simulation)
 // chooses paths. Clients draw the same coordinates and intervals from snapshots.
 const ENCOUNTER_SPECS={
-  beacon:{size:180,color:'#ff487d',limits:[.75,.45,.2],moves:[['tracking','curtain','sweep'],['refraction','emitters'],['fusion'],['overload']]},
+  beacon:{size:180,color:'#ff487d',limits:[.75,.45,.2],moves:[['tracking','curtain','sweep','refraction'],['emitters'],['fusion'],['overload']]},
   twins:{size:95,color:'#ffac57',limits:[.4,0],moves:[['link','exchange','pulses','pincer'],['binary'],['positiveStorm','negativeStorm']]},
   heart:{size:170,color:'#ff665f',limits:[.60,.25],moves:[['pistons','turret','transmission','discharge','shock'],['rebuild','machineCycle'],['leak']]},
   monolith:{size:230,color:'#83e4eb',limits:[],moves:[['stomp','wall','avalanche','impact','rhythm']]}
@@ -33,6 +33,7 @@ function makeComponents(b){
 function activeParts(b){return (b.parts||[]).filter(q=>q.hp>0);}
 function availablePatterns(b){
   if(b.kind==='twins'&&b.phase===3)return [activeParts(b)[0]?.index===0?'positiveStorm':'negativeStorm'];
+  if(b.kind==='frontier'&&b.phase===2)return ENCORE.frontier.moves[1].filter(m=>m!=='terminal'||b.hp/b.maxHp<=.2);
   const moves=PATTERN_BOSSES[b.kind].moves.slice(0,b.phase).flat();
   if(b.kind!=='heart')return moves;
   return moves.filter(m=>(!ROLES.includes(m)||b.parts.some(q=>q.role===m&&q.hp>0))&&(m!=='rebuild'||b.repairs>0&&activeParts(b).length<4));
@@ -41,7 +42,7 @@ function partDefeated(q){
   if(q._dying)return;
   const b=livingBosses().find(o=>o.parts?.includes(q));
   if(!b||b.state==='final')return;
-  q._dying=true;q.hp=0;spawnParticles(q.x,q.y,20,q.color,1);bossCue(b.kind+'Phase',q);
+  q._dying=true;q.hp=0;q.brokenAt=b.clock;spawnParticles(q.x,q.y,20,q.color,1);bossCue(b.kind+'Phase',q);
   if(b.kind==='heart')return;
   b.hp=activeParts(b).reduce((sum,v)=>sum+v.hp,0);
   if(!b.hp){b.lastTwin=q.index;b.x=q.x;b.y=q.y;killBoss(b);return;}
@@ -50,9 +51,11 @@ function partDefeated(q){
 }
 // Damage from every weapon, including damage over time, uses the same core plating.
 function hurtTarget(q,amount){
-  if(q._dying||q.state==='final')return;
+  if(q._dying||q.state==='final'||q.kind==='frontier'&&q.state==='transition')return;
+  if(q.kind==='frontier'&&q.phase===1&&q.hp<=q.maxHp*.5)return;
   if(q.kind==='heart')amount/=1+.13*activeParts(q).length;
   q.hp-=amount;
+  if(q.kind==='frontier'&&q.phase===1)q.hp=Math.max(q.maxHp*.499,q.hp);
 }
 function reflectedPath(origin,angle,count){
   const a=state.arena,points=[point(origin)];let q=point(origin),dx=Math.cos(angle),dy=Math.sin(angle);
@@ -90,7 +93,7 @@ function emitterFan(b,start,final=false){
   b.posts=Array.from({length:4},(_,i)=>({x:c.x+Math.cos(i*Math.PI/2)*a.w*.32,y:c.y+Math.sin(i*Math.PI/2)*a.h*.32}));
   for(const [i,q] of b.posts.entries())ray(b,start+i*(final?.53:.27),final?.9:.64,final?.32:.48,q,final?angleTo(q,c)+i*.13:angleTo(q,bossPrey(b)),23,{post:i});
 }
-function sweep(b,start,turn=1){ray(b,start,b.phase>2?.72:.82,b.phase>2?1.3:1.58,b,b.angle,33,{opposed:true,spin:turn*(2*Math.PI/3)/(b.phase>2?1.3:1.58)});}
+function sweep(b,start,turn=1){ray(b,start,b.phase>2?.72:.82,b.phase>2?1.3:1.58,b,b.angle,33,{opposed:true,spin:turn*(2*Math.PI/3)*(1+.12*(b.phase-1))/(b.phase>2?1.3:1.58)});}
 function fusion(b,start,duration=1){ray(b,start,1.02,duration,b,b.angle,90,{impact:16});}
 function laserCurtain(b,start,vertical,n){
   const a=state.arena,span=vertical?a.w:a.h;
@@ -199,11 +202,17 @@ function scheduleHeart(b,m){
   else if(m==='rebuild'){
     const q=b.parts.find(v=>v.hp<=0);
     if(q&&b.repairs>0){b.repairs--;b.repairHP=b.hp;cue(b,'repair',0,2,.2,{index:q.index});}
-  }else if(m==='machineCycle')['turret','transmission','shock','pistons'].forEach((role,i)=>moduleAttack(b,role,i*1.1,true));
+  }else if(m==='machineCycle')['turret','transmission','shock','pistons'].forEach((role,i)=>moduleAttack(b,role,i*.34,true));
   else{
     for(let i=0;i<(m==='leak'?14:4+b.phase);i++){
       volley(b,.55+i*(m==='leak'?.25:.44),b,m==='leak'?42:20+4*b.phase,210+55*(i%3),i*.16,{gaps:true});
       if(m==='leak'&&i>=6&&i%2===0)for(const side of [-1,1])ray(b,i*.25,.64,.39,b,b.angle+side*i*.31,17);
+    }
+    if(b.phase===3)for(const missing of b.parts.filter(q=>!q.hp)){
+      const source=activeParts(b)[0]||b;
+      if(missing.role==='transmission')ray(b,.3,.67,.55,source,b.angle,17,{spin:.24});
+      else if(missing.role==='shock')wave(b,.75,source,false,1);
+      else burst(b,.56,source,missing.role==='pistons'?7:22,315,b.angle,{fan:missing.role==='pistons'?1.1:TAU});
     }
     if(m==='leak')cue(b,'burnout',3.6,.52,.1);
   }
@@ -246,15 +255,14 @@ function scheduleMonolith(b,m){
   }
 }
 function beginEncounterMove(b,m){
-  makeScore(b);b.state=m;b.combo=null;b.laserGate=b.kind==='beacon'&&b.phase>=3&&['curtain','sweep','overload'].includes(m);b.posts=null;b.angle=angleTo(b,bossPrey(b));b.charging=false;
-  if(SCORED_MOVES.has(m))scheduleClassicScore(b,m);
+  makeScore(b);b.overlap='';b.state=m;b.combo=null;b.laserGate=b.kind==='beacon'&&b.phase>=3&&['curtain','sweep','overload'].includes(m);b.posts=null;b.angle=angleTo(b,bossPrey(b));b.charging=false;
+  if(m==='zeroClassic')classicZero(b);else if(SCORED_MOVES.has(m))scheduleClassicScore(b,m);
+  if(ENCORE[b.kind])scoreSignature(b,m);
   if(b.kind==='beacon')scheduleBeacon(b,m);
   if(b.kind==='twins')scheduleTwins(b,m);
   if(b.kind==='heart')scheduleHeart(b,m);
   if(b.kind==='monolith')scheduleMonolith(b,m);
-  if(b.phase>=3&&m==='sweep')addPatternLayer(b,'emitters');
-  if(b.phase>=3&&m==='curtain')addPatternLayer(b,'fusion');
-  if(b.phase>=2&&m==='transmission'&&b.parts[0].hp>0)addPatternLayer(b,'turret');
+
   b.timer=Math.max(.45,b.timer);bossCue((m==='absorb'?'pulses':m)+'Charge',b);
 }
 function finalNode(b,i,n){
@@ -268,6 +276,7 @@ function finalNode(b,i,n){
 }
 function scheduleFinal(b){
   makeScore(b);b.combo=null;b.laserGate=false;b.state='final';const k=b.kind;
+  if(ENCORE[k]){encoreFinal(b);return;}
   if(k==='fractal'){
     for(let j=0;j<3;j++)for(let i=0;i<4;i++)volley(b,1+j*.76,b,8,175+40*j,j*.19,{node:i,nodes:4,square:true});
   }else if(k==='clock'){
@@ -302,11 +311,11 @@ function tickScore(b,dt){
   for(const tr of b.tracks||[]){
     if(t<tr.start||t-dt>tr.start+tr.duration)continue;
     const body=tr.index<0?b:b.parts[tr.index];
-    if(body.hp>0)Object.assign(body,mixPoint(tr.from,tr.to,clamp((t-tr.start)/tr.duration,0,1)));
+    if(body.hp>0||b.state==='final')Object.assign(body,mixPoint(tr.from,tr.to,clamp((t-tr.start)/tr.duration,0,1)));
   }
   for(const e of b.events||[]){
     if(e.kind==='wave'&&t<=e.end && (state.arena.w!==e.arenaW||state.arena.h!==e.arenaH||
-        state.arena.x!==e.arenaX||state.arena.y!==e.arenaY||e.part!==undefined&&t>=e.start)){
+        (!state.arena.chase&&(state.arena.x!==e.arenaX||state.arena.y!==e.arenaY))||e.part!==undefined&&t>=e.start)){
       if(e.part!==undefined){e.requires=e.part;e.origin=point(b.parts[e.part]);delete e.part;}
       const a=state.arena;e.reach=waveReach(a,e.origin,e.square,(b.safeSize||30)/2+22);
       // An emitted front keeps its speed when another boss enlarges the arena.
@@ -314,7 +323,7 @@ function tickScore(b,dt){
       b.timer=Math.max(b.timer,e.end+.25-t);
     }
     if(t<e.start||t>e.end+dt||(e.part!==undefined&&b.parts[e.part].hp<=0||e.requires!==undefined&&b.parts[e.requires].hp<=0))continue;
-    tickArenaEvent(b,e,t);
+    tickArenaEvent(b,e,t);tickEncoreEvent(b,e);
     if(e.track&&t<=e.start+e.track)e.angle=angleTo(e.origin,targetForBeat(b,e.targetBeat||0))+(e.aimOffset||0);
     if(e.kind==='orbit'){
       e.from??=b.parts.map(point);
@@ -327,7 +336,7 @@ function tickScore(b,dt){
     if(t<e.on||e.fired)continue;
     e.fired=true;b.lastBeat=b.clock;
     const q=eventOrigin(b,e);
-    fireArenaEvent(b,e);
+    fireArenaEvent(b,e);fireEncoreEvent(b,e);
     if(e.kind==='volley'){
       for(let i=0;i<e.count;i++){
         if(e.gaps&&i%Math.max(4,Math.floor(e.count/3))<2)continue;
@@ -337,6 +346,7 @@ function tickScore(b,dt){
     if(e.kind==='repair'&&b.hp>b.repairHP-b.maxHp*.055){
       const part=b.parts[e.index];part.hp=part.maxHp*.48;part._dying=false;
     }
+    if(e.kind==='ray'&&e.impact)spawnParticles(q.x,q.y,12,b.color);
     if(e.kind==='burnout'){const part=activeParts(b).at(-1);if(part)partDefeated(part);}
     if(e.kind==='wave'||e.kind==='dash'||e.impact)state.shake=Math.max(state.shake,e.impact||7);
     // Simultaneous petals are one chord, not dozens of Web Audio voices.
@@ -350,11 +360,12 @@ function tickScore(b,dt){
 function scoreShapes(b){
   const out=[],t=b.age,a=state.arena;
   if(!a)return out;
-  const gate=b.laserGate&&b.kind==='beacon'?beaconPassage(b,t):null;
+  const gate=(b.laserGate||b.layers?.some(l=>l.posts||l.state==='curtain'||l.state==='tracking'))&&b.kind==='beacon'?beaconPassage(b,t):null;
   function line(p,q,width,live){beamSegments(out,p,q,width,live,gate,(b.safeSize||30)/2+26);}
   for(const e of b.events||[]){
     if(t<e.start||t>e.end||(e.part!==undefined&&b.parts[e.part].hp<=0||e.requires!==undefined&&b.parts[e.requires].hp<=0))continue;
     const live=t>=e.on,u=Math.max(0,t-e.on),q=eventOrigin(b,e);
+    appendEncoreShape(out,b,e,t,line);
     if(e.kind==='ray'){
       const angle=e.angle+u*(e.spin||0),len=Math.hypot(a.w,a.h)*1.1;
       line(e.opposed?polarPoint(q,-len,angle):q,polarPoint(q,len,angle),e.width,live);

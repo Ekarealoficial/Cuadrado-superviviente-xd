@@ -113,6 +113,13 @@ function drawExpansionWorld(){
 }
 function drawExpansionCast(p){
   ctx.save();ctx.translate(p.x,p.y);
+  const giftAge=state.time-(p.dashGiftAt??-9);
+  if(giftAge>=0&&giftAge<1.65){
+    const radial=90*(1-clamp(giftAge/1.3,0,1));
+    for(let j=0;j<4;j++){ctx.save();ctx.rotate(j*Math.PI/2+giftAge*2.1);ctx.translate(radial,0);
+      energyLine({x:4,y:-5},{x:-3,y:0},'#b6fffb',3);energyLine({x:-3,y:0},{x:4,y:5},'#79eaff',3);ctx.restore();}
+    neonText('+4 DASH — ¡CORRE!',0,-36,'#99fff7',14,190);
+  }
   if(p.iceUntil>state.time){ctx.strokeStyle='#9fefff';ctx.lineWidth=3;ctx.strokeRect(-19,-19,38,38);shard(-18,12,4,9,'#65cfff');}
   for(const b of p.beam||[]){
     if(b.end<=state.time)continue;
@@ -153,6 +160,7 @@ function drawExpansionCast(p){
 function advancedEnemyArt(e,r){
   if(!['erratic','pulseRing','rebound','twinCannon'].includes(e.type))return false;
   ctx.save();ctx.translate(e.x,e.y);
+  drawAdvancedDetails(e,r);
   const charging=e.phase==='aim',light=charging?'#fff9e5':'#ffd39f';
   if(e.type==='pulseRing'){
     strokeRing(0,0,r+3,charging?'#f7cbff':'#c988ff',3,e.wob,e.wob+5.1);

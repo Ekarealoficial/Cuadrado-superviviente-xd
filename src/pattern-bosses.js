@@ -13,6 +13,7 @@ function createPatternBoss(kind,pos,hp){
 }
 function patternOrigin(){const a=state.arena;return {x:a.x+a.w/2,y:a.y+a.h/2};}
 function phaseOf(b){
+  if(ENCORE[b.kind])return 1+ENCORE[b.kind].limits.filter(limit=>b.hp<=b.maxHp*limit).length;
   if(b.kind==='twins'){
     const live=b.parts.filter(q=>q.hp>0);
     return live.length<2?3:live.some(q=>q.hp<q.maxHp*.4)?2:1;
@@ -99,16 +100,19 @@ function updatePatternBoss(b,dt){
     if(!canCoverArena(b))return;
     b.waitFinal=false;bossCue(b.kind+'Death',b);
   }
-  b.step=dt;b.clock+=dt;b.hitFlash=Math.max(0,b.hitFlash-dt);b.age+=dt;b.timer-=dt;
+  b.step=dt;b.clock+=dt;if(b.gateTime!==undefined)b.gateTime=b.clock;b.hitFlash=Math.max(0,b.hitFlash-dt);b.age+=dt;b.timer-=dt;
+  if(ENCORE[b.kind])tickSignature(b,dt);
+  tickLayers(b,dt);
   if(b.state==='final'){
     tickScore(b,dt);
     if(b.timer<=0){const active=state;state=finalCredit.get(b)||active;killBoss(b,true);state=active;}return;
   }
   if(b.kind==='twins')b.hp=activeParts(b).reduce((sum,q)=>sum+q.hp,0);
   const phase=phaseOf(b);
-  if(phase>b.phase){b.charging=false;b.overlap='';b.combo=null;b.laserGate=false;b.phase=phase;b.state='transition';b.events=[];b.tracks=[];b.posts=null;b.timer=b.kind==='fractal'?1.5:1;b.age=0;b.deck=[];bossCue(b.kind+'Phase',b);return;}
+  if(phase>b.phase){if(b.kind==='general'){b.words=1;encounterVoice(b,GENERAL_LINES[phase-1][0]);}
+    b.charging=false;b.overlap='';b.combo=null;b.laserGate=false;b.phase=phase;b.state='transition';b.events=[];b.tracks=[];b.posts=null;b.timer=b.kind==='frontier'?1.45:b.kind==='fractal'?1.5:1;b.age=0;b.deck=[];bossCue(b.kind+'Phase',b);return;}
   if(b.state==='recover'||b.state==='transition'){
-    if(b.state==='recover'){
+    if(b.state==='recover'&&!b.chasing&&!(b.entry&&b.clock<1.12)){
       const p=bossPrey(b),ang=Math.atan2(p.y-b.y,p.x-b.x)+Math.sin(b.clock)*.9;
       Object.assign(b,boundedPoint(b.x+Math.cos(ang)*dt*(45+15*b.phase),b.y+Math.sin(ang)*dt*(45+15*b.phase),b.size/2));
     }
@@ -120,6 +124,7 @@ function updatePatternBoss(b,dt){
       }
     }
     if(b.timer<=0){
+      if(b.kind==='frontier'&&b.phase>=2&&!b.chasing)enterChase(b);
       if(!b.deck.length)b.deck=availablePatterns(b);
       b.deck=b.deck.filter(m=>availablePatterns(b).includes(m));
       const others=livingBosses().filter(o=>o!==b);
@@ -128,12 +133,13 @@ function updatePatternBoss(b,dt){
       }
       const ready=b.deck.filter(m=>!HEAVY_MOVES.has(m)||!livingBosses().some(q=>q.waitFinal)&&canCoverArena(b,m));
       if(!ready.length){b.timer=.25;return;}
-      const m=ready[Math.floor(gameRandom()*ready.length)];b.deck.splice(b.deck.indexOf(m),1);beginPattern(b,m);
+      const m=ready[Math.floor(gameRandom()*ready.length)];b.deck.splice(b.deck.indexOf(m),1);beginPattern(b,m);naturalLayers(b,m);
     }return;
   }
   if(ENCOUNTER_SPECS[b.kind]||SCORED_MOVES.has(b.state)){
     tickScore(b,dt);
     if(b.timer<=0){
+      if(b.kind==='general'&&b.phase>=2&&state.damageTimer>b.age&&b.age>2)encounterVoice(b,'AÚN RECUERDAS CÓMO ESQUIVAR...');
       bossCue(b.state+'End',b);b.state='recover';b.age=0;
       b.timer=b.kind==='beacon'?Math.max(.19,.55-.09*b.phase):b.kind==='heart'?.76-.09*(4-activeParts(b).length)-.08*(b.phase-1):Math.max(.29,.78-.15*(b.phase-1));
       b.combo=null;b.laserGate=false;
@@ -165,6 +171,7 @@ function updatePatternBoss(b,dt){
 function canCoverArena(b,move){
   // Keep intersecting walls, moving beams and finales exclusive. A gapped
   // bullet pattern may share a late encounter with one local laser battery.
+  if(livingBosses().some(o=>o!==b&&o.layers?.some(l=>BIG_PATTERNS.includes(l.state)&&l.timer>0)))return false;
   if(move&&b.phase>=2&&!state.bossLasers.length){
     const busy=livingBosses().filter(o=>o!==b&&(HEAVY_MOVES.has(o.state)||o.state==='blink'||o.pieces?.some(p=>['exit','laneAim','pass'].includes(p.mode))));
     if(busy.length===1&&!busy[0].waitFinal){
@@ -190,6 +197,11 @@ function curveEnemyShot(s,dt){
 }
 // Both the warning and the damaging frame use these exact primitives.
 function patternShapes(b){
+  const shapes=primaryShapes(b);
+  if(!b.waitFinal)for(const l of b.layers||[])shapes.push(...scoreShapes(layerView(b,l)));
+  return shapes;
+}
+function primaryShapes(b){
   const shapes=[],t=b.age,a=state.arena,m=b.state;
   if(!a||b.waitFinal)return shapes;
   if(m==='final'||ENCOUNTER_SPECS[b.kind]||SCORED_MOVES.has(m))return scoreShapes(b);
@@ -224,6 +236,7 @@ function patternTouches(shape,p){
   const h=p.size/2;
   if(shape.kind==='line')return segmentDistance(p,shape,{x:shape.xx,y:shape.yy})<=h+shape.width/2;
   const dx=p.x-shape.x,dy=p.y-shape.y,d=Math.hypot(dx,dy);
+  if(shape.kind==='rect')return Math.abs(dx)<=shape.rx+h && Math.abs(dy)<=shape.ry+h;
   if(shape.kind==='box')return Math.max(Math.abs(dx),Math.abs(dy))<=shape.r+h;
   if(shape.kind==='disk')return d<=shape.r+h;
   if(shape.kind==='sector'){
@@ -236,6 +249,7 @@ function patternTouches(shape,p){
 }
 function patternContact(b,p){
   if(p.invuln>0||b.waitFinal)return;
+  if(b.chasing && p.x-p.size/2<=b.x+27){damagePlayer(2);return;}
   if(patternShapes(b).some(s=>s.live && patternTouches(s,p)))damagePlayer(2);
   else if(b.charging && visibleContact(b,p,(b.size+p.size)/2))damagePlayer(2);
 }
@@ -244,7 +258,7 @@ function startPatternFinal(b){
   b.waitFinal=!canCoverArena(b);
   b.angle=angleTo(b,bossPrey(b));b.hp=0;b.charging=false;b.overlap='';
   if(b.parts)for(const q of b.parts)q._dying=true;
-  scheduleFinal(b);
+  b.layers=[];scheduleFinal(b);
   state.enemyBullets=state.enemyBullets.filter(s=>s.source!==b.id);
   finalCredit.set(b,state);if(!b.waitFinal)bossCue(b.kind+'Death',b);
 }

@@ -291,7 +291,7 @@ test('Los planetas alcanzan al jugador lejos del núcleo',()=>{
  assert.ok(run('outer.distance>300 && hp-state.halfHearts===1'));
 });
 test('El catálogo de diez recorre sus 1023 conjuntos y después conserva el máximo',()=>{
- const sequence=()=>game()('JSON.stringify(Array.from({length:1026},pickEncounter))');
+ const sequence=()=>game()("rules.disabled=Object.keys(ENCORE);JSON.stringify(Array.from({length:1026},pickEncounter))");
  const out=JSON.parse(sequence());assert.equal(JSON.stringify(out),sequence());
  let start=0;
  for(const [index,n] of [10,45,120,210,252,210,120,45,10,1].entries()){
@@ -522,4 +522,62 @@ test('Los relevos anuncian sus disparos, bloquean la dirección y rebotan contra
   assert.ok(run("runner.x>start+60"));
   run("currentWalls=[{x:32,y:-100,w:30,h:200}];step(ball,.12);const x=ball.x;step(ball,.10)");
   assert.ok(run("ball.boost>0 && ball.x<x-15 && ball.bounced===state.time"));
+});
+
+for(const kind of ['dawn','prism','sovereign','channel','general','frontier']){
+  test('Todas las fases, ataques y desenlace de '+kind,()=>{
+    const run=game();
+    run("playMode='sandbox';lab.god=true;spawnBoss({x:40,y:-120},'"+kind+"');const b=state.boss;const moves=sandboxPhases(b);");
+    for(const [index,list] of JSON.parse(run('JSON.stringify(moves)')).entries()){
+      run('setSandboxPhase(b,'+(index+1)+');');
+      for(const move of list){
+        run("sandboxAttack(b,'"+move+"')");
+        assert.ok(run('b.events.length>0 && Number.isFinite(b.timer)'),move);
+        run("for(let i=0;i<650&&b.state!=='recover';i++){update(1/30);if(i%12===0)render();}");
+        assert.ok(run("b.state==='recover' && !state.over && Number.isFinite(b.x)&&state.enemyBullets.every(s=>Number.isFinite(s.x+s.y+s.vx+s.vy))"),move);
+      }
+    }
+    run("clearSandboxShots();killBoss(b);killBoss(b);");
+    assert.ok(run("b.state==='final'&&!state.cardRelics.length&&b.finalLength>=6"));
+    run("let danger=false;for(let i=0;i<600&&state.boss;i++){update(1/30);danger ||=state.enemyBullets.length>0||state.enemies.some(e=>e.master===b.id)||patternShapes(b).some(s=>s.live);if(i%9===0)render();}killBoss(b,true);");
+    assert.ok(run("danger&&!state.boss&&!state.arena&&state.completedEncounters===1&&state.cardRelics.length+state.bonusPicks===2&&!state.enemies.some(e=>e.master===b.id)&&!state.enemyBullets.some(s=>s.source===b.id)"));
+  });
+}
+test('Dieciséis jefes recorren 65535 encuentros distintos con memoria constante',()=>{
+  const run=game();
+  assert.ok(run("(()=>{const seen=new Set();let size=0;for(let i=0;i<65535;i++){const g=pickEncounter(),key=g.join('+');if(g.length<size||seen.has(key)||state.bossCycle.length>3)return false;size=g.length;seen.add(key);}return size===16&&pickEncounter().length===16;})()"));
+});
+test('Las capas del Faro persisten al cambiar el ataque principal y comparten el paso seguro',()=>{
+  const run=game();run("spawnBoss(null,'beacon');const b=state.boss;beginPattern(b,'sweep');sideScore(b,'emitters');sideScore(b,'curtain');const first=b.layers[0];");
+  assert.equal(run('b.layers.length'),2);
+  run("for(let i=0;i<36;i++)updateBoss(1/60,b);const age=first.age;beginPattern(b,'tracking');");
+  assert.ok(run("first===b.layers[0]&&first.age===age"));
+  run("for(let i=0;i<120;i++){updateBoss(1/60,b);const p={...beaconPassage(b,b.age),size:30};if(patternShapes(b).some(s=>s.live&&patternTouches(s,p)))throw Error('se cerró la abertura');}");
+});
+test('Hora Cero clásico mantiene su sector circular y puede entrar desde fuera de la arena',()=>{
+  const run=game();run("spawnBoss(null,'clock');const b=state.boss;setSandboxPhase(b,3);beginPattern(b,'zero');const original=b.events[0].kind;beginPattern(b,'zeroClassic');const e=b.events[0];");
+  assert.ok(run("original==='perimeter'&&e.kind==='classicRing'&&e.r>=Math.hypot(state.arena.w,state.arena.h)/2"));
+  run("for(let i=0;i<90;i++){updateBoss(1/60,b);update_enemyProjectiles(1/60);}");
+  assert.ok(run("state.enemyBullets.some(s=>s.entersArena)&&state.enemyBullets.some(s=>s.streak&&!s.entersArena)"));
+});
+test('Repetir fase del sandbox acumula cuatro Dash solo una vez y restaura el corredor',()=>{
+  const run=game();run("playMode='sandbox';spawnEncounter(['frontier','heart']);const [b,other]=livingBosses();const card=SPECIAL_CARDS.find(c=>c.id==='dash');applyCard(card);applyCard(card);state.specialCards.dash.charges=1;const w=state.arena.w;setSandboxPhase(b,2);chaseGift();setSandboxPhase(b,2);chaseGift();");
+  assert.ok(run("state.specialCards.dash.totalCards===6&&state.specialCards.dash.charges===5&&state.slots.includes('dash')&&state.arena.w>w&&!state.cardChoices"));
+  run("const start=state.arena.x;for(let i=0;i<900;i++){state.player.x=b.x+260;updateChase(b,1/30);}setSandboxPhase(b,1);");
+  assert.ok(run("state.arena.x>start+1200&&!state.arena.chase&&state.arena.w===w&&livingBosses().includes(other)"));
+});
+
+test('Dos finales nuevos conservan la arena y entregan cada botín una vez',()=>{
+  const run=game();run("playMode='sandbox';lab.god=true;spawnEncounter(['general','frontier']);const [g,f]=livingBosses();setSandboxPhase(f,2);chaseGift();killBoss(g);killBoss(f);");
+  const ok=run("(()=>{let partial=false,redeemed=0;for(let i=0;i<900&&state.boss;i++){if(state.cardChoices){if(state.bonusPicks)redeemed++;pickCard(state.cardChoices[0]);}update(1/30);if(livingBosses().length===1){partial=true;if(!state.arena||state.completedEncounters)return false;}}return partial&&!state.arena&&!state.boss&&state.completedEncounters===1&&state.cardRelics.length+state.bonusPicks+redeemed===4;})()");
+  assert.equal(ok,true);
+});
+test('Cada esquina intersecta al menos un radio ofensivo del Hora Cero original',()=>{
+  const run=game();run("spawnBoss(null,'clock');const b=state.boss;setSandboxPhase(b,3);beginPattern(b,'zeroClassic');");
+  assert.ok(run("(()=>{const a=state.arena,c=patternOrigin();return [a.x,a.x+a.w].every(x=>[a.y,a.y+a.h].every(y=>b.events.some(e=>e.kind==='classicRing'&&e.angles.some(theta=>Math.cos(theta-angleTo(c,{x,y}))>.99998))));})()"));
+});
+test('Las invocaciones mantienen propietario y caducidad en un encuentro con dos invocadores',()=>{
+  const run=game();run("playMode='sandbox';lab.god=true;spawnEncounter(['sovereign','sovereign']);const [a,b]=livingBosses();for(const c of [a,b]){beginPattern(c,'portals');for(let j=0;j<65;j++)updateBoss(1/60,c);}const before=state.score;const own=state.enemies.findIndex(e=>e.master===a.id);killEnemy(own);");
+  assert.ok(run("state.score===before&&state.enemies.some(e=>e.master===a.id)&&state.enemies.some(e=>e.master===b.id)"));
+  run("killBoss(a,true);");assert.ok(run("!state.enemies.some(e=>e.master===a.id)&&state.enemies.every(e=>e.master===b.id)&&state.arena"));
 });

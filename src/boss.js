@@ -18,23 +18,32 @@ function finishTarget(target) {
   else killEnemy(state.enemies.indexOf(target));
 }
 
-function combinations(pool,size,index=0,prefix=[],out=[]){
-  if(prefix.length===size){out.push(prefix);return out;}
-  for(let i=index;i<=pool.length-size+prefix.length;i++)combinations(pool,size,i+1,[...prefix,pool[i]],out);
-  return out;
+// Unrank a shuffled index within a group size. Sixteen bosses have 65,535
+// possible groups; only three numbers travel in snapshots, even late in a run.
+function chooseCount(n,k){
+  let count=1;
+  for(let i=1;i<=Math.min(k,n-k);i++)count=count*(n-i+1)/i;
+  return Math.round(count);
 }
 function pickEncounter(){
-  const pool=Object.keys(BOSS_NAMES).filter(id=>!rules.disabled.includes(id)).sort();
+  const pool=Object.keys(BOSS_NAMES).filter(k=>!rules.disabled.includes(k)).sort();
   if(!pool.length)return null;
   const roster=pool.join('+');
   if(state.encounterRoster!==roster){state.encounterRoster=roster;state.groupSize=1;state.bossCycle=[];}
-  let groups=combinations(pool,state.groupSize).filter(g=>!state.bossCycle.includes(g.join('+')));
-  if(!groups.length){
-    state.groupSize=Math.min(pool.length,state.groupSize+1);state.bossCycle=[];
-    groups=combinations(pool,state.groupSize);
+  let k=state.groupSize,n=chooseCount(pool.length,k),cycle=state.bossCycle;
+  if(cycle[0]>=n){k=state.groupSize=Math.min(k+1,pool.length);n=chooseCount(pool.length,k);cycle=state.bossCycle=[];}
+  if(!cycle.length){
+    let stride=1+Math.floor(gameRandom()*n);
+    for(;;){let a=n,b=stride;while(b){[a,b]=[b,a%b];}if(a===1)break;stride=stride%n+1;}
+    cycle.push(0,Math.floor(gameRandom()*n),stride);
   }
-  const chosen=groups[Math.floor(gameRandom()*groups.length)];
-  state.bossCycle.push(chosen.join('+'));return chosen;
+  let rank=(cycle[1]+cycle[0]++*cycle[2])%n;
+  const group=[];
+  for(let i=0;k>0;i++){
+    const count=chooseCount(pool.length-i-1,k-1);
+    if(rank<count){group.push(pool[i]);k--;}else rank-=count;
+  }
+  return group;
 }
 let roomTargets=[];
 function bossPrey(b){return roomTargets.length?roomTargets[(b.id-1)%roomTargets.length]:state.player;}
@@ -77,7 +86,7 @@ function spawnBoss(position,kind='boss') {
     ax = Math.min(ax,old.x); ay = Math.min(ay,old.y);
     aw = right-ax; ah = bottom-ay;
   }
-  state.arena = {
+  if(!state.arena?.chase)state.arena = {
     x: ax, y: ay, w: aw, h: ah,
     walls: [
       { x: ax - 60, y: ay - 60, w: aw + 120, h: 60, isArena: true },
@@ -100,6 +109,11 @@ function spawnBoss(position,kind='boss') {
   };
   boss.id=++state.nextBossId;
   makeComponents(boss);
+  if(ENCORE[kind]){
+    const landing=point(boss),a=state.arena;
+    const from=kind==='frontier'?{x:a.x+boss.size/2,y:landing.y}:kind==='general'?{x:a.x+a.w-boss.size/2,y:landing.y}:kind==='sovereign'?{x:landing.x,y:landing.y+65}:{x:landing.x,y:a.y+boss.size/2};
+    boss.entry={from,to:landing};Object.assign(boss,from);
+  }
   if(kind==='monolith'){
     makeScore(boss);boss.state='landing';wave(boss,.3,boss,false,0);
   }
@@ -117,11 +131,14 @@ function spawnBoss(position,kind='boss') {
 
 function killBoss(b = state.boss, completed = false) {
   if (!b || b._dying || !livingBosses().includes(b)) return;
+  if(b.kind==='frontier'&&!completed&&b.phase===1&&b.hp<=0){b.hp=b.maxHp*.499;return;}
   if(PATTERN_BOSSES[b.kind] && !completed){if(b.state!=='final')startPatternFinal(b);return;}
   if(b.kind==='singular' && !completed){
     if(b.state!=='final')startSingularFinal(b);
     return;
   }
+  if(b.kind==='frontier')endChase(b);
+  if(b.kind==='sovereign')state.enemies=state.enemies.filter(e=>e.master!==b.id);
   b._dying = true;
   state.firstBossDefeatAt??=state.time;
   state.enemyBullets=state.enemyBullets.filter(s=>s.source!==b.id);
@@ -129,10 +146,10 @@ function killBoss(b = state.boss, completed = false) {
   state.bossBombs=state.bossBombs.filter(s=>s.source!==b.id);
   state.bossLasers=state.bossLasers.filter(s=>s.source!==b.id);
   if(PATTERN_BOSSES[b.kind]){
-    state.remnants.push({kind:b.kind,x:b.x,y:b.y,born:state.time,color:b.color});
+    state.remnants.push({kind:b.kind,x:b.x,y:b.y,born:state.time,color:b.kind==='general'?state.player.color||b.color:b.color});
     bossCue(b.kind+'Release',b);
   }
-  spawnParticles(b.x, b.y, 80, b.color, 2);
+  spawnParticles(b.x, b.y, 80, b.kind==='general'?state.player.color||b.color:b.color, 2);
   spawnParticles(b.x, b.y, 40, '#ffffff', 1.5);
   state.shake = 40;
   state.flash = 0.6;
@@ -241,6 +258,7 @@ function updateBoss(dt, b = state.boss) {
   const p = state.player;
 
   if(PATTERN_BOSSES[b.kind]){updatePatternBoss(b,dt);if(b===state.boss)updateArenaHazards(dt);return;}
+  if(b.pieces)tickLayers(b,dt);
   if (b.pieces || b.kind==='singular') {
     if(b.pieces)updateWorm(b,dt);else updateSingular(b,dt);
     if(b===state.boss)updateArenaHazards(dt);
@@ -274,7 +292,8 @@ function updateBoss(dt, b = state.boss) {
     if (b.timer <= 0) {
       const attacks = ['dash', 'bombs', 'balls'];
       if (b.phase >= 3) attacks.push('laser');
-      startBossAttack(attacks[Math.floor(gameRandom() * attacks.length)], b);
+      const move=attacks[Math.floor(gameRandom()*attacks.length)];startBossAttack(move,b);
+      if(move!=='bombs'&&canCoverArena(b)&&gameRandom()<.44+.12*b.phase)addPatternLayer(b,'bombs');
     }
   } else if (b.state === 'dash_windup') {
     b.timer -= dt;

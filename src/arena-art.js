@@ -1,7 +1,7 @@
 'use strict';
 function drawArenaEvents(b){
   const t=b.age,c=b.color;
-  if(b.laserGate){
+  if(b.laserGate||b.kind==='beacon'&&b.layers?.length){
     const q=beaconPassage(b,t);
     ctx.save();ctx.setLineDash([8,10]);strokeRing(q.x,q.y,(b.safeSize||30)/2+19,'#92ffdb93',1.5);ctx.restore();
   }

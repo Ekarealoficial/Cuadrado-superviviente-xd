@@ -9,6 +9,7 @@ const LAB_NAMES={dash:'Embestida',bombs:'Bombas',balls:'Malabares',laser:'Láser
 function sandboxPhases(b){return PATTERN_BOSSES[b.kind]?.moves||CLASSIC_MOVES[b.kind];}
 function setSandboxPhase(b,n){
   if(b.state==='final')return;
+  b.layers=[];if(b.kind==='frontier'){if(n===1){endChase(b);b.chasing=false;}else enterChase(b);}
   const limits=PATTERN_BOSSES[b.kind]?.limits||({boss:[.5,.33],worm:[.3],singular:[.5,.3]})[b.kind];
   const ratio=n===1?1:limits[n-2]-.015;
   b.hp=b.maxHp*ratio;b.phase=n;b.deck=[];b.charging=false;b.age=0;b.waitFinal=false;
@@ -96,14 +97,20 @@ function renderLabMenu(list,button,status){
     if(b.state!=='final'){
       select('Fase',sandboxPhases(b).map((_,i)=>[i+1,'Fase '+(i+1)]),b.phase,v=>{setSandboxPhase(b,Number(v));openSandboxPanel('lab');});
       const moves=sandboxPhases(b).flat(),s=select('Ataque',moves.map(m=>[m,MOVE_NAMES[m]||LAB_NAMES[m]]),moves.includes(b.state)?b.state:moves[0],()=>{});
-      const layer=select('Ataque simultáneo',[['','Ninguno']],'',()=>{});
+      const third=select('Tercer ataque',[['','Ninguno']],'',()=>{});
+      const layer=select('Ataque simultáneo',[['','Ninguno']],'',refreshThird);
+      function refreshThird(){
+        third.replaceChildren(new Option('Ninguno',''));
+        if(layer.value)for(const m of compatibleSeconds(b,s.value))if(m!==layer.value&&(PAIRINGS[b.kind]||[]).some(g=>[m,s.value,layer.value].every(a=>g.includes(a))))third.add(new Option(MOVE_NAMES[m]||LAB_NAMES[m],m));
+        third.disabled=third.options.length===1;
+      }
       function refreshLayers(){
         layer.replaceChildren(new Option('Ninguno',''));
         for(const m of compatibleSeconds(b,s.value))layer.add(new Option(MOVE_NAMES[m]||LAB_NAMES[m],m));
-        layer.disabled=layer.options.length===1;
+        layer.disabled=layer.options.length===1;refreshThird();
       }
       s.onchange=refreshLayers;refreshLayers();
-      button('Ejecutar ataque',b.color,()=>{executeSandboxPair(b,s.value,layer.value);closeSandboxPanel();});
+      button('Ejecutar ataque',b.color,()=>{executeSandboxPair(b,s.value,layer.value,third.value);closeSandboxPanel();});
     }
   }
   heading('Encuentro personalizado');
@@ -136,8 +143,19 @@ function labBarrage(n){
     state.enemyBullets.push({...q,vx:speed*Math.cos(angle),vy:speed*Math.sin(angle),r:[4,6,11][i%3],life:8,damage:1,tint:i%2?'#df96ff':'#facf8f'});
   }
 }
-function executeSandboxPair(b,first,second){
+function executeSandboxPair(b,first,second,third){
+  b.layers=[];
+  if(second&&(ENCORE[b.kind]||['beacon','heart','clock'].includes(b.kind))){
+    const wanted=[first,second,...(third?[third]:[])];
+    if(new Set(wanted).size!==wanted.length||!(PAIRINGS[b.kind]||[]).some(g=>wanted.every(m=>g.includes(m))))return;
+    const ph=Math.max(...wanted.map(m=>sandboxPhases(b).findIndex(ms=>ms.includes(m))+1));
+    if(ph>b.phase)setSandboxPhase(b,ph);
+    sandboxAttack(b,first);
+    for(const m of wanted.slice(1))sideScore(b,m,.12);
+    return;
+  }
   if(!second){sandboxAttack(b,first);return;}
+  if(b.pieces){sandboxAttack(b,first);wormSupport(b,second);return;}
   const pair=(PAIRINGS[b.kind]||[]).find(p=>p.includes(first)&&p.includes(second)&&first!==second);
   if(!pair)return;
   const phase=Math.max(...pair.map(m=>sandboxPhases(b).findIndex(ms=>ms.includes(m))+1));
@@ -170,7 +188,8 @@ function drawLabHitboxes(){
         const r=s.width/2;ctx.beginPath();ctx.arc(d,0,r,-Math.PI/2,Math.PI/2);ctx.arc(0,0,r,Math.PI/2,3*Math.PI/2);ctx.closePath();ctx.stroke();ctx.restore();
       }else if(s.kind==='sector'||s.kind==='arc'){
         for(const sign of [-1,1])strokeRing(s.x,s.y,s.r+sign*s.width/2,ctx.strokeStyle,1.3,s.from??s.angle+s.gap,s.to??s.angle+TAU-s.gap);
-      }else if(s.kind==='box')ctx.strokeRect(s.x-s.r,s.y-s.r,2*s.r,2*s.r);
+      }else if(s.kind==='rect')ctx.strokeRect(s.x-s.rx,s.y-s.ry,s.rx*2,s.ry*2);
+      else if(s.kind==='box')ctx.strokeRect(s.x-s.r,s.y-s.r,2*s.r,2*s.r);
       else circle(s,s.r,ctx.strokeStyle);
     }
   }

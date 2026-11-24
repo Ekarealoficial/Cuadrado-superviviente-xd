@@ -81,7 +81,7 @@ function clearSandboxCards(){
     state[key]=base[key];
   }
   state.halfHearts=Math.min(state.halfHearts,state.maxHalfHearts);
-  state.player={...base.player,x:p.x,y:p.y,angle:p.angle,color:p.color,iceUntil:p.iceUntil};
+  state.player={...base.player,x:p.x,y:p.y,angle:p.angle,color:p.color,iceUntil:p.iceUntil,chaseGifts:p.chaseGifts};
   for(const e of state.enemies.concat(bossTargets())){
     delete e.venomTime;delete e.venomDps;delete e.slow;delete e.slowUntil;delete e.plasmaHit;
   }

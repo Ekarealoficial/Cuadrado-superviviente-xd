@@ -39,7 +39,7 @@ function drawPatternBoss(b){
   const t=b.clock,m=b.state,age=b.age;
   ctx.save();
   for(const s of patternShapes(b)){
-    const ink=m==='refraction'?'#bd8bff':m==='link'?'#f4c9ff':b.color;
+    const ink=s.ink||(m==='refraction'?'#bd8bff':m==='link'?'#f4c9ff':b.color);
     ctx.save();ctx.strokeStyle=ink;ctx.fillStyle=s.live?ink+'90':b.color+'20';ctx.lineWidth=s.live?4:1.6;
     if(s.kind==='line'){
       ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(s.xx,s.yy);ctx.strokeStyle=ink+'41';ctx.lineWidth=s.width;ctx.stroke();
@@ -47,6 +47,7 @@ function drawPatternBoss(b){
       ctx.lineWidth=s.live?s.width*.78:2;ctx.strokeStyle=ink;ctx.stroke();
       if(s.live){ctx.lineWidth=s.width*.27;ctx.strokeStyle='#fff8ff';ctx.stroke();for(let i=0,n=b.kind==='beacon'||m==='link'?5:1;i<n;i++){
           const u=(t*1.3+i/n)%1;disk(s.x+(s.xx-s.x)*u,s.y+(s.yy-s.y)*u,2.2,'#fff');}}
+    }else if(s.kind==='rect'){paintHazardPanel(s,ink);
     }else if(s.kind==='sector')strokeRing(s.x,s.y,s.r,ink,s.live?s.width:2,s.from,s.to);
     else if(s.kind==='arc')strokeRing(s.x,s.y,s.r,b.color,s.live?s.width:2,s.angle+s.gap,s.angle+TAU-s.gap);
     else if(s.kind==='box'){ctx.fillRect(s.x-s.r,s.y-s.r,2*s.r,2*s.r);ctx.strokeRect(s.x-s.r,s.y-s.r,s.r*2,s.r*2);}
@@ -54,7 +55,9 @@ function drawPatternBoss(b){
       const a=(s.progress??(age-s.index*.09))*TAU;ctx.beginPath();ctx.moveTo(s.x,s.y);ctx.lineTo(s.x+Math.cos(a)*s.r,s.y+Math.sin(a)*s.r);ctx.stroke();}
     ctx.restore();
   }
-  drawArenaEvents(b);
+  drawArenaEvents(b);drawScoreDetails(b);
+  for(const l of b.layers||[])drawScoreDetails(layerView(b,l));
+  if(ENCORE[b.kind]){drawSignature(b);ctx.restore();return;}
   if(m==='final'){drawLastSequence(b);ctx.restore();return;}
   if(ENCOUNTER_SPECS[b.kind]){drawEncounter(b);ctx.restore();return;}
   if(m==='lunge'){
@@ -105,6 +108,7 @@ function drawGroupBars(x,y,w){
 function drawGroupOmen(group,age){
   const left=Math.max(0,state.bossSpawnTimer/rules.difficulty);
   for(const [j,kind] of group.entries()){
+    if(ENCORE[kind]){drawSignatureOmen(kind,left,age,j);continue;}
     if(ENCOUNTER_SPECS[kind]){drawEncounterOmen(kind,left,age,j);continue;}
     const spec=PATTERN_BOSSES[kind];if(!spec)continue;
     ctx.save();ctx.strokeStyle=spec.color;ctx.lineWidth=2;
@@ -129,6 +133,13 @@ function drawBossRemnants(){
   for(const z of state.remnants||[]){
     const t=clamp((state.time-z.born)/2,0,1);
     ctx.save();ctx.translate(z.x,z.y);ctx.globalAlpha=(1-t)**2;
+    if(['rebound','twinCannon','pulseRing','erratic'].includes(z.kind)){
+      const n=z.kind==='twinCannon'?2:z.kind==='pulseRing'?8:5;
+      for(let i=0;i<n;i++){const a=i*TAU/n,p=polarPoint({x:0,y:0},8+57*t,a);
+        if(z.kind==='pulseRing'||z.kind==='rebound')strokeRing(p.x,p.y,6+t*13,z.color,2,a,a+1.6);
+        else{ctx.save();ctx.translate(p.x,p.y);ctx.rotate(a+t*3);ctx.fillStyle=z.color;ctx.fillRect(-4,-3,z.kind==='twinCannon'?20:8,6);ctx.restore();}}
+      ctx.restore();continue;
+    }
     const count=z.kind==='clock'?12:48;
     for(let i=0;i<count;i++){
       const a=i*TAU/count+(z.kind==='fractal'?.15*Math.sin(i):0);
@@ -137,6 +148,12 @@ function drawBossRemnants(){
       if(z.kind==='crown')disk(0,0,2+i%4,i%3?z.color:'#fff');
       else{ctx.fillStyle=i%3?z.color:'#fff';ctx.fillRect(-3,-3,z.kind==='fractal'?6:14,5);}
       ctx.restore();
+    }
+    if(ENCORE[z.kind]&&t<.8){
+      for(let j=0;j<5;j++){const r=Math.max(0,460*(t-j*.065));if(r===0)continue;
+        const col=z.kind==='prism'?PRISM_COLORS[j]:j%2?z.color:'#fff5ec';
+        if(z.kind==='general'||z.kind==='channel')etchedSquare(r*.76,j*.06,col,3);
+        else strokeRing(0,0,r,col,Math.max(1,6*(1-t)));}
     }
     if(t<.6){
       ctx.globalAlpha=(1-t/.6)*.88;

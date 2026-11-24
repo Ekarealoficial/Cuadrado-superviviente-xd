@@ -4,6 +4,8 @@ function killEnemy(index) {
   const e = state.enemies[index];
   if (!e || e._dying) return;
   e._dying = true;
+  if(e.master){spawnParticles(e.x,e.y,12,e.color);state.enemies.splice(index,1);return;}
+  if(['pulseRing','erratic','rebound','twinCannon'].includes(e.type))state.remnants.push({kind:e.type,x:e.x,y:e.y,born:state.time,color:e.color});
   if (e.type === 'dardante') state.enemyDarts = state.enemyDarts.filter(d => d.owner !== e);
   spawnParticles(e.x, e.y, 20, e.color, 1.1);
   spawnOrbs(e.x, e.y, e.xp);

@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const engine=require('../room-engine.cjs');
-const disabled='normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss singular fractal clock crown beacon twins heart monolith'.split(' ');
+const disabled='normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss singular fractal clock crown beacon twins heart monolith dawn prism sovereign channel general frontier'.split(' ');
 for(const pvp of [false,true])test('Combate compartido con PvP '+pvp,()=>{
   const game=engine({difficulty:1,xp:1,pvp,disabled});
   game.add('a',{name:'Azul',color:'#3399ff'});
@@ -184,4 +184,29 @@ test('Segundos perdidos alterna objetivos separados en la simulación de sala',(
   const warnings=id=>room.snapshot(id).boss.events.filter(e=>e.kind==='dial').map(e=>e.origin.x);
   assert.deepEqual(warnings('a'),warnings('b'));
   for(const x of xs)assert.ok(warnings('a').some(v=>Math.abs(v-x)<1));
+});
+
+test('La persecución comparte terreno y daño, concede cuatro Dash por participante',()=>{
+  const r=engine({difficulty:3,xp:1,pvp:false,disabled:[...disabled.filter(k=>k!=='frontier'),'worm']});
+  for(const id of ['a','b']){r.add(id,{});r.snapshot(id).player.invuln=10000;}
+  let boss;
+  for(let i=0;i<2300&&!boss;i++){r.tick(1/30);boss=r.snapshot('a').boss;}
+  assert.equal(boss.kind,'frontier');
+  const before=r.snapshot('a').arena.w,sc=r.snapshot('b').specialCards.dash;
+  Object.assign(sc,{totalCards:3,maxCharges:3,charges:1,cooldown:100});boss.hp=boss.maxHp*.5;
+  r.tick(1/30);assert.equal(boss.state,'transition');assert.equal(r.snapshot('a').arena.chase,undefined);
+  for(let i=0;i<120;i++)r.tick(1/30);
+  for(const id of ['a','b']){
+    assert.equal(r.snapshot(id).arena.chase,boss.id);assert.ok(r.snapshot(id).arena.w>before);
+    assert.equal(r.snapshot(id).specialCards.dash.totalCards,id==='a'?4:7);
+  }
+  assert.equal(sc.charges,5);
+  const start=r.snapshot('a').arena.x;
+  for(let i=0;i<700;i++)r.tick(1/30);
+  assert.ok(r.snapshot('a').arena.x>start+2000);
+  assert.equal(r.snapshot('b').arena.x,r.snapshot('a').arena.x);
+  assert.equal(r.snapshot('a').specialCards.dash.totalCards,4);
+  // The trailing player meets the actual moving wall on the server.
+  const a=r.snapshot('a');a.player.x=boss.x;a.player.invuln=0;const hp=a.halfHearts;
+  r.tick(1/30);assert.ok(r.snapshot('a').halfHearts<hp);
 });

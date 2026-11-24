@@ -181,7 +181,7 @@ function fireArenaEvent(b,e){
 // A shared opening for overlapping beam banks travels below walking speed.
 // Clipping the segments here makes the opening identical in Canvas and collision.
 function beaconPassage(b,t){
-  const a=state.arena,c=patternOrigin(),rx=Math.min(a.w*.27,300),ry=Math.min(a.h*.22,150);
+  t=b.gateTime??t;const a=state.arena,c=patternOrigin(),rx=Math.min(a.w*.27,300),ry=Math.min(a.h*.22,150);
   return {x:c.x+rx*Math.sin(t*.48+b.id),y:c.y+ry*Math.cos(t*.56+b.id)};
 }
 function beamSegments(out,p,q,width,live,gate,radius){
@@ -202,7 +202,7 @@ const PAIRINGS={
   monolith:[['impact','avalanche'],['wall','avalanche']],
   boss:[['dash','bombs'],['balls','bombs']],singular:[['attract','solar'],['lunar','solar']]
 };
-function compatibleSeconds(b,m){return (PAIRINGS[b.kind]||[]).filter(pair=>pair.includes(m)).map(pair=>pair.find(x=>x!==m));}
+function compatibleSeconds(b,m){return (PAIRINGS[b.kind]||[]).filter(pair=>pair.includes(m)).flatMap(pair=>pair.filter(x=>x!==m)).filter((x,i,arr)=>arr.indexOf(x)===i);}
 function addPatternLayer(b,second){
   if(b.combo===second)return;
   const m=b.state;

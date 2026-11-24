@@ -30,7 +30,10 @@ function prepareMotion(old,next,now){
   }
   for(const b of [next.boss,...(next.extraBosses||[])].filter(Boolean)){
     const key='boss'+b.id;
-    if(next.stopUntil<=next.time&&PATTERN_BOSSES[b.kind]&&!b.waitFinal)patternClocks.push({b,clock:b.clock,age:b.age});
+    if(next.stopUntil<=next.time&&PATTERN_BOSSES[b.kind]&&!b.waitFinal){
+      patternClocks.push({b,clock:b.clock,age:b.age});
+      for(const l of b.layers||[])patternClocks.push({b:l,clock:b.clock,age:l.age,secondary:true});
+    }
     for(const part of b.parts||[])track(key+'component',part,part.index);
     for(const piece of b.pieces||[])for(const seg of piece.parts)track(key+'segment',seg,seg.segmentId);
     track(key,b,0);b.balls.forEach((e,i)=>track(key+'ball',e,i));
@@ -46,8 +49,8 @@ function animateMotion(now){
     const tx=x+vx*dt,ty=y+vy*dt;
     if(!pointInWall(tx,ty,currentWalls)){e.x=tx;e.y=ty;}
   }
-  for(const {b,age,clock} of patternClocks){
-    b.age=age+dt;b.clock=clock+dt;
+  for(const {b,age,clock,secondary} of patternClocks){
+    b.age=age+dt;b.clock=clock+dt;if(secondary)continue;
     for(const e of b.events||[])if(b.age>=e.on&&b.age<=e.end){
       const u=clamp((b.age-e.on)/(e.end-e.on),0,1);
       if(e.kind==='rail')Object.assign(b,railPoint(e,u));
@@ -107,7 +110,7 @@ function predictLocalFrame(now,dt){
   movePlayer(p,dt,dir.x,dir.y,currentWalls);
   advancePredictedDash(p,dt);
   clampToArena(p,state.arena);
-  cam.x+=(p.x+p.vx*.16-cam.x)*Math.min(1,10*dt);
+  cam.x+=(chaseCamera(p)-cam.x)*Math.min(1,10*dt);
   cam.y+=(p.y+p.vy*.16-cam.y)*Math.min(1,10*dt);
   const aim=getWorldMouse();
   p.angle=Math.atan2(aim.y-p.y,aim.x-p.x);

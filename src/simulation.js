@@ -26,12 +26,12 @@ function update(dt, worldStep = true, commands = null) {
 
   const p = state.player;
   if (!state.over) {
-    const targetCamX = p.x + p.vx * 0.16;
+    const targetCamX = chaseCamera(p);
     const targetCamY = p.y + p.vy * 0.16;
     state.cam.x += (targetCamX - state.cam.x) * Math.min(1, 10 * dt);
     state.cam.y += (targetCamY - state.cam.y) * Math.min(1, 10 * dt);
   }
-  const targetZoom=(p.frameTime>0?.86:1)*Math.max(.35,Math.min(1,130/p.size));
+  const targetZoom=Math.min(chaseZoom(p),(p.frameTime>0?.86:1)*Math.max(.35,Math.min(1,130/p.size)));
   state.cam.zoom += (targetZoom - state.cam.zoom) * Math.min(1, 4.5 * dt);
   currentWalls=state.bossActive && state.arena?state.arena.walls:getVisibleChunks(state.cam);
 
@@ -50,10 +50,12 @@ function update(dt, worldStep = true, commands = null) {
   update_abilityCooldowns(dt);
   update_stormAndBossSchedule(dt, worldStep);
   update_movementAndWeapons(dt, worldStep, commands);
+  if(state.arena?.chase)chaseGift();
   updateExpansion(dt,worldStep);
   if(state.stopUntil<=state.time){
     updateCosmicZones(dt,worldStep);
-    for(const boss of livingBosses())if(boss.kind==='singular')planetContact(boss,p);else if(PATTERN_BOSSES[boss.kind])patternContact(boss,p);
+    for(const boss of livingBosses())if(boss.pieces&&boss.layers?.length){if(p.invuln<=0&&boss.layers.some(l=>scoreShapes(layerView(boss,l)).some(s=>s.live&&patternTouches(s,p))))damagePlayer(1);}
+    else if(boss.kind==='singular')planetContact(boss,p);else if(PATTERN_BOSSES[boss.kind])patternContact(boss,p);
   }
   collectCardRelics();
   if(state.stopUntil<=state.time)updateCardFields(dt,worldStep);
@@ -294,6 +296,9 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
       summonWells(2);state.bossOmen.second=true;
     }
     const omen=state.bossOmen;
+    if(omen?.group.includes('sovereign')&&!omen.scouts&&state.bossSpawnTimer/rate<7){
+      omen.scouts=true;for(let j=0;j<7;j++)openPortal({id:-1},{role:'soldier',origin:polarPoint(state.player,310,j*TAU/7)},j);
+    }
     if(omen && state.time>=(omen.pulse||0)){
       for(const kind of omen.group)if(PATTERN_BOSSES[kind]){bossCue(kind+'Omen',state.player);if(kind==='monolith')state.shake=Math.max(3,state.shake);}
       omen.pulse=state.time+Math.max(.28,state.bossSpawnTimer/rate*.11);
@@ -494,11 +499,15 @@ function update_enemyProjectiles(dt) {
   let write=0;
   for(const b of shots){
     b.prevX=b.x;b.prevY=b.y;
+    if(b.seek||b.split||b.bounce||b.sway)advanceEncoreShot(b,dt);
     if((b.release!==undefined||b.curve)&&dt>0)curveEnemyShot(b,dt);
     if(b.inward&&advanceInward(b,dt))continue;
     b.x+=b.vx*dt;b.y+=b.vy*dt;b.life-=dt;
     if(b.life<=0)continue;
-    if(!b.inward&&currentWalls.some(w=>aabbOverlapCircle(b.x,b.y,b.r,w))){
+    if(b.entersArena&&state.arena){
+      const a=state.arena;if(b.x>a.x+b.r&&b.x<a.x+a.w-b.r&&b.y>a.y+b.r&&b.y<a.y+a.h-b.r)b.entersArena=false;
+    }
+    if(!b.inward&&!b.entersArena&&currentWalls.some(w=>aabbOverlapCircle(b.x,b.y,b.r,w))){
       spawnParticles(b.x,b.y,4,'#ff8c42',.5);continue;
     }
     shots[write++]=b;
@@ -640,6 +649,7 @@ function update_enemyAI(dt) {
     const toPx = p.x - e.x, toPy = p.y - e.y;
     const distToPlayer = Math.hypot(toPx, toPy) || 1;
 
+    if(e.master){updateRetainer(e,p,dt,travel);continue;}
     if(updateExpansionEnemy(e,p,dt,travel,distToPlayer))continue;
     if (e.type === 'shooter') {
       const dirX = toPx / distToPlayer, dirY = toPy / distToPlayer;

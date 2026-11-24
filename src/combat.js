@@ -98,6 +98,9 @@ function damagePlayer(amount, piercesPlasma=false) {
   state.shake = 20 + amount * 5;
   state.flash = 0.4;
   state.flashRGB = '255,60,100';
+  for(const boss of livingBosses())if(boss.state!=='final'&&boss.clock>(boss.reactionAt||0)&&['channel','general'].includes(boss.kind)){
+    encounterVoice(boss,boss.kind==='channel'?'¡OTRA VEZ RECIBIÓ DAÑO!':boss.phase>1?'¡ALÉJATE! ¡NO PUEDO CONTROLARLO!':'OBJETIVO ALCANZADO');boss.reactionAt=boss.clock+3;
+  }
   state.damageTimer = 0;
   spawnParticles(p.x, p.y, 24, '#ff3b6b');
   Sfx.play('damage', 100);

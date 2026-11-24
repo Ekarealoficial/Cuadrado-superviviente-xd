@@ -25,7 +25,7 @@ function gameWire(key,value){
   if(key==='events' && Array.isArray(value))return value.filter(e=>e.kind!=='volley' && e.start<=this.age+.1 && e.end>=this.age);
   return value;
 }
-const types='pulseRing erratic twinCannon rebound tackler splitter cannon frostMage normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss worm singular fractal clock crown beacon twins heart monolith'.split(' ');
+const types='pulseRing erratic twinCannon rebound tackler splitter cannon frostMage normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss worm singular fractal clock crown beacon twins heart monolith dawn prism sovereign channel general frontier'.split(' ');
 const rates=[0.5,1,1.5,2,3];
 function requireValue(ok,message,status=400){if(!ok)throw Object.assign(new Error(message),{status});}
 function settings(s) {

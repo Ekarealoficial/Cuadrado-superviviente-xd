@@ -84,7 +84,7 @@ function createEnemy(type, x, y, extra) {
   const spd = base.speed + bonus * (type === 'tank' ? 0.35 : (type === 'juggernaut' ? 0 : (type === 'shooter' || type === 'invoker' || type === 'teleporter' || type === 'dardante' ? 0.4 : 1)));
   const hp = Math.round(base.hp * state.enemyHpMult);
   const e = Object.assign(createBody({ activeDarts: 0 }), {
-    type, x, y,
+    type, x, y, born:state.time,
     size: base.size,
     hp, maxHp: hp,
     speed: spd,
@@ -139,19 +139,25 @@ function spawnPotion(walls) {
 function updateAdvancedEnemy(e,p,dt,travel,d){
   const aim=Math.atan2(p.y-e.y,p.x-e.x);
   e.hitFlash=Math.max(0,e.hitFlash-dt);e.shootCd-=dt;e.wob+=dt*5;
+  if(e.type==='erratic'&&Math.floor(state.time*9)!==e.crumb){e.crumb=Math.floor(state.time*9);spawnParticles(e.x,e.y,1,e.color,.35);}
   function move(angle,speed){return moveWithWalls(e,Math.cos(angle)*speed*travel,Math.sin(angle)*speed*travel,currentWalls);}
-  function shoot(a,speed,r){state.enemyBullets.push({x:e.x,y:e.y,vx:speed*Math.cos(a),vy:speed*Math.sin(a),r,tint:e.color,life:4,damage:1});}
+  function shoot(a,speed,r){
+    let x=e.x,y=e.y;if(e.type==='twinCannon'){
+      const f=e.size*.62,side=(e.gunSide||1)*e.size*.325,cs=Math.cos(e.heading),sn=Math.sin(e.heading);
+      x+=f*cs-side*sn;y+=f*sn+side*cs;
+    }
+    state.enemyBullets.push({x,y,vx:speed*Math.cos(a),vy:speed*Math.sin(a),r,tint:e.color,life:4,damage:1,streak:true});}
   if(e.type==='rebound'){
     e.heading??=aim;e.boost=Math.max(0,(e.boost||0)-dt);
     if(!e.boost)e.heading+=clamp(Math.atan2(Math.sin(aim-e.heading),Math.cos(aim-e.heading)),-dt*1.7,dt*1.7);
     const hit=move(e.heading,e.speed*(e.boost?1.9:1));
     if(hit.blockedX||hit.blockedY){
       if(hit.blockedX)e.heading=Math.PI-e.heading;if(hit.blockedY)e.heading=-e.heading;
-      e.boost=.72;e.bounced=state.time;
+      e.boost=.72;e.bounced=state.time;spawnParticles(e.x,e.y,7,'#a9efff');
     }
   }else if(e.type==='erratic'){
     if(e.phase==='rush'){
-      move(e.heading,640);if(e.shootCd<=0){e.phase='walk';e.shootCd=gameRand(1.1,2.1);}
+      move(e.heading,640);if(e.shootCd<=0){e.bounced=state.time;e.phase='walk';e.shootCd=gameRand(1.1,2.1);}
     }else if(e.phase==='aim'){
       if(e.shootCd<=0){e.phase='rush';e.shootCd=.20;}
     }else{
@@ -161,7 +167,7 @@ function updateAdvancedEnemy(e,p,dt,travel,d){
   }else if(e.type==='pulseRing'){
     if(e.phase==='aim'){
       if(e.shootCd<=0){
-        const n=e.pulseCount||8;
+        e.firedAt=state.time;spawnParticles(e.x,e.y,8,'#d5a4ff');const n=e.pulseCount||8;
         for(let i=0;i<n;i++)shoot(e.heading+i*TAU/n,230,5);
         e.phase='walk';e.shootCd=2.48;
       }
@@ -170,7 +176,7 @@ function updateAdvancedEnemy(e,p,dt,travel,d){
     }
   }else if(e.phase==='aim'||e.phase==='second'){
     if(e.shootCd<=0){
-      const second=e.phase==='second';
+      const second=e.phase==='second';e.gunSide=second?1:-1;e.firedAt=state.time;spawnParticles(e.x,e.y,6,'#ff9a88');
       for(let i=-2;i<=2;i++)shoot(e.heading+(i+(second?.35:-.35))*.125,second?335:285,5);
       e.phase=second?'walk':'second';e.shootCd=second?2.35:.23;
     }

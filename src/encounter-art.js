@@ -67,12 +67,23 @@ function drawEncounter(b){
     const [a,z]=b.parts,m=mixPoint(a,z,.5);m.y+=Math.sin(t*4)*9;
     energyLine(a,m,'#ffa65c89');energyLine(m,z,'#6eeaff89');
   }
+  if(b.kind==='heart'){
+    for(const q of b.parts)if(!q.hp){const u=b.clock-(q.brokenAt??-4);if(u>=0&&u<.65)strokeRing(q.x,q.y,14+130*u,'#ffd6bb',3);
+      for(let i=0;i<3;i++){const p=polarPoint(b,b.size*.37+i*4,q.index*1.7+i*.09);energyLine(p,polarPoint(p,12+i*4,t+i),'#ffc9bc',2);}}
+    for(const s of [b,...(b.layers||[])])for(const e of s.events||[]){
+      if(e.part===undefined||s.age<e.start||s.age>e.end||!b.parts[e.part].hp)continue;
+      const q=b.parts[e.part],u=clamp((s.age-e.start)/(e.on-e.start||1),0,1);
+      if(e.kind==='dash'||e.kind==='volley')for(let i=0;i<3;i++)strokeRing(q.x,q.y,9+8*i+3*Math.sin(u*8),q.color,2);
+    }
+  }
   if(b.kind==='heart')for(const q of activeParts(b))energyLine(b,q,q.color+'85',2);
   const landing=b.state==='landing'?clamp(b.age/.78,0,1):1;
   const beat=clamp(1-(t-b.lastBeat)/.21,0,1)||0;
-  encounterBody({...b,y:b.y-180*(1-landing)**2},t,1+.035*beat);
+  encounterBody({...b,y:b.y-180*(1-landing)**2},t,1+.035*beat+(b.kind==='heart'?.025*Math.sin(t*(3+5*(1-b.hp/b.maxHp))):0));
   if(b.kind==='beacon'){
-    for(let i=0;i<4;i++){const home=emitterPoint(b,i),q=b.posts?mixPoint(home,b.posts[i],clamp(Math.min(b.age-b.postStart,b.postEnd-b.age)/.35,0,1)):home;
+    for(let j=0;j<3;j++){const a=t*(j%2?.54:-.64)+j;strokeRing(b.x,b.y,85+j*10,b.color+'a2',2,a,a+4.7);}
+    const bank=(b.layers||[]).find(l=>l.posts&&l.age>=l.postStart&&l.age<=l.postEnd)||b;
+    for(let i=0;i<4;i++){const home=emitterPoint(b,i),q=bank.posts?mixPoint(home,bank.posts[i],clamp(Math.min(bank.age-bank.postStart,bank.postEnd-bank.age)/.35,0,1)):home;energyLine(b,q,b.color+'69',1.5);
       ctx.save();ctx.translate(q.x,q.y);panelSquare(13,'#ec8cff',t+i);disk(0,0,4,'#fff');ctx.restore();}
   }
   for(const q of activeParts(b)){

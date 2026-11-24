@@ -113,7 +113,7 @@ function render() {
   }
 
   presentBossCues();
-  drawCosmicWorld();drawBossRemnants();
+  drawStageAtmosphere();drawCosmicWorld();drawBossRemnants();
   drawExpansionWorld();
   renderEntities0();
   renderEntities1();
@@ -309,7 +309,7 @@ function renderEntities0() {
     else{ctx.beginPath();ctx.arc(e.x,e.y,r,0,TAU);ctx.fill();}
     ctx.shadowBlur = 0;
     drawExpansionEnemy(e,r);
-    const hasOwnArt=advancedEnemyArt(e,r);
+    const hasOwnArt=e.master?paintRetainer(e,r):advancedEnemyArt(e,r);
     if (e.type === 'shooter') {
       const a = Math.atan2(p.y - e.y, p.x - e.x);
       ctx.save();
@@ -420,7 +420,7 @@ function renderEntities1() {
   // Boss
   for (const b of livingBosses()) {
     if(PATTERN_BOSSES[b.kind]){drawPatternBoss(b);continue;}
-    if(b.pieces){drawWorm(b);continue;}
+    if(b.pieces){drawWorm(b);for(const l of b.layers||[])for(const s of scoreShapes(layerView(b,l)))if(s.kind==='line')energyLine(s,{x:s.xx,y:s.yy},s.live?'#d7ffea':'#6befae78',s.live?s.width:2);continue;}
     if(b.kind==='singular'){drawSingular(b);continue;}
     for (const ball of b.balls) {
       if (ball.state === 'attached') {
@@ -593,6 +593,7 @@ function renderEnemyShots(){
   for(const shot of state.enemyBullets){
     if(Math.abs(shot.x-state.cam.x)>halfW+shot.r || Math.abs(shot.y-state.cam.y)>halfH+shot.r)continue;
     const color=shot.tint||'#ffd0a8';
+    if(shot.streak)energyLine({x:shot.x-shot.vx*.049,y:shot.y-shot.vy*.049},shot,color+'8b',Math.max(2,shot.r*.8));
     if(shot.square){ctx.fillStyle=color;ctx.fillRect(shot.x-shot.r,shot.y-shot.r,2*shot.r,2*shot.r);}
     else{
     const key=color+'-'+shot.r;
