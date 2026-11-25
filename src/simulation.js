@@ -1081,7 +1081,7 @@ function update_darts(dt) {
           } else {
             const idx = state.enemies.indexOf(d.target);
             if (idx !== -1) {
-              d.hurtTarget(target,1 * attackMultiplier(d.target));
+              hurtTarget(d.target,attackMultiplier(d.target));
               d.target.hitFlash = 0.12;
               if (d.target.hp <= 0) killEnemy(idx);
             }

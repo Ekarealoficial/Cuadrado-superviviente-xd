@@ -701,3 +701,9 @@ test('Bot Play conserva el mismo combate a distintas frecuencias de pantalla',()
   }
   assert.equal(observe(60),observe(90));assert.equal(observe(60),observe(120));
 });
+test('Un dardo normal golpea y elimina a un soldado invocado sin detener la simulación',()=>{
+  const run=game();
+  run("spawnEncounter(['sovereign']);openPortal(state.boss,{role:'soldier',origin:{x:0,y:120}},0);const soldier=state.enemies[0];soldier.hp=2;state.darts=[{type:'normal',...point(soldier),state:'hunt',target:soldier}];update_darts(0)");
+  assert.equal(run('soldier.hp'),1);run('update_darts(0)');
+  assert.ok(run('!state.enemies.includes(soldier)&&state.bossActive'));
+});
