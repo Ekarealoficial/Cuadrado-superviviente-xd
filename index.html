@@ -16,9 +16,22 @@
   <section class="panel">
     <header><span class="mark" aria-hidden="true"></span><h1>Cuadrado Superviviente</h1></header>
     <div id="home">
-      <button id="solo">Singleplayer</button><button id="multi">Multijugador</button><button id="sandbox">Sandbox</button>
+      <button id="solo">Singleplayer</button><button id="multi">Multijugador</button><button id="extrasButton">Extras</button>
       <button id="fullPlay" hidden>Pantalla completa · Horizontal</button><span id="fullStatus" role="status"></span>
     </div>
+    <section id="extras" hidden>
+      <h2>Extras</h2>
+      <div class="extraModes"><button id="sandbox"><i aria-hidden="true"></i>Sandbox<small>Invoca enemigos, combina cartas y prueba ataques en el laboratorio.</small></button>
+      <button id="rushButton"><i aria-hidden="true"></i>Boss Rush<small>Encadena encuentros y construye tu arsenal con las reliquias de cada jefe.</small></button></div>
+      <button data-back>Volver</button>
+    </section>
+    <form id="rushSetup" hidden><h2>Boss Rush</h2><p>Empieza con un jefe. Al herir a un jefe ganas parte de su XP. Derrótalo para recoger cuatro reliquias. Tras los individuales llegan duplas, tríos y grupos mayores.</p>
+      <label class="botChoice"><span>Bot Play<small>El cuadrado combate, esquiva y elige sus propias cartas.</small></span><input type="checkbox" id="botPlay"></label>
+      <details><summary>Jefes habilitados</summary><div id="rushRoster"></div></details>
+      <button>Comenzar</button> <button type="button" data-back>Volver</button>
+    </form>
+    <section id="rushResults" hidden><h2>Fin de Boss Rush</h2><dl id="rushStats"></dl>
+      <button id="retryRush">Reintentar Boss Rush</button> <button id="leaveRush">Volver a Extras</button></section>
     <form id="setup" hidden>
       <h2 id="setupTitle">Singleplayer</h2>
       <label id="soloColor">Color del cuadradito <input name="color" type="color" value="#4df3ff"></label>
@@ -49,12 +62,14 @@
   <p id="sandboxStatus" aria-live="polite"></p><div id="sandboxList"></div>
 </dialog>
 <section id="touchUI" hidden aria-label="Controles táctiles">
+  <div id="zoomControls"><button id="zoomOut" aria-label="Alejar cámara">−</button><button id="zoomIn" aria-label="Acercar cámara">+</button></div>
   <div id="touchTools"><button id="bag">Inventario</button><button id="enemyTool">Enemigos</button><button id="cardTool">Cartas</button></div>
   <div id="touchCombat"><div class="stick move" id="moveStick" aria-label="Mover"><i></i><small>MOVER</small></div>
     <div class="stick aim" id="aimStick" aria-label="Apuntar y disparar"><i></i><small>DISPARAR</small></div>
     <div id="touchSlots"></div></div>
   <section id="touchPanel" hidden aria-label="Opciones de partida"></section>
 </section>
+<output id="rushHUD" hidden></output><div id="rushBanner" hidden></div>
 <aside id="sessionHUD" hidden><output id="sandboxDebug" hidden></output><button id="labTool" hidden>Laboratorio</button><span id="playerInfo"></span> <button id="exit">Salir al menú</button></aside>
 <script defer src="src/config.js"></script>
 <script defer src="src/spatial.js"></script>
@@ -108,6 +123,8 @@
 <script defer src="src/menu.js"></script>
 <script defer src="src/presentation.js"></script>
 <script defer src="src/touch.js"></script>
+<script defer src="src/boss-rush.js"></script>
+<script defer src="src/boss-rush-bot.js"></script>
 <script defer src="src/loop.js"></script>
 </body>
 </html>

@@ -281,6 +281,7 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
   }
 
   if (!worldStep) return;
+  if(state.rush){updateRushSchedule(dt);return;}
   if (playMode!=='sandbox' && !state.bossActive) {
     const rate=rules.difficulty;
     state.bossSpawnTimer-=dt*rate;
@@ -618,6 +619,7 @@ function update_enemyProjectileHits(dt) {
 }
 
 function update_spawning(dt) {
+  if(state.rush)return;
   const p=state.player;
   // Spawn
   if (!state.bossActive) {

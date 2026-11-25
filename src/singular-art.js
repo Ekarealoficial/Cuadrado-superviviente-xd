@@ -104,7 +104,7 @@ function drawCosmicWorld(){
       if(live){
         const impact=clamp((z.age-z.windup)/(z.duration-z.windup),0,1);
         ctx.save();ctx.globalAlpha=1-impact;ctx.shadowColor='#ffbd32';ctx.shadowBlur=13;
-        const height=H/state.cam.zoom+110,beam=ctx.createLinearGradient(z.x-20,0,z.x+20,0);
+        const height=H/viewZoom()+110,beam=ctx.createLinearGradient(z.x-20,0,z.x+20,0);
         beam.addColorStop(0,'#ff9b2600');beam.addColorStop(.38,'#ffcf46');beam.addColorStop(.52,'#ffffe5');beam.addColorStop(1,'#ff9b2600');
         ctx.fillStyle=beam;ctx.fillRect(z.x-20,z.y-height,40,height);
         for(let i=0;i<10;i++){

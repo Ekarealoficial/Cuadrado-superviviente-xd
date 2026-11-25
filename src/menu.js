@@ -38,7 +38,7 @@ async function roomRequest(action,data){
 }
 function initializeMenu(){
   const el=id=>document.getElementById(id);
-  const setup=el('setup'), identity=el('identity'), screens=['home','setup','lobby','identity'];
+  const setup=el('setup'), identity=el('identity'), screens=['home','setup','lobby','identity','extras','rushSetup','rushResults'];
 
   el('menu').addEventListener('click',ensureAudio,{once:true});
   let screen='home',creating=false,code='',listed=[], multiplayerSettings;
@@ -51,12 +51,14 @@ function initializeMenu(){
     playMode=mode;el('sandboxDebug').hidden=true;el('labTool').hidden=mode!=='sandbox';el('menu').hidden=true;el('sessionHUD').hidden=false;
     mouse.down=false;for(const k in keys)keys[k]=false;
   }
-  function end(message=''){
+  function end(message='',destination='home'){
+    if(sandboxTab)closeSandboxPanel();
+    el('rushHUD').hidden=el('rushBanner').hidden=true;
     netSession=null;queuedActions=[];inventoryChoice=null;playMode='menu';restart();el('playerInfo').textContent='';
-    el('menu').hidden=false;el('sessionHUD').hidden=true;show('home');el('notice').textContent=message;
+    el('menu').hidden=false;el('sessionHUD').hidden=true;show(destination);el('notice').textContent=message;
   }
   el('exit').onclick=()=>{
-    if(netSession)roomRequest('leave',netSession).catch(()=>{});end();
+    if(netSession)roomRequest('leave',netSession).catch(()=>{});end('',state.rush||playMode==='sandbox'?'extras':'home');
   };
   for(const key of ['difficulty','xp'])for(const rate of [0.5,1,1.5,2,3]){
     const option=new Option(rate+'×',rate,false,rate===1);setup.elements[key].add(option);
@@ -69,6 +71,43 @@ function initializeMenu(){
     creating=multi;el('roomOptions').hidden=!multi;el('soloColor').hidden=multi;
     el('setupTitle').textContent=multi?'Crear partida':'Singleplayer';show('setup');
   }
+  el('extrasButton').onclick=()=>show('extras');
+  el('rushButton').onclick=()=>show('rushSetup');
+  for(const [id,name] of Object.entries(BOSS_NAMES)){
+    const label=document.createElement('label'),box=document.createElement('input');
+    box.type='checkbox';box.checked=true;box.value=id;label.append(box,name);el('rushRoster').append(label);
+  }
+  function startRush(){
+    const disabled=[...el('rushRoster').querySelectorAll('input:not(:checked)')].map(n=>n.value);
+    if(disabled.length===Object.keys(BOSS_NAMES).length){el('notice').textContent='Habilita al menos un jefe para comenzar.';return;}
+    rules={difficulty:1,xp:1,color:setup.elements.color.value,disabled};
+    screen='playing';start('rush');beginRush(el('botPlay').checked);
+  }
+  el('rushSetup').onsubmit=e=>{e.preventDefault();startRush();};
+  el('retryRush').onclick=startRush;el('leaveRush').onclick=()=>end('','extras');
+  syncRushUI=()=>{
+    const rush=state.rush;
+    if(state.over){
+      if(screen==='rushResults')return;
+      el('rushHUD').hidden=el('rushBanner').hidden=el('sessionHUD').hidden=true;
+      el('menu').hidden=false;show('rushResults');
+      const stats=el('rushStats');stats.replaceChildren();
+      for(const [name,value] of rushResults()){
+        const dt=document.createElement('dt'),dd=document.createElement('dd');
+        dt.textContent=name;dd.textContent=value;stats.append(dt,dd);
+      }
+      return;
+    }
+    el('rushHUD').hidden=false;
+    const hud='BOSS RUSH · RONDA '+rush.round+' · '+rushStage(state.groupSize)+'\n'+rush.stageWins+' / '+chooseCount(rush.enabled,state.groupSize)+' encuentros · '+rush.defeated+' jefes'+(rush.bot?'\nBOT PLAY · ACTIVO · '+rush.action:'');
+    if(el('rushHUD').textContent!==hud)el('rushHUD').textContent=hud;
+    const banner=el('rushBanner');banner.hidden=rush.phase!=='countdown';
+    if(!banner.hidden){
+      banner.classList.toggle('stageChange',rush.newStage);
+      const text=(rush.newStage?'ETAPA COMPLETADA · '+rushStage(state.groupSize):'BOSS RUSH · RONDA '+rush.round)+'\n'+Math.ceil(rush.timer);
+      if(banner.textContent!==text)banner.textContent=text;
+    }
+  };
   el('sandbox').onclick=()=>{
     rules={difficulty:1,xp:1,disabled:[],color:'#4df3ff'};
     restart();Object.assign(lab,{god:false,speed:1,debug:false,hitboxes:false,spawnWaves:false,bossId:0});lab.group.clear();sandboxEnemy='normal';start('sandbox');sandboxHint();
@@ -104,7 +143,8 @@ function initializeMenu(){
   el('multi').onclick=lobby;el('search').oninput=displayRooms;setInterval(refresh,3000);
   el('byCode').onsubmit=e=>{e.preventDefault();join(e.target.elements.code.value.trim().toUpperCase());};
   for(const b of document.querySelectorAll('[data-back]'))b.onclick=()=>{
-    if(screen==='identity'&&creating)configure(true);
+    if(screen==='rushSetup')show('extras');
+    else if(screen==='identity'&&creating)configure(true);
     else if(screen==='identity'||screen==='setup'&&creating)lobby();else show('home');
   };
   identity.onsubmit=async e=>{
@@ -148,8 +188,8 @@ function initializeMenu(){
       function controls(frames,now){
         const p=state.player;
         const target=getWorldMouse();
-        return {frames,width:W,height:H,stamp:now,angle:p.angle,reach:Math.hypot(target.x-p.x,target.y-p.y),dx:(mouse.x-W/2)/state.cam.zoom,
-          dy:(mouse.y-H/2)/state.cam.zoom,fire:mouse.down,
+        return {frames,width:W,height:H,stamp:now,angle:p.angle,reach:Math.hypot(target.x-p.x,target.y-p.y),dx:(mouse.x-W/2)/viewZoom(),
+          dy:(mouse.y-H/2)/viewZoom(),fire:mouse.down,
           w:!!(keys.w||keys.arrowup),a:!!(keys.a||keys.arrowleft),
           s:!!(keys.s||keys.arrowdown),d:!!(keys.d||keys.arrowright)};
       }

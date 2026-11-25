@@ -6,15 +6,21 @@ function ensureAudio() {
   Sfx.init();
   if (Sfx.ctx && Sfx.ctx.state === 'suspended') Sfx.ctx.resume();
 }
+// Client lens only. Combat ranges, snapshots and the world camera use cam.zoom.
+const localLens={target:1,value:1};
+function adjustLens(steps){localLens.target=clamp(localLens.target+steps*.15,.7,1.6);}
+function updateLens(dt){localLens.value+=(localLens.target-localLens.value)*(1-Math.exp(-9*dt));}
+function viewZoom(){return state.cam.zoom*(state.arena?.chase?Math.min(1,localLens.value):localLens.value);}
 function getWorldMouse() {
+  if(state.rush?.intent)return state.rush.intent.aim;
   return {
-    x: (mouse.x - W/2) / state.cam.zoom + state.cam.x,
-    y: (mouse.y - H/2) / state.cam.zoom + state.cam.y
+    x: (mouse.x - W/2) / viewZoom() + state.cam.x,
+    y: (mouse.y - H/2) / viewZoom() + state.cam.y
   };
 }
 
 window.addEventListener('keydown', e => {
-  if (playMode === 'menu' || (playMode === 'online' && handleNetKey(e))) return;
+  if (state.rush?.bot || (state.rush && state.over) || playMode === 'menu' || (playMode === 'online' && handleNetKey(e))) return;
   ensureAudio();
   const k = e.key.toLowerCase();
 
@@ -69,7 +75,7 @@ canvas.addEventListener('mousemove', e => {
   mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
 });
 canvas.addEventListener('mousedown', e => {
-  if (playMode === 'menu' || (mobileDevice && e.sourceCapabilities?.firesTouchEvents)) return;
+  if (state.rush?.bot || (state.rush && state.over) || playMode === 'menu' || (mobileDevice && e.sourceCapabilities?.firesTouchEvents)) return;
   if (playMode === 'sandbox' && e.button===2 && !state.inventoryOpen){
     const rect=canvas.getBoundingClientRect();
     mouse.x=(e.clientX-rect.left)*W/rect.width;mouse.y=(e.clientY-rect.top)*H/rect.height;
@@ -131,5 +137,12 @@ window.addEventListener('mouseup', e => { if (e.button === 0 && !e.sourceCapabil
 window.addEventListener('blur', () => { mouse.down = false; for (const k in keys) keys[k] = false; });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
-function restart() { randomState=initialSeed; state = newState(); mouse.down = false; chunkCache.clear(); }
-
+function restart() {
+  randomState=new URLSearchParams(location.search).has('seed')?initialSeed:Math.floor(Math.random()*4294967296);
+  state=newState();
+  localLens.target=localLens.value=1;
+  touchMove.x=touchMove.y=0;
+  for(const key in keys)keys[key]=false;
+  mouse.down=false;
+  chunkCache.clear();
+}

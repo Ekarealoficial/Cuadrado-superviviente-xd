@@ -129,7 +129,10 @@ function gainXp(amount) {
     state.xp -= state.xpNeeded;
     state.level++;
     state.pendingLevelUps++;
-    state.xpNeeded = Math.floor(state.xpNeeded * 1.35) + 4;
+    // A full Rush has tens of thousands of rounds. Linear growth in the late
+    // game keeps XP representable while levels and card picks continue.
+    const nextCost=Math.floor(state.xpNeeded * 1.35) + 4;
+    state.xpNeeded=state.rush?Math.min(nextCost,state.xpNeeded+1000):nextCost;
     leveled = true;
   }
   if (leveled) {

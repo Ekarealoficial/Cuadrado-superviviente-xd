@@ -4,6 +4,14 @@ Con Node 18 o posterior, ejecuta `npm start` y abre `http://localhost:3000`. Par
 
 Singleplayer también funciona en GitHub Pages. Multijugador usa el servidor Node indicado en `src/runtime-config.js` para descubrir salas y simular las partidas. Las salas viven en memoria y se cierran al salir el último jugador o tras 20 segundos sin conexión de todos sus miembros.
 
+## Extras y Boss Rush
+
+En **Extras → Sandbox** puedes abrir el laboratorio. En **Extras → Boss Rush** eliges los jefes habilitados y juegas personalmente o activas Bot Play. Puedes reproducir una selección con `?seed=105` y la misma secuencia de entradas y pasos de simulación.
+
+Cada etapa agota todos los encuentros de un tamaño antes de pasar al siguiente. Cuando un grupo ya contiene todo el catálogo habilitado, ese grupo se repite en las rondas posteriores. Cada jefe entrega cuatro reliquias y cada reliquia ofrece una carta entre tres. Parte de la XP del jefe se adelanta durante el combate. El resto cae al morir. El bot y el jugador utilizan las mismas recompensas, estadísticas y tiempos de recarga.
+
+Boss Rush calcula la vida de los jefes con un factor de `1 + 0.22 × log2(ronda)`. En rondas avanzadas la dificultad proviene también del número de jefes simultáneos. El incremento del coste de cada nivel pasa a ser lineal cuando alcanza 1.000 XP por nivel adicional.
+
 ## Activar multijugador desde GitHub Pages
 
 1. En Render, crea un Blueprint y conecta este repositorio.
@@ -26,4 +34,4 @@ Run regression tests with `npm test` (Node 18+).
 
 Use `?seed=42` for reproducible simulation randomness. Matching seeds require matching inputs and delta-time sequences; this version does not record/replay browser inputs. Cosmetic randomness is separate.
 
-Boss health is `1200 * 1.25^(encounter-1) * enemyHpMult`, rounded to an integer. Spatial grids reduce sparse-world candidate counts; dense clusters can still have quadratic interactions. Scripts retain shared lexical state for compatibility; this is not yet an isolated ES-module architecture. Entity schemas are currently a documented base body plus enemy/projectile types, not runtime validation of every entity. Additional tuning constants and card text generation remain opportunities for follow-up.
+Outside Boss Rush, boss health is `1200 * 1.25^(encounter-1) * enemyHpMult`, rounded to an integer. Spatial grids reduce sparse-world candidate counts; dense clusters can still have quadratic interactions. Scripts retain shared lexical state for compatibility; this is not yet an isolated ES-module architecture. Entity schemas are currently a documented base body plus enemy/projectile types, not runtime validation of every entity. Additional tuning constants and card text generation remain opportunities for follow-up.

@@ -7,6 +7,13 @@ function drawBossOmen(){
   ctx.save();
   const group=omen.group||[omen.kind];
   drawGroupOmen(group,age);
+  if(state.rush && group.includes('singular')){
+    const duration=age+state.rush.timer;
+    ctx.save();
+    for(const x of [.23,.77])drawHostileWell({x:W*x,y:H*.41,r:Math.min(H*.12,75),
+      age,windup:.4,off:duration-.25,duration});
+    ctx.restore();
+  }
   if(age<2.1 && (group.includes('boss')||group.includes('worm'))){
     const t=age/2.1,x=-100+(W+200)*t,y=H*(.48-.13*Math.sin(t*Math.PI));
     ctx.shadowColor=color;ctx.shadowBlur=15;
@@ -65,8 +72,8 @@ function drawWorm(b){
     }
     for(let i=piece.parts.length-1;i>=0;i--){
       const s=piece.parts[i],r=s.size/2;
-      if(Math.abs(s.x-state.cam.x)>W/(2*state.cam.zoom)+r+20 ||
-          Math.abs(s.y-state.cam.y)>H/(2*state.cam.zoom)+r+20)continue;
+      if(Math.abs(s.x-state.cam.x)>W/(2*viewZoom())+r+20 ||
+          Math.abs(s.y-state.cam.y)>H/(2*viewZoom())+r+20)continue;
       ctx.save();ctx.translate(s.x,s.y);
       const next=piece.parts[i-1];
       ctx.rotate(next?Math.atan2(next.y-s.y,next.x-s.x):piece.heading);

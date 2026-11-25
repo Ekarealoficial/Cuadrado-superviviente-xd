@@ -103,6 +103,8 @@ window.addEventListener('DOMContentLoaded',()=>{
     else{state.inventoryOpen=!state.inventoryOpen;state.laserCharging=false;state.laserChargeTime=0;}
   }
   el('bag').onclick=bag;
+  el('zoomIn').onclick=()=>adjustLens(1);
+  el('zoomOut').onclick=()=>adjustLens(-1);
   for(const [id,tab] of [['enemyTool','enemies'],['cardTool','cards']]){
     el(id).onclick=()=>{clear();openSandboxPanel(tab);};
   }
@@ -158,14 +160,19 @@ window.addEventListener('DOMContentLoaded',()=>{
     const playing=playMode!=='menu';ui.hidden=!playing;
     if(oldMode!==playMode){clear();signature='';selected=null;oldMode=playMode;}
     if(!playing)return;
+    if(state.rush && (state.over || state.rush.bot)){
+      clear();combat.hidden=el('touchTools').hidden=panel.hidden=true;
+      el('zoomControls').hidden=state.over;return;
+    }
     const view=state.over?'over':state.cardChoices?'reward':state.inventoryOpen?'inventory':sandboxTab?'sandbox':'play';
+    el('zoomControls').hidden=view!=='play';
     combat.hidden=el('touchTools').hidden=view!=='play';
     panel.hidden=['play','sandbox'].includes(view);
     if(view!=='play'){clear();}else{
       el('enemyTool').hidden=el('cardTool').hidden=playMode!=='sandbox';
-      const distance=Math.min(W*.42,H*.42);
-      mouse.x=W/2+(state.player.x-state.cam.x)*state.cam.zoom+aim.x*distance;
-      mouse.y=H/2+(state.player.y-state.cam.y)*state.cam.zoom+aim.y*distance;
+      const distance=Math.min(W*.42,H*.42)/state.cam.zoom,zoom=viewZoom();
+      mouse.x=W/2+(state.player.x-state.cam.x+aim.x*distance)*zoom;
+      mouse.y=H/2+(state.player.y-state.cam.y+aim.y*distance)*zoom;
       for(const [i,b] of slots.entries()){
         const card=SPECIAL_CARDS.find(c=>c.id===state.slots[i]),sc=card&&state.specialCards[card.id];
         const label=(i+1)+(sc?' · '+(sc.charges||Math.ceil(sc.cooldown)+'s'):'');

@@ -10,7 +10,7 @@ function render() {
     sx = (Math.random() * 2 - 1) * shake;
     sy = (Math.random() * 2 - 1) * shake;
   }
-  const cam = state.cam;
+  const cam = {...state.cam,zoom:viewZoom()};
   ctx.save();
   ctx.translate(W/2 + sx, H/2 + sy);
   ctx.scale(cam.zoom, cam.zoom);
@@ -46,7 +46,7 @@ function render() {
     ctx.restore();
   }
 
-  for (const w of currentWalls) {
+  for (const w of (!state.arena && localLens.value<.999 ? getVisibleChunks(cam) : currentWalls)) {
     if (w.isArena) continue;
     ctx.fillStyle = '#1a2340';
     ctx.fillRect(w.x, w.y, w.w, w.h);
@@ -191,7 +191,7 @@ function render() {
   if(mobileDevice)drawTouchHUD();else drawHUD();
   if (!mobileDevice && state.cardChoices) drawCards();
   if (!mobileDevice && state.inventoryOpen) drawInventory();
-  if (!mobileDevice && state.over) drawGameOver();
+  if (!mobileDevice && state.over && !state.rush) drawGameOver();
   drawCrosshair();
 }
 
@@ -277,7 +277,9 @@ function drawCardFeedback(body){
   }
 }
 function drawCrosshair() {
-  const x = mouse.x, y = mouse.y;
+  const aim=state.rush?.intent?.aim;
+  const x=aim?W/2+(aim.x-state.cam.x)*viewZoom():mouse.x;
+  const y=aim?H/2+(aim.y-state.cam.y)*viewZoom():mouse.y;
   ctx.save();
   ctx.translate(x, y);
   ctx.strokeStyle = '#4df3ff';
@@ -589,7 +591,7 @@ function renderEntities2() {
 // Reuse the same glow for every projectile of a given size and palette.
 const enemyShotSprites=new Map();
 function renderEnemyShots(){
-  const halfW=W/(2*state.cam.zoom)+15,halfH=H/(2*state.cam.zoom)+15;
+  const halfW=W/(2*viewZoom())+15,halfH=H/(2*viewZoom())+15;
   for(const shot of state.enemyBullets){
     if(Math.abs(shot.x-state.cam.x)>halfW+shot.r || Math.abs(shot.y-state.cam.y)>halfH+shot.r)continue;
     const color=shot.tint||'#ffd0a8';

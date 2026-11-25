@@ -29,9 +29,20 @@ function pickEncounter(){
   const pool=Object.keys(BOSS_NAMES).filter(k=>!rules.disabled.includes(k)).sort();
   if(!pool.length)return null;
   const roster=pool.join('+');
-  if(state.encounterRoster!==roster){state.encounterRoster=roster;state.groupSize=1;state.bossCycle=[];}
+  if(state.encounterRoster!==roster){state.encounterRoster=roster;state.groupSize=1;state.bossCycle=[];state.singleRemaining=null;}
   let k=state.groupSize,n=chooseCount(pool.length,k),cycle=state.bossCycle;
   if(cycle[0]>=n){k=state.groupSize=Math.min(k+1,pool.length);n=chooseCount(pool.length,k);cycle=state.bossCycle=[];}
+  if(k===1 && (playMode==='solo'||playMode==='rush')){
+    const remaining=state.singleRemaining?.length?state.singleRemaining:[...pool];
+    const progress=1-remaining.length/pool.length;
+    const weights=remaining.map(id=>Math.exp(-(.92-.74*progress)*(BOSS_DIFFICULTY[id]-1)));
+    let roll=gameRandom()*weights.reduce((a,b)=>a+b,0),index=0;
+    while(index<weights.length-1 && roll>=weights[index])roll-=weights[index++];
+    const group=remaining.splice(index,1);
+    state.singleRemaining=remaining;
+    cycle[0]=pool.length-remaining.length;
+    return group;
+  }
   if(!cycle.length){
     let stride=1+Math.floor(gameRandom()*n);
     for(;;){let a=n,b=stride;while(b){[a,b]=[b,a%b];}if(a===1)break;stride=stride%n+1;}
@@ -68,7 +79,7 @@ function spawnEncounter(group){
 
 function spawnBoss(position,kind='boss') {
   if(!state.boss)state.bossEncounters = (state.bossEncounters || 0) + 1;
-  const bossHp = Math.round(BALANCE.bossHp * Math.pow(BALANCE.bossGrowth, state.bossEncounters - 1) * state.enemyHpMult);
+  const bossHp = Math.round(BALANCE.bossHp * (state.rush ? 1+.22*Math.log2(state.bossEncounters) : Math.pow(BALANCE.bossGrowth, state.bossEncounters - 1)) * state.enemyHpMult);
   state.bossActive = true;
   state.bossOmen = null;
   const p = state.player;
@@ -107,6 +118,10 @@ function spawnBoss(position,kind='boss') {
       { side: 'right',  x: 0, y: 0, r: 36, state: 'attached', vx: 0, vy: 0, life: 0 }
     ]
   };
+  if(state.rush){
+    boss.rushXp=300+state.xpNeeded*2;
+    boss.awardedXp=0;
+  }
   boss.id=++state.nextBossId;
   makeComponents(boss);
   if(ENCORE[kind]){
@@ -158,12 +173,14 @@ function killBoss(b = state.boss, completed = false) {
   state.score += 5000;
   recordKill(b);
   const loot=rewardSpot(b.x,b.y);
-  const xp=300+state.xpNeeded*2;
+  const xp=state.rush?b.rushXp-b.awardedXp:300+state.xpNeeded*2;
   dropGreedBonus(b,xp);
-  for(const side of [-1,1]){
-    const spot=rewardSpot(loot.x+side*48,loot.y+24);
-    state.cardRelics.push(spot);
+  const relicCount=state.rush?4:2;
+  for(let i=0;i<relicCount;i++){
+    const angle=Math.PI+i*TAU/relicCount;
+    state.cardRelics.push(rewardSpot(loot.x+48*Math.cos(angle),loot.y+24+48*Math.sin(angle)));
   }
+  if(state.rush)state.rush.defeated++;
   addFloat(b.x, b.y - 60, '¡JEFE DERROTADO!', '#ffd54a');
   Sfx.play('bossdie');
   for (let i = 0; i < 25; i++) {

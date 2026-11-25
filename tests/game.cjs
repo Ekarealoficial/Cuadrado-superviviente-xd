@@ -581,3 +581,123 @@ test('Las invocaciones mantienen propietario y caducidad en un encuentro con dos
   assert.ok(run("state.score===before&&state.enemies.some(e=>e.master===a.id)&&state.enemies.some(e=>e.master===b.id)"));
   run("killBoss(a,true);");assert.ok(run("!state.enemies.some(e=>e.master===a.id)&&state.enemies.every(e=>e.master===b.id)&&state.arena"));
 });
+
+test('Extras conserva el laboratorio y Boss Rush empieza en control manual',()=>{
+  const html=fs.readFileSync('index.html','utf8');
+  const home=html.split('<div id="home">')[1].split('</div>')[0];
+  assert.match(home,/id="extrasButton"/);assert.doesNotMatch(home,/id="sandbox"/);
+  for(const id of ['sandbox','rushButton'])assert.match(html.split('<section id="extras"')[1].split('</section>')[0],new RegExp('id="'+id+'"'));
+  assert.match(html,/<input type="checkbox" id="botPlay">/);
+  assert.match(html,/id="labTool"/);
+});
+test('Selección ponderada reproducible sin exclusiones en solo y rush',()=>{
+  const run=game();
+  for(const mode of ['solo','rush']){
+    run("playMode='"+mode+"'");
+    const count=run(`(()=>{
+      if(Object.keys(BOSS_NAMES).some(id=>!BOSS_DIFFICULTY[id]))return -1;
+      let easy=0,hard=0,distinct=new Set();
+      for(let seed=0;seed<400;seed++){
+        state=newState();randomState=seed;const first=pickEncounter()[0];distinct.add(first);
+        if(BOSS_DIFFICULTY[first]<=2)easy++;
+        if(BOSS_DIFFICULTY[first]>=5)hard++;
+        const others=new Set([first,...Array.from({length:15},()=>pickEncounter()[0])]);
+        if(others.size!==16)return -2;
+        state=newState();randomState=seed;if(pickEncounter()[0]!==first)return -3;
+      }
+      return easy>5*hard && distinct.size>6 && hard>0;
+    })()`);
+    assert.equal(count,true);
+  }
+});
+test('Boss Rush recorre 3 individuales, 3 duplas y 1 trío, cobra cuatro reliquias por jefe y espera la elección',()=>{
+  const run=game();
+  run("playMode='rush';rules.disabled=Object.keys(BOSS_NAMES).filter(k=>!['boss','fractal','clock'].includes(k));beginRush(false)");
+  const groups=[];
+  for(const size of [1,1,1,2,2,2,3,3]){
+    const group=JSON.parse(run('JSON.stringify(state.rush.group)'));groups.push(group.join('+'));assert.equal(group.length,size);
+    run('updateRushSchedule(5);globalThis.constituents=livingBosses()');
+    for(let i=0;i<size;i++){
+      run('killBoss(constituents['+i+'],true);killBoss(constituents['+i+'],true);updateRushSchedule(.01)');
+      assert.equal(run('state.cardRelics.length'),4*(i+1));
+      assert.equal(run('!!state.arena'),i<size-1);
+      assert.equal(run('state.rush.phase'),i<size-1?'battle':'reward');
+    }
+    run('state.cardRelics.forEach(r=>Object.assign(r,point(state.player)));collectCardRelics();updateRushSchedule(20)');
+    assert.equal(run('state.rush.phase'), 'reward');assert.equal(run('state.bonusPicks'),size*4);
+    run("while(state.cardChoices)pickCard(CARD_TYPES.find(c=>c.id==='multi'));updateRushSchedule(.01)");
+    assert.equal(run('state.rush.timer'),5);assert.equal(run('state.player.shots'),1+4*run('state.rush.defeated'));
+  }
+  assert.equal(new Set(groups.slice(0,7)).size,7);
+  run("rules.disabled=Object.keys(BOSS_NAMES);");assert.equal(run('beginRush(false)'),false);
+});
+test('El final jugable retrasa la recompensa y el planificador respeta inventario y cuenta inicial',()=>{
+  const run=game();
+  run("playMode='rush';rules.disabled=Object.keys(BOSS_NAMES).filter(k=>k!=='clock');beginRush(false);state.bossSpawnTimer=0;state.spawnTimer=0;update(1);state.inventoryOpen=true;update(6)");
+  assert.ok(run('state.rush.timer===2&&!state.boss&&!state.enemies.length'));
+  run('state.inventoryOpen=false;updateRushSchedule(2);killBoss();');
+  assert.ok(run("state.boss.state==='final'&&!state.rush.defeated&&!state.cardRelics.length"));
+  run('updateRushSchedule(10);for(let i=0;state.boss&&i<1200;i++)updateBoss(1/60,state.boss)');
+  assert.ok(run('!state.boss&&state.rush.defeated===1&&state.cardRelics.length===4'));
+});
+test('Zoom táctil local conserva puntería, dirección del dash y simulación de cámara',()=>{
+  const run=game();
+  run('adjustLens(8);updateLens(1/60);');
+  assert.ok(run('viewZoom()>1&&viewZoom()<1.6&&state.cam.zoom===1'));
+  run("Object.assign(state.cam,{x:20,y:-55,zoom:.75});mouse.x=W/2+120*viewZoom();mouse.y=H/2+15*viewZoom();state.specialCards.dash.charges=1;tryDash()");
+  assert.ok(run('Math.abs(getWorldMouse().x-140)<1e-8&&Math.abs(getWorldMouse().y+40)<1e-8&&Math.abs(state.player.dashAngle-Math.atan2(-40,140))<1e-8'));
+  run("state.arena={chase:1};state.player.size=120;");assert.equal(run('viewZoom()'),.75);
+  run('restart()');assert.equal(run('localLens.value+localLens.target'),2);
+});
+test('Bot evalúa un rayo anunciado, carga el láser y usa habilidades y cartas reales',()=>{
+  const run=game();
+  run("playMode='rush';rules.disabled=Object.keys(BOSS_NAMES).filter(k=>k!=='beacon');beginRush(true);updateRushSchedule(3);state.bossLasers.push({x:-500,y:0,angle:0,width:80,state:'warmup',warmup:.35,active:1});");
+  assert.ok(run('Math.abs(rushBotControl().y)>.3'));
+  run("state.cardChoices=[CARD_TYPES.find(c=>c.id==='greed'),SPECIAL_CARDS.find(c=>c.id==='kame')];state.bonusPicks=1;botPickUpgrade();state.rush.nextPlan=0;rushBotControl()");
+  assert.ok(run("state.slots.includes('kame')&&state.player.beam.length&&state.specialCards.kame.charges===0&&!state.cardChoices&&!state.bonusPicks"));
+  run("state.player.laserCount=1;let released=false;for(let i=0;i<240&&!released;i++){updateRushFrame(1/30);released=state.lasersFiring.length>0}");
+  assert.ok(run("released&&Math.hypot(state.player.x,state.player.y)>10&&!mouse.down"));
+});
+test('La persecución mantiene los regalos, el bot busca la abertura y puede gastar Dash',()=>{
+  const run=game();
+  run("playMode='rush';rules.disabled=Object.keys(BOSS_NAMES).filter(k=>k!=='frontier');beginRush(true);updateRushSchedule(3);const frontier=state.boss;frontier.hp=frontier.maxHp*.49;for(let i=0;i<100;i++)updateBoss(1/60,frontier);chaseGift();");
+  assert.ok(run("state.arena.chase&&state.specialCards.dash.totalCards===4"));
+  run(`state.player.x=frontier.x+125;const gateX=state.player.x+180;
+    for(const [y,ry] of [[-60,150],[310,100]]){
+      panel(frontier,frontier.age,{x:gateX,y},{x:gateX-60,y},24,ry,.45,1.2,{jaw:true});
+    }
+    const door=botChaseGoal();rushBotControl()`);
+  assert.ok(run('door.x>state.player.x&&door.y===150&&state.player.dashTimer>0&&state.specialCards.dash.charges===3'));
+  run('killBoss(frontier,true)');assert.ok(run('!state.arena&&state.rush.defeated===1'));
+});
+test('Reintentar reinicia progreso, mazo, estado del bot y pantalla de derrota',()=>{
+  const run=game();
+  run("playMode='rush';beginRush(true);updateRushSchedule(3);applyCard(CARD_TYPES.find(c=>c.id==='multi'));damagePlayer(100);");
+  assert.ok(run("state.over&&rushResults().at(-1)[1]==='Bot Play'"));
+  run('beginRush(true)');assert.ok(run('!state.over&&state.rush.round===1&&state.rush.bot&&!state.boss&&state.player.shots===1&&!state.cardRelics.length&&!state.rush.intent'));
+});
+test('Las dieciséis fichas se presentan y ejecutan su primer patrón en Boss Rush',()=>{
+  const run=game();
+  const roster=JSON.parse(run('JSON.stringify(Object.keys(BOSS_NAMES))'));
+  for(const id of roster){
+    run("playMode='rush';rules.disabled=Object.keys(BOSS_NAMES).filter(k=>k!=="+JSON.stringify(id)+");beginRush(true);");
+    run('for(let i=0;i<255&&!state.over;i++){updateRushFrame(1/30);if(i%60===0)render()}');
+    assert.equal(run('state.rush.lastGroup?.[0]'),id);
+    assert.ok(run('state.player.volley>0&&Number.isFinite(state.rush.intent.aim.x)'),id);
+    assert.ok(run('state.enemies.every(e=>e.master)'),id);
+  }
+});
+test('XP anticipada y reliquias usan presupuestos independientes, incluso en la muerte final',()=>{
+  const run=game();
+  run("playMode='rush';rules.disabled=Object.keys(BOSS_NAMES).filter(k=>k!=='clock');beginRush(false);updateRushSchedule(3);const b=state.boss;const budget=b.rushXp;b.hp=b.maxHp*.6;updateRushSchedule(.1);const earned=b.awardedXp;updateRushSchedule(.1);");
+  assert.ok(run('b.awardedXp===earned&&earned>0&&state.cardRelics.length===0'));
+  run('killBoss(b,true);killBoss(b,true)');
+  assert.ok(run('state.cardRelics.length===4&&Math.abs(earned+state.orbs.reduce((a,o)=>a+o.value,0)-budget)<1e-6'));
+});
+test('Bot Play conserva el mismo combate a distintas frecuencias de pantalla',()=>{
+  function observe(hz){
+    const run=game();
+    return run("playMode='rush';beginRush(true);for(let i=0;i<"+(hz*6)+";i++)advanceRush(1/"+hz+");JSON.stringify([state.player,state.rush.group,state.enemyBullets,state.boss.hp,state.halfHearts])");
+  }
+  assert.equal(observe(60),observe(90));assert.equal(observe(60),observe(120));
+});
