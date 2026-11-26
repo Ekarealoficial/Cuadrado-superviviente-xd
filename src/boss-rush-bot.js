@@ -48,7 +48,7 @@ function botForecast(t,bosses){
     if(PATTERN_BOSSES[b.kind])out.push(...patternShapes(future));
     else for(const layer of future.layers)out.push(...scoreShapes(layerView(future,layer)));
     if(b.state==='lunge'){
-      const run=b.repeats<=2?.204:.23,age=b.age+t;
+      const run=lungeDuration(b),age=b.age+t;
       if(age<.7)line(b.origin,b.end.x,b.end.y,b.size,false);
       else if(age<=.7+run+.07){
         const from=motionPoint(b,(age-.77)/run),to=motionPoint(b,(age-.7)/run);
@@ -56,7 +56,7 @@ function botForecast(t,bosses){
       }
     }
     if(b.state==='dash_windup'||b.state==='dash'){
-      line(b,b.x+880*Math.cos(b.dashAngle),b.y+880*Math.sin(b.dashAngle),b.size,b.state==='dash'||b.timer<t);
+      line(b,b.x+880*(b.difficulty?.movement||1)*Math.cos(b.dashAngle),b.y+880*(b.difficulty?.movement||1)*Math.sin(b.dashAngle),b.size,b.state==='dash'||b.timer<t);
     }
     for(const piece of b.pieces||[])if(piece.mode==='laneAim'||piece.mode==='pass'){
       const a=state.arena,lane=piece.lanes[piece.lane],live=piece.mode==='pass'||t>=piece.timer;
@@ -64,12 +64,12 @@ function botForecast(t,bosses){
       else line({x:lane,y:a.y},lane,a.y+a.h,piece.laneWidth,live);
     }
     for(const piece of b.pieces||[])if(piece.mode==='windup'){
-      const head=piece.parts[0],length=b.phase===2?433:696;
+      const head=piece.parts[0],length=(b.phase===2?433:696)*(b.difficulty?.movement||1);
       line(head,head.x+length*Math.cos(piece.heading),head.y+length*Math.sin(piece.heading),head.size,piece.timer<t);
     }
     for(const q of b.planets||[])disk(q,q.r+10,true);
   }
-  for(const q of state.bossLasers)line(q,q.x+2400*Math.cos(q.angle),q.y+2400*Math.sin(q.angle),q.width,q.state==='active'||t>=q.warmup);
+  for(const q of state.bossLasers)line(q,q.x+bossLaserReach()*Math.cos(q.angle),q.y+bossLaserReach()*Math.sin(q.angle),q.width,q.state==='active'||t>=q.warmup);
   for(const q of state.bossBombs)if(!q.exploded)disk(q,q.timer<=t+.15?100:q.r+12,true);
   for(const q of state.iceZones)disk(q,45,q.age+t>=ICE_FALL);
   for(const q of state.cosmicZones){

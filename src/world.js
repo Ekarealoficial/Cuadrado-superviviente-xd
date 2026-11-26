@@ -50,9 +50,9 @@ function getVisibleChunks(cam) {
   const cxMin = Math.floor(l / CHUNK_SIZE), cxMax = Math.floor(r / CHUNK_SIZE);
   const cyMin = Math.floor(t / CHUNK_SIZE), cyMax = Math.floor(b / CHUNK_SIZE);
   const walls = [];
-  for (let cy = cyMin; cy <= cyMax; cy++)
-    for (let cx = cxMin; cx <= cxMax; cx++) {
-      const c = getChunk(cx, cy);
+  for (let row=0;row<=cyMax-cyMin;row++)
+    for (let col=0;col<=cxMax-cxMin;col++) {
+      const c = getChunk(cxMin+col, cyMin+row);
       for (const w of c.walls) walls.push(w);
     }
   return walls;

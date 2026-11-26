@@ -15,7 +15,7 @@ function pickRandomCards(n) {
   const picked = [];
   for (let i = 0; i < n && pool.length > 0; i++) {
     const idx = Math.floor(gameRandom() * pool.length);
-    picked.push(pool.splice(idx, 1)[0]);
+    picked.push({...pool.splice(idx, 1)[0]});
   }
   return picked;
 }
@@ -30,11 +30,13 @@ function openCardSelection() {
 function applyCard(card) {
   const p = state.player;
   card.apply(p,card);
+  state.upgrades=(state.upgrades||0)+1;
 }
 function pickCard(card) {
+  if(!state.cardChoices?.includes(card))return;
   applyCard(card);
   if(state.bonusPicks>0)state.bonusPicks--;
-  else state.pendingLevelUps--;
+  else state.pendingLevelUps=Math.max(0,state.pendingLevelUps-1);
   state.cardChoices = null;
   state.cardRects = null;
   mouse.down = false;

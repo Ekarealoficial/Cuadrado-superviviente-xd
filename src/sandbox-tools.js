@@ -35,6 +35,7 @@ function setSandboxPhase(b,n){
 }
 function sandboxAttack(b,m){
   if(b.state==='final')return;
+  b.lastAttack=m;
   const phase=sandboxPhases(b).findIndex(moves=>moves.includes(m))+1;
   if(phase>b.phase || b.kind==='twins'&&phase!==b.phase)setSandboxPhase(b,phase);
   if(b.kind==='twins'&&phase===3){for(const q of b.parts){q.hp=(m==='positiveStorm')===(q.index===0)?q.maxHp:0;q._dying=!q.hp;}}
@@ -52,6 +53,13 @@ function sandboxAttack(b,m){
     if(m==='rush')wormWindup(piece,false);
     if(m==='zigzag'){piece.mode='zigzag';piece.timer=3.5;bossCue('wormZig',piece.parts[0]);}
   }else startBossAttack(m,b);
+}
+function restartLabAttack(b,move){
+  if(playMode!=='sandbox'||!livingBosses().includes(b)||b.state==='final')return;
+  for(const key of ['enemyBullets','bossBombs','bossLasers','cosmicZones'])state[key]=state[key].filter(q=>q.source!==b.id);
+  state.enemies=state.enemies.filter(e=>e.master!==b.id);
+  for(const ball of b.balls)ball.state='attached';
+  b.layers=[];sandboxAttack(b,move);
 }
 function clearSandboxShots(){
   state.enemyBullets=[];state.enemyDarts=[];state.bossBombs=[];state.bossLasers=[];
@@ -110,9 +118,16 @@ function renderLabMenu(list,button,status){
         layer.disabled=layer.options.length===1;refreshThird();
       }
       s.onchange=refreshLayers;refreshLayers();
+      const wormMove=b.pieces?.[0]?.mode;
+      const wormAttack=['pass','exit','laneAim'].includes(wormMove)?'lanes':['rush','windup'].includes(wormMove)?(b.phase===2?'frenzy':'rush'):wormMove;
+      const active=moves.includes(b.state)?b.state:moves.includes(wormAttack)?wormAttack:b.lastAttack;
+      if(moves.includes(active))button('Reiniciar ataque actual',b.color,()=>{
+        restartLabAttack(b,active);closeSandboxPanel();
+      });
       button('Ejecutar ataque',b.color,()=>{executeSandboxPair(b,s.value,layer.value,third.value);closeSandboxPanel();});
     }
   }
+  renderTraining(list,button,status,heading,select);
   heading('Encuentro personalizado');
   for(const [id,name] of Object.entries(BOSS_NAMES)){
     const l=document.createElement('label'),box=document.createElement('input');l.className='labChoice';box.type='checkbox';box.checked=lab.group.has(id);
@@ -194,7 +209,7 @@ function drawLabHitboxes(){
     }
   }
   ctx.setLineDash([]);
-  for(const ls of state.bossLasers)beam(ls,ls.angle,Math.hypot(state.arena.w,state.arena.h)*1.2,ls.width,ls.state==='active'?red:warn);
+  for(const ls of state.bossLasers)beam(ls,ls.angle,bossLaserReach(),ls.width,ls.state==='active'?red:warn);
   for(const bomb of state.bossBombs)circle(bomb,bomb.exploded?100:bomb.r,bomb.exploded?red:warn);
   for(const z of state.cosmicZones){
     const color=z.age>=z.windup?red:warn;
@@ -202,7 +217,7 @@ function drawLabHitboxes(){
     else if(z.type==='solar'){ctx.strokeStyle=color;cosmicPath(solarVertices(z));ctx.closePath();ctx.stroke();}
     else if(z.type==='well')circle(z,36,color);
   }
-  for(const l of state.lasersFiring)for(let i=0;i<l.count;i++)beam(state.player,state.player.angle+l.sweep+i*TAU/l.count,2000,l.width,blue);
+  for(const l of state.lasersFiring)for(let i=0;i<l.count;i++)beam(l.origin||state.player,state.player.angle+l.sweep+i*TAU/l.count,2000,l.width,blue);
   for(const l of state.player.beam||[])beam(state.player,l.a,1100,32,blue);
   for(const z of state.iceZones)circle(z,45,z.age>=ICE_FALL?red:warn);
   circle(state.player,state.player.size/2,blue);ctx.restore();

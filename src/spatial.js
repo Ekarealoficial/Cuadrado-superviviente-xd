@@ -10,7 +10,7 @@ class SpatialGrid {
   query(x,y,r) {
     const result=[];
     // A giant projectile can cover more empty cells than the grid contains.
-    if((2*r/this.size+1)**2>Math.max(64,this.cells.size*3)){
+    if(Math.max(Math.abs(x),Math.abs(y))/this.size>=Number.MAX_SAFE_INTEGER || (2*r/this.size+1)**2>Math.max(64,this.cells.size*3)){
       for(const cell of this.cells.values())for(const item of cell)
         if(Math.abs(item.x-x)<=r&&Math.abs(item.y-y)<=r)result.push(item);
       return result;

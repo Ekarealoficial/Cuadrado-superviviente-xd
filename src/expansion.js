@@ -57,6 +57,13 @@ function inversionVisible(b){
 function invertProjectiles(){
   const p=state.player;
   const visible=inversionVisible;
+  if(p.anchor)p.anchor.held=p.anchor.held.filter(s=>{
+    if(!visible(s))return true;
+    const angle=Math.atan2(s.y-p.y,s.x-p.x);
+    if(s.dart)state.darts.push({type:'explosive',inverted:true,x:s.x,y:s.y,state:'follow',bob:0,angle,target:null});
+    else spawnBullet(s.x,s.y,angle,650,{radius:s.r,inverted:true,homing:true,inheritedDamage:s.damage});
+    return false;
+  });
   for(const b of state.bullets)if(visible(b)){b.homing=true;b.inverted=true;}
   for(const bomb of state.bossBombs.filter(b=>!b.exploded && visible(b))){
     spawnBullet(bomb.x,bomb.y,p.angle,520,{inverted:true,homing:true,radius:12,damage:5});
@@ -101,6 +108,7 @@ function activateExpansion(id){
 }
 function expansionHit(e,damage){
   if(e._dying || e.state==='final')return;
+  if(e.training)e.training.procs++;
   hurtTarget(e,damage*attackMultiplier(e));e.hitFlash=.14;
   if(e.hp<=0)finishTarget(e);
 }
@@ -119,7 +127,7 @@ function updateExpansion(dt,worldStep){
       for(const e of state.enemies.slice())if(hit(e,e.size/2))expansionHit(e,KAME_DPS*dt);
       for(const boss of bossTargets()){
         if(hit(boss,boss.size/2))expansionHit(boss,KAME_DPS*dt);
-        else if(boss.balls.some(ball=>ball.state!=='attached' && hit(ball,ball.r)))
+        else if(boss.balls?.some(ball=>ball.state!=='attached' && hit(ball,ball.r)))
           expansionHit(boss,KAME_DPS*dt*BALANCE.ballDamage);
       }
     }

@@ -20,7 +20,7 @@ function getWorldMouse() {
 }
 
 window.addEventListener('keydown', e => {
-  if (state.rush?.bot || (state.rush && state.over) || playMode === 'menu' || (playMode === 'online' && handleNetKey(e))) return;
+  if (state.rush?.bot || ((state.rush||state.extra) && state.over) || playMode === 'menu' || (playMode === 'online' && handleNetKey(e))) return;
   ensureAudio();
   const k = e.key.toLowerCase();
 
@@ -33,7 +33,7 @@ window.addEventListener('keydown', e => {
   if (state.cardChoices) {
     if (k === '1' || k === '2' || k === '3') {
       const idx = parseInt(k) - 1;
-      if (idx < state.cardChoices.length) pickCard(state.cardChoices[idx]);
+      if (!e.repeat && idx < state.cardChoices.length) pickCard(state.cardChoices[idx]);
       e.preventDefault();
     }
     return;
@@ -75,7 +75,7 @@ canvas.addEventListener('mousemove', e => {
   mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
 });
 canvas.addEventListener('mousedown', e => {
-  if (state.rush?.bot || (state.rush && state.over) || playMode === 'menu' || (mobileDevice && e.sourceCapabilities?.firesTouchEvents)) return;
+  if (state.rush?.bot || ((state.rush||state.extra) && state.over) || playMode === 'menu' || (mobileDevice && e.sourceCapabilities?.firesTouchEvents)) return;
   if (playMode === 'sandbox' && e.button===2 && !state.inventoryOpen){
     const rect=canvas.getBoundingClientRect();
     mouse.x=(e.clientX-rect.left)*W/rect.width;mouse.y=(e.clientY-rect.top)*H/rect.height;

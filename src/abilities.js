@@ -29,6 +29,7 @@ function tryBlink() {
     const a = state.arena;
     if (a && (x-radius<a.x || y-radius<a.y || x+radius>a.x+a.w || y+radius>a.y+a.h)) return false;
     if(a)return true;
+    if(!Number.isSafeInteger(Math.floor((Math.max(Math.abs(x),Math.abs(y))+radius)/CHUNK_SIZE)))return false;
     for(let cy=Math.floor((y-radius)/CHUNK_SIZE);cy<=Math.floor((y+radius)/CHUNK_SIZE);cy++){
       for(let cx=Math.floor((x-radius)/CHUNK_SIZE);cx<=Math.floor((x+radius)/CHUNK_SIZE);cx++){
         if(getChunk(cx,cy).walls.some(w=>aabbOverlapBox(x,y,state.player.size,w)))return false;

@@ -5,7 +5,7 @@ const multiplayerServer = String(window.MULTIPLAYER_SERVER_URL || '').replace(/\
 function handleNetKey(e){
   const k=e.key.toLowerCase();
   if(k==='e'||(k==='escape'&&state.inventoryOpen)){ if(!e.repeat)queuedActions.push({kind:'inventory'}); }
-  else if(/^[1-5]$/.test(k)) queuedActions.push({kind:state.cardChoices?'pick':'slot',i:Number(k)-1});
+  else if(/^[1-5]$/.test(k)){if(!e.repeat)queuedActions.push({kind:state.cardChoices?'pick':'slot',i:Number(k)-1});}
   else if(k!=='r')return false;
   e.preventDefault();return true;
 }
@@ -36,9 +36,10 @@ async function roomRequest(action,data){
   if(!response.ok)throw Error(result.error);
   return result;
 }
+let syncLocalUI=()=>{};
 function initializeMenu(){
   const el=id=>document.getElementById(id);
-  const setup=el('setup'), identity=el('identity'), screens=['home','setup','lobby','identity','extras','rushSetup','rushResults'];
+  const setup=el('setup'), identity=el('identity'), screens=['home','setup','lobby','identity','extras','rushSetup','rushResults','extraResults'];
 
   el('menu').addEventListener('click',ensureAudio,{once:true});
   let screen='home',creating=false,code='',listed=[], multiplayerSettings;
@@ -48,7 +49,7 @@ function initializeMenu(){
     el('notice').textContent='';
   }
   function start(mode){
-    playMode=mode;el('sandboxDebug').hidden=true;el('labTool').hidden=mode!=='sandbox';el('menu').hidden=true;el('sessionHUD').hidden=false;
+    playMode=mode;el('rushHUD').classList.toggle('trialHUD',mode==='trial');el('rushHUD').classList.remove('lastMinute');el('sandboxDebug').hidden=true;el('labTool').hidden=mode!=='sandbox';el('menu').hidden=true;el('sessionHUD').hidden=false;
     mouse.down=false;for(const k in keys)keys[k]=false;
   }
   function end(message='',destination='home'){
@@ -58,7 +59,7 @@ function initializeMenu(){
     el('menu').hidden=false;el('sessionHUD').hidden=true;show(destination);el('notice').textContent=message;
   }
   el('exit').onclick=()=>{
-    if(netSession)roomRequest('leave',netSession).catch(()=>{});end('',state.rush||playMode==='sandbox'?'extras':'home');
+    if(netSession)roomRequest('leave',netSession).catch(()=>{});end('',state.rush||state.extra||playMode==='sandbox'?'extras':'home');
   };
   for(const key of ['difficulty','xp'])for(const rate of [0.5,1,1.5,2,3]){
     const option=new Option(rate+'×',rate,false,rate===1);setup.elements[key].add(option);
@@ -99,7 +100,7 @@ function initializeMenu(){
       return;
     }
     el('rushHUD').hidden=false;
-    const hud='BOSS RUSH · RONDA '+rush.round+' · '+rushStage(state.groupSize)+'\n'+rush.stageWins+' / '+chooseCount(rush.enabled,state.groupSize)+' encuentros · '+rush.defeated+' jefes'+(rush.bot?'\nBOT PLAY · ACTIVO · '+rush.action:'');
+    const hud='BOSS RUSH · RONDA '+rush.round+' · '+rushStage(state.groupSize)+'\n'+threatLabel(state.threat)+' · '+rush.stageWins+' / '+chooseCount(rush.enabled,state.groupSize)+' encuentros · '+rush.defeated+' jefes'+(rush.bot?'\nBOT PLAY · ACTIVO · '+rush.action:'');
     if(el('rushHUD').textContent!==hud)el('rushHUD').textContent=hud;
     const banner=el('rushBanner');banner.hidden=rush.phase!=='countdown';
     if(!banner.hidden){
@@ -107,6 +108,29 @@ function initializeMenu(){
       const text=(rush.newStage?'ETAPA COMPLETADA · '+rushStage(state.groupSize):'BOSS RUSH · RONDA '+rush.round)+'\n'+Math.ceil(rush.timer);
       if(banner.textContent!==text)banner.textContent=text;
     }
+  };
+  function startExtra(id){
+    rules={difficulty:1,xp:1,color:setup.elements.color.value,disabled:[]};
+    screen='playing';start(id);beginExtra(id);
+  }
+  for(const id of Object.keys(EXTRA_NAMES))el(id).onclick=()=>startExtra(id);
+  el('retryExtra').onclick=()=>startExtra(state.extra.id);
+  el('leaveExtra').onclick=()=>end('','extras');
+  syncLocalUI=()=>{
+    const m=state.extra,hud=el('rushHUD');
+    if(m&&state.over){
+      if(screen==='extraResults')return;
+      hud.hidden=el('sessionHUD').hidden=true;el('menu').hidden=false;show('extraResults');
+      el('extraTitle').textContent=EXTRA_NAMES[m.id];el('extraStats').replaceChildren();
+      for(const [label,value] of extraResults(m)){
+        const term=document.createElement('dt'),val=document.createElement('dd');
+        term.textContent=label;val.textContent=value;el('extraStats').append(term,val);
+      }
+      return;
+    }
+    hud.hidden=false;hud.classList.toggle('lastMinute',m?.id==='trial'&&state.time>=540);
+    const info=(m?extraHUD(m)+'\n':'')+threatLabel(state.threat);
+    if(hud.textContent!==info)hud.textContent=info;
   };
   el('sandbox').onclick=()=>{
     rules={difficulty:1,xp:1,disabled:[],color:'#4df3ff'};

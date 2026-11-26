@@ -40,6 +40,7 @@ function update(dt, worldStep = true, commands = null) {
 
   if (worldStep) {
     state.time += dt;
+    if(state.extra){updateExtra(dt);if(state.over)return;}
     while(state.remnants?.length && state.time-state.remnants[0].born>2)state.remnants.shift();
     while(state.bossCues.length && state.time-state.bossCues[0].time>1.25)state.bossCues.shift();
   }
@@ -50,6 +51,7 @@ function update(dt, worldStep = true, commands = null) {
   update_abilityCooldowns(dt);
   update_stormAndBossSchedule(dt, worldStep);
   update_movementAndWeapons(dt, worldStep, commands);
+  updateFrameRunner(p,dt);
   if(state.arena?.chase)chaseGift();
   updateExpansion(dt,worldStep);
   if(state.stopUntil<=state.time){
@@ -96,7 +98,8 @@ function projectileImpact(target, bullet, factor = 1) {
   }
   const damage = bullet.damage * attackMultiplier(target) * factor;
   hurtTarget(target,damage);
-  const bursts=p.explosive?chanceCount(.15*1.5**(p.explosive-1)):0;
+  const bursts=p.explosive?chanceCount(compoundEffect(.15,p.explosive)):0;
+  if(target.training)target.training.procs+=Number(!!p.frost)+Number(!!bullet.venom)+bursts;
   if(!bursts)return;
   spawnParticles(bullet.x, bullet.y, 22, '#ff9c52', 1.4);
   Sfx.play('explode', 80);
@@ -127,6 +130,16 @@ function poisonHit(target, bullet) {
   target.venomTime=Math.max(target.venomTime||0,2+bullet.venom);
 }
 
+function updateFrameRunner(p,dt){
+  if(p.frameTime>0){
+    p.frameTime=Math.max(0,p.frameTime-dt);
+    p.echoTimer-=dt;
+    if(p.echoTimer<=0 && Math.hypot(p.vx,p.vy)>30){
+      p.echoes.push({x:p.x,y:p.y});p.echoTimer=.12;
+    }
+    if(!p.frameTime)p.echoes=[];
+  }
+}
 function updateCardFields(dt,worldStep) {
   const p=state.player;
   if(p.gravity){
@@ -140,14 +153,6 @@ function updateCardFields(dt,worldStep) {
     }
   }
   if(p.field)p.field.time-=dt;
-  if(p.frameTime>0){
-    p.frameTime=Math.max(0,p.frameTime-dt);
-    p.echoTimer-=dt;
-    if(p.echoTimer<=0 && Math.hypot(p.vx,p.vy)>30){
-      p.echoes.push({x:p.x,y:p.y});p.echoTimer=.12;
-    }
-    if(!p.frameTime)p.echoes=[];
-  }
   p.blades=[];
   for(let i=0;i<(p.swords||0);i++){
     const angle=state.time*3+i*TAU/p.swords;
@@ -257,19 +262,20 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
     if (state.thunderRain.strikeTimer <= 0) {
       state.thunderRain.strikeTimer = 0.35;
       let anyHit = false;
-      for (let i = state.enemies.length - 1; i >= 0; i--) {
-        const e = state.enemies[i];
-        if (isOnScreen(e.x, e.y)) {
+      for(const e of state.enemies.slice()){
+        if (!e._dying && isOnScreen(e.x, e.y)) {
           state.lightningStrikes.push({ x: e.x, y: e.y, timer: 0.3, maxTimer: 0.3 });
+          chainImpact(e,p);
           hurtTarget(e,3 * attackMultiplier(e));
           e.hitFlash = 0.15;
           anyHit = true;
-          if (e.hp <= 0) killEnemy(i);
+          if (e.hp <= 0) killEnemy(state.enemies.indexOf(e));
         }
       }
       for (const boss of bossTargets()) {
         if (!isOnScreen(boss.x,boss.y)) continue;
         state.lightningStrikes.push({ x: boss.x, y: boss.y, timer: 0.3, maxTimer: 0.3 });
+        chainImpact(boss,p);
         hurtTarget(boss,3 * attackMultiplier(boss));
         boss.hitFlash = 0.15;
         anyHit = true;
@@ -281,6 +287,7 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
   }
 
   if (!worldStep) return;
+  if(state.extra && state.extra.id!=='chaos')return;
   if(state.rush){updateRushSchedule(dt);return;}
   if (playMode!=='sandbox' && !state.bossActive) {
     const rate=rules.difficulty;
@@ -394,16 +401,18 @@ function applyControl(dt, direction, command) {
   }
 }
 function shootDue(p,lines,dt,command){
-  const interval=Math.max(p.fireCdBase,Number.MIN_VALUE);
-  const count=interval>=dt?1:Math.max(1,Math.floor((dt+(p.volleyRemainder||0))/interval));
+  const interval=Math.max(p.fireCdBase/(state.extra?.modifier==='energy'?1.8:1),Number.MIN_VALUE);
+  const count=interval>=dt?1:Math.max(1,Math.min(Number.MAX_VALUE,Math.floor((dt+(p.volleyRemainder||0))/interval)));
   p.volleyRemainder=interval>=dt?0:(dt+(p.volleyRemainder||0))%interval;
   p.fireCd=interval;
   const free=playerBulletLimit(p)-state.bullets.length;
-  const batches=Math.max(1,Math.min(count,Math.ceil(free/Math.max(1,lines+p.backShots))));
+  // Sub-frame salvos with overlapping footprints share a physical shot.
+  // Preserve their damage without allocating a frame's worth of coincident bullets.
+  const footprints=count<=32?count:Math.max(1,Math.ceil(900*dt/(2*(4+p.sizeLevel*1.2))));
+  const batches=Math.max(1,Math.min(count,footprints,Math.ceil(free/Math.max(1,lines+p.backShots))));
   for(let i=0;i<batches;i++){
-    const before=state.bullets.length;
-    shoot(lines,command?.[0]);
-    if(count>batches)for(let j=before;j<state.bullets.length;j++)state.bullets[j].damage*=count/batches;
+    const cycles=Math.floor(count/batches)+(i<count%batches?1:0);
+    shoot(lines,command?.[0],null,cycles);
   }
 }
 function update_movementAndWeapons(dt, worldStep = true, commands = null) {
@@ -435,10 +444,10 @@ function update_shieldPositions(dt) {
 
 }
 
-function advanceBullet(b,p,dt) {
+function advanceBullet(b,p,dt,bosses) {
     b.prevX=b.x;b.prevY=b.y;
     if (b.homing) {
-      const nearest = getNearestTarget(b.x, b.y);
+      const nearest = getNearestTarget(b.x, b.y,bosses);
       if (nearest) {
         const targetAngle = Math.atan2(nearest.y - b.y, nearest.x - b.x);
         const currentAngle = Math.atan2(b.vy, b.vx);
@@ -456,10 +465,11 @@ function advanceBullet(b,p,dt) {
 
 function update_playerProjectiles(dt) {
   const p=state.player;
+  const targets=bossTargets();
   // Balas jugador
   for (let i = state.bullets.length - 1; i >= 0; i--) {
     const b = state.bullets[i];
-    advanceBullet(b,p,dt);
+    advanceBullet(b,p,dt,targets);
     if (b.life <= 0) { state.bullets.splice(i, 1); continue; }
     let removed = false;
     for (const w of currentWalls) {
@@ -474,7 +484,7 @@ function update_playerProjectiles(dt) {
           const copyAngle = origAngle + (gameRandom() < 0.5 ? 0.4 : -0.4);
           spawnBullet(b.x, b.y, copyAngle, spd, {
             drone: b.drone, bounces: b.bounces, homing: b.homing,
-            dupli: newDupli, damage: b.damage, radius: b.r
+            dupli: newDupli, inheritedDamage: b.damage, radius: b.r
           });
           spawnParticles(b.x, b.y, 4, '#ff4dd2', 0.7);
         } else if (b.bounces > 0) {
@@ -500,6 +510,10 @@ function update_enemyProjectiles(dt) {
   let write=0;
   for(const b of shots){
     b.prevX=b.x;b.prevY=b.y;
+    if(playMode==='sandbox'&&b.source){
+      const speed=state.labShotSpeed||1,ratio=speed/(b.labSpeed||1);b.labSpeed=speed;
+      b.vx*=ratio;b.vy*=ratio;if(b.baseX!=null){b.baseX*=ratio;b.baseY*=ratio;}
+    }
     if(b.seek||b.split||b.bounce||b.sway)advanceEncoreShot(b,dt);
     if((b.release!==undefined||b.curve)&&dt>0)curveEnemyShot(b,dt);
     if(b.inward&&advanceInward(b,dt))continue;
@@ -619,15 +633,17 @@ function update_enemyProjectileHits(dt) {
 }
 
 function update_spawning(dt) {
-  if(state.rush)return;
+  if(state.rush||state.extra?.id==='siege')return;
   const p=state.player;
   // Spawn
-  if (!state.bossActive) {
+  if (!state.bossActive || state.extra?.id==='trial') {
     state.spawnTimer -= dt;
     if ((playMode!=='sandbox'||lab.spawnWaves) && state.spawnTimer <= 0) {
-      spawnEnemy();
+      if(state.extra?.id==='trial' && state.bossActive){if(state.enemies.length<64)extraSpawn(chooseEnemyType(state.time));}
+      else spawnEnemy();
+      if(state.extra?.modifier==='double')spawnEnemy();
       const interval = Math.max(0.55, 1.7 - state.time * rules.difficulty * 0.009) * state.spawnRateMult;
-      state.spawnTimer = interval * gameRand(0.80, 1.25);
+      state.spawnTimer = interval * gameRand(0.80, 1.25)*(state.extra?.id==='trial'&&state.time>=540?.42:1);
     }
     state.potionTimer -= dt;
     if (state.potionTimer <= 0) {
@@ -647,7 +663,8 @@ function update_enemyAI(dt) {
   for (let i = state.enemies.length - 1; i >= 0; i--) {
     const e = state.enemies[i];
     if (!e) continue;
-    const travel = moveTime(e,dt);
+    if(e.training){Object.assign(e,e.training.origin);continue;}
+    const travel = moveTime(e,dt)*(state.extra?.modifier==='haste'?1.6:1);
     const toPx = p.x - e.x, toPy = p.y - e.y;
     const distToPlayer = Math.hypot(toPx, toPy) || 1;
 
@@ -802,7 +819,7 @@ function update_enemySeparation(dt) {
     const a = state.enemies[i];
     for (const b of enemyGrid.query(a.x,a.y,180)) {
       if(order.get(b)<=i) continue;
-      if (a.type === 'juggernaut' || b.type === 'juggernaut') continue;
+      if (a.training||b.training||a.type === 'juggernaut' || b.type === 'juggernaut') continue;
       const ddx = b.x - a.x, ddy = b.y - a.y;
       const minD = (a.size + b.size) * 0.5;
       const d2 = ddx*ddx + ddy*ddy;
@@ -834,7 +851,7 @@ function reboundFromTarget(shot, surface, center, radius) {
     const angle=Math.atan2(shot.vy,shot.vx)+offset;
     spawnBullet(shot.x,shot.y,angle,Math.hypot(shot.vx,shot.vy),{
       drone:shot.drone,bounces:shot.bounces,homing:shot.homing,dupli:shot.dupli,
-      damage:shot.damage,radius:shot.r,viewDelay:shot.viewDelay
+      inheritedDamage:shot.damage,radius:shot.r,viewDelay:shot.viewDelay
     });
     spawnParticles(shot.x,shot.y,4,'#ff4dd2',.7);
   } else {
@@ -861,7 +878,7 @@ function update_projectileHits() {
     for(const e of enemyGrid.query(shot.x-dx/2,shot.y-dy/2,range)) consider(e,e,e.size/2);
     for(const boss of bosses){
       consider(boss,boss,boss.size/2);
-      for(const ball of boss.balls)if(ball.state!=='attached')consider(ball,boss,ball.r);
+      for(const ball of boss.balls||[])if(ball.state!=='attached')consider(ball,boss,ball.r);
     }
     if (!victim) continue;
     shot.x-=dx*(1-first);shot.y-=dy*(1-first);
@@ -960,7 +977,7 @@ function update_contactDamage(dt) {
   // Enemigo vs jugador
   if (p.invuln <= 0) {
     for (const e of state.enemies) {
-      if (e.type === 'kamikaze') continue;
+      if (e.training || e.type === 'kamikaze') continue;
       if (e.type === 'juggernaut' && e.jState !== 'dashing') continue;
       const ddx = p.x - e.x, ddy = p.y - e.y;
       const rr = (e.size + p.size) * 0.5;

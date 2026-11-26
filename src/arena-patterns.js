@@ -7,7 +7,7 @@ function waveReach(a,q,square,padding){
 }
 function wave(b,start,q,square,index,extra={}){
   const a=state.arena,safe=b.safeSize||state.player.size;
-  const speed=(extra.speed||365)*Math.sqrt(Math.hypot(a.w,a.h)/1567);
+  const speed=(extra.speed||365)*(b.difficulty?.shot||1)*Math.sqrt(Math.hypot(a.w,a.h)/1567);
   const reach=waveReach(a,q,square,safe/2+22);
   cue(b,'wave',start,extra.warn??.52,Math.max(.1,(reach-34)/speed),{
     ...extra,origin:point(q),square,angle:.31+index*.23,width:12,speed,reach,

@@ -20,6 +20,7 @@ function loop(now) {
       const scaled=dt*lab.speed,steps=Math.max(1,Math.ceil(scaled/(1/60)));
       for(let i=0;i<steps;i++)update(scaled/steps);
     }
+    if(weightedModes()&&!state.rush)syncLocalUI();
     updateUILayout();
     render();
   }

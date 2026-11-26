@@ -625,7 +625,7 @@ test('Boss Rush recorre 3 individuales, 3 duplas y 1 trío, cobra cuatro reliqui
     }
     run('state.cardRelics.forEach(r=>Object.assign(r,point(state.player)));collectCardRelics();updateRushSchedule(20)');
     assert.equal(run('state.rush.phase'), 'reward');assert.equal(run('state.bonusPicks'),size*4);
-    run("while(state.cardChoices)pickCard(CARD_TYPES.find(c=>c.id==='multi'));updateRushSchedule(.01)");
+    run("state.orbs.forEach(o=>Object.assign(o,point(state.player)));update_experience(0);while(state.cardChoices){if(state.bonusPicks){state.cardChoices[0]={...CARD_TYPES.find(c=>c.id==='multi')};}else{state.cardChoices[0]={...CARD_TYPES.find(c=>c.id==='size')};}pickCard(state.cardChoices[0]);}updateRushSchedule(.01)");
     assert.equal(run('state.rush.timer'),5);assert.equal(run('state.player.shots'),1+4*run('state.rush.defeated'));
   }
   assert.equal(new Set(groups.slice(0,7)).size,7);
@@ -706,4 +706,171 @@ test('Un dardo normal golpea y elimina a un soldado invocado sin detener la simu
   run("spawnEncounter(['sovereign']);openPortal(state.boss,{role:'soldier',origin:{x:0,y:120}},0);const soldier=state.enemies[0];soldier.hp=2;state.darts=[{type:'normal',...point(soldier),state:'hunt',target:soldier}];update_darts(0)");
   assert.equal(run('soldier.hp'),1);run('update_darts(0)');
   assert.ok(run('!state.enemies.includes(soldier)&&state.bossActive'));
+});
+test('Director ponderado recorre cada etapa exacta con uno, dos, tres y dieciséis tipos',()=>{
+  const run=game();
+  for(const n of [1,2,3,16]){
+    const valid=run(`(()=>{
+      playMode='rush';state=newState();rules.disabled=Object.keys(BOSS_NAMES).slice(${n});
+      for(let size=1;size<=${n};size++){
+        const seen=new Set();
+        for(let i=0;i<chooseCount(${n},size);i++){
+          const group=pickEncounter(),key=group.join();
+          if(group.length!==size||new Set(group).size!==size||seen.has(key)||group.some(id=>rules.disabled.includes(id)))return false;
+          seen.add(key);
+        }
+      }
+      return pickEncounter().length===${n} && state.encounterTiers.length<=100;
+    })()`);
+    assert.equal(valid,true,'roster '+n);
+  }
+});
+test('Las primeras selecciones individuales y de grupo son más accesibles entre 360 semillas',()=>{
+  const run=game();
+  const result=JSON.parse(run(`JSON.stringify((()=>{
+    const first=[],last=[],overall=new Set();
+    for(let seed=1;seed<=360;seed++){
+      randomState=seed;state=newState();playMode='solo';
+      rules.disabled=Object.keys(BOSS_NAMES).filter(k=>!['boss','monolith','fractal','beacon','prism','frontier'].includes(k));
+      for(let stage=1;stage<=3;stage++){
+        const n=chooseCount(6,stage);
+        for(let i=0;i<n;i++){
+          const group=pickEncounter(),d=groupRating(group);
+          if(i===0){first[stage-1]=(first[stage-1]||0)+d;if(stage===2)overall.add(group.join());}
+          if(i===n-1)last[stage-1]=(last[stage-1]||0)+d;
+        }
+      }
+    }
+    return [first,last,overall.size];
+  })())`));
+  for(let i=0;i<3;i++)assert.ok(result[0][i]/360+1<result[1][i]/360);
+  assert.ok(result[2]>3);
+  const draw="state=newState();randomState=253;Array.from({length:30},()=>pickEncounter().join('+')).join('|')";
+  assert.equal(run(draw),run(draw));
+});
+test('Un encuentro comparte un perfil; proyectiles, recuperación y densidad escalan sin acortar avisos',()=>{
+  const run=game();
+  run("playMode='solo';const group=['prism','beacon'];const baseline=encounterDifficulty(group);state.completedEncounters=16;state.groupSize=2;spawnEncounter(group);const [a,b]=livingBosses()");
+  assert.ok(run('a.difficulty===b.difficulty && a.difficulty.shot>baseline.shot && a.difficulty.hp<4 && a.difficulty.recovery<1'));
+  run("makeScore(b);volley(b,0,b,20,100,0);const e=b.events[0];patternShot(b,b,0,100);state.extraBosses.push(createPatternBoss('clock',point(b),500));update_enemyProjectiles(.01)");
+  assert.ok(run('e.count>20&&e.on===.18&&state.enemyBullets[0].vx===100*b.difficulty.shot'));
+  run("state.groupSize=3;const trio=encounterDifficulty(['clock','prism','beacon']);state.completedEncounters=1e12;state.groupSize=12;const marathon=encounterDifficulty(group)");
+  assert.ok(run('trio.shot>a.difficulty.shot&&Object.values(marathon).every(Number.isFinite)&&marathon.threat>10'));
+});
+test('La misma elección antigua no vuelve a aplicarse incluso si la oferta repite carta',()=>{
+  const run=game();run("gameRandom=()=>0;state.bonusPicks=2;openCardSelection();const old=state.cardChoices[0];pickCard(old);pickCard(old)");
+  assert.ok(run('state.bonusPicks===1&&state.upgrades===1&&state.cardChoices[0]!==old'));
+  run('pickCard(state.cardChoices[0]);pickCard(old)');
+  assert.ok(run('!state.cardChoices&&!state.bonusPicks&&!state.pendingLevelUps&&state.upgrades===2'));
+});
+test('El laboratorio mide impactos y críticos, admite lotes y mantiene sus herramientas locales',()=>{
+  const run=game();run("playMode='sandbox';applyLoadout({multi:20,fire:15,size:10,bounce:30,critical:1,venom:2});const dummy=trainingDummy(200,true);gameRandom=()=>0;projectileImpact(dummy,{...point(dummy),damage:3,venom:2});update_contactDamage(.1)");
+  assert.ok(run('state.player.shots===21&&state.player.bounces===30&&dummy.training.total===6&&dummy.training.hits===1&&dummy.training.critical>=1&&dummy.training.procs===1&&dummy.hp===200'));
+  run("resetMeters();state.labDifficulty={stage:3,encounter:50,threat:12};spawnEncounter(['monolith','beacon']);clearSandboxCards()");
+  assert.ok(run('livingBosses().every(b=>b.difficulty.threat===12&&b.difficulty.density>1)&&state.player.shots===1&&!state.upgrades&&dummy.training.total===0'));
+  run("playMode='solo';applyLoadout({multi:10});trainingDummy(100,true)");
+  assert.equal(run('state.player.shots===1&&state.enemies.length===0'),true);
+});
+test('Asedio espera la última baja e introduce élites y un encuentro real en la décima oleada',()=>{
+  const run=game();run("playMode='siege';beginExtra('siege');const m=state.extra;updateExtra(1.1)");
+  assert.ok(run('m.wave===1&&state.enemies.length===4'));
+  run('updateExtra(8)');assert.equal(run('m.wave'),1);
+  assert.ok(run(`(()=>{for(let w=1;w<=9;w++){
+    while(m.remaining)updateExtra(.6);
+    if(w===5&&!state.enemies.some(e=>['tackler','splitter','cannon'].includes(e.type)))return false;
+    state.enemies=[];updateExtra(.1);if(m.cleared!==w)return false;updateExtra(3.01);
+  }return m.wave===10&&state.bossActive;})()`));
+  run('killBoss(state.boss,true);updateExtra(.1)');
+  assert.ok(run('m.cleared===10&&m.bosses===1&&state.cardRelics.length===2'));
+});
+test('Contrarreloj pausa el reloj, invoca cuatro hitos y registra la puntuación al expirar',()=>{
+  const run=game();run("playMode='trial';beginExtra('trial');const m=state.extra;state.inventoryOpen=true;update(5);state.inventoryOpen=false;state.cardChoices=[];update(5)");
+  assert.equal(run('state.time'),0);run('state.cardChoices=null');
+  for(const minute of [2,4,6,8]){
+    run('state.time='+minute+'*60-.01;update(.02);killBoss(state.boss,true)');
+    assert.equal(run('m.milestones'),minute/2);
+  }
+  run("state.time=599.99;state.score=67890;globalThis.localStorage=new Map();localStorage.getItem=localStorage.get.bind(localStorage);localStorage.setItem=localStorage.set.bind(localStorage);update(.02);extraResults(m)");
+  assert.ok(run("state.time===600&&m.won&&state.over&&localStorage.get('cs.trial.best')==='67890'"));
+  run("beginExtra('trial');damagePlayer(1000)");assert.ok(run('state.over&&!state.extra.won&&state.score===0'));
+});
+test('Caos alterna seis reglas, activa peligros reales y retira cada modificador sin deriva',()=>{
+  const run=game();run("playMode='chaos';beginExtra('chaos');const m=state.extra;const observed=new Set();const base=state.player.fireCdBase;state.enemies=[createEnemy('tank',40,40)]");
+  assert.ok(run(`(()=>{for(let i=0;i<6;i++){
+    state.time=m.nextChange;updateExtra(.1);observed.add(m.modifier);
+    if(m.modifier==='gravity'&&m.zones.length!==3)return false;
+    if(m.modifier==='laser'&&!m.rays.length)return false;
+    if(m.modifier==='rain'&&!state.enemyBullets.some(s=>s.chaos))return false;
+    if(m.modifier==='energy'){shootDue(state.player,1,.01);if(state.player.fireCd>=base)return false;}
+    state.time=m.until+.01;updateExtra(.01);
+    if(m.modifier||m.rays.length||m.zones.length||state.enemyBullets.some(s=>s.chaos))return false;
+  }return observed.size===6&&m.modifiers===6&&state.player.fireCdBase===base;})()`));
+});
+test('Las cartas conservan estadísticas y ciclos con 1, 10, 50, 100 y 1000 copias',()=>{
+  const run=game();
+  for(const n of [1,10,50,100,1000]){
+    run(`playMode='sandbox';state=newState();applyLoadout(Object.fromEntries(['multi','back','fire','size','bounce','homing','persist','tide','dupli','explosive','chain','resonance','rayolaser','mini','giant','critical','vampirism','regen','armor','army','needles','reverse','timeBreak','anchor','plasma','frames','kame','dash','blink','thunderRain','gravity','crush'].map(id=>[id,${n}])));state.player.firingCycles=6;shoot(state.player.shots);`);
+    assert.ok(run(`state.player.shots===${n+1}&&state.player.backShots===${n}&&state.bullets.every(s=>Number.isFinite(s.r+s.damage+s.life)&&s.bounces===${n})&&state.bullets.some(s=>s.style==='tide')`));
+    assert.ok(run(`Math.abs(Math.log(state.player.size/30)-${n}*(Math.log(.94)+Math.log(1.08)))<1e-10&&Object.values(state.specialCards).every(s=>Number.isFinite(s.charges+s.cooldown))`));
+  }
+  run("state.bullets=[];state.player.firingCycles=0;shootDue(state.player,state.player.shots-1,1/60);fireLasers(.2);render()");
+  assert.ok(run('state.bullets.length>0&&state.bullets.every(s=>Number.isFinite(s.damage))&&Number.isFinite(state.lasersFiring[0].damage)'));
+});
+test('Especiales concurrentes, duplicados cinéticos y proyectiles devueltos conservan su propietario y daño',()=>{
+  const run=game();run("playMode='sandbox';applyLoadout({army:1,multi:2,rayolaser:1,anchor:1,reverse:1,frames:1,plasma:1,timeBreak:1,kinetic:10});const p=state.player;p.movingTime=2;activateExpansion('army');shoot(2);updateGeometryCards(p,.16);fireLasers(.4);");
+  assert.ok(run("state.bullets.filter(s=>s.style==='army').length===4&&state.lasersFiring.filter(l=>l.origin).length===2"));
+  run("const shot=state.bullets[0];shot.dupli=1;const before=shot.damage;reboundFromTarget(shot,{x:0,y:0},{x:0,y:0},10);const copy=state.bullets.at(-1)");
+  assert.equal(run('copy.damage'),run('before'));
+  run("activateExpansion('anchor');state.enemyBullets=[{x:1,y:1,r:11,damage:3,vx:50,vy:0},{x:240,y:0,r:6,vx:10,vy:0}];updateGeometryCards(p,.01);activateExpansion('reverse');activateExpansion('plasma');activateExpansion('timeBreak');state.slots[0]='frames';useSlot(0);update(.1)");
+  assert.ok(run('p.frameTime>0&&p.plasma&&p.anchor.held.length===0&&state.stopUntil>state.time&&state.bullets.some(s=>s.inverted)'));
+  run("state.stopUntil=0;state.enemyBullets=[{x:2,y:0,r:11,damage:3}];p.anchor.time=.05;updateGeometryCards(p,.1)");
+  assert.ok(run("state.bullets.some(s=>s.style==='anchor'&&s.r===11&&s.damage===3)&&!p.anchor"));
+});
+test('Tres jefes acelerados comparten la arena con mil tiros y el bot predice sus velocidades físicas',()=>{
+  const run=game();run("playMode='rush';beginRush(true);state.completedEncounters=70;state.groupSize=3;spawnEncounter(['clock','crown','beacon']);state.rush.phase='battle';const b=state.boss;for(let i=0;i<1000;i++)patternShot(b,b,i*TAU/1000,300);");
+  assert.ok(run('Math.abs(Math.hypot(state.enemyBullets[0].vx,state.enemyBullets[0].vy)-300*b.difficulty.shot)<1e-8'));
+  run('for(let i=0;i<12;i++){advanceRush(1/60);if(i%3===0)render()}');
+  assert.ok(run('state.rush.intent && Number.isFinite(state.player.x+state.player.y)&&state.enemyBullets.every(s=>Number.isFinite(s.x+s.y))'));
+});
+test('El director mantiene la advertencia y el arco del barrido al acelerar también su colisión',()=>{
+  const run=game();run("playMode='solo';state.completedEncounters=55;spawnEncounter(['beacon']);const b=state.boss;makeScore(b);ray(b,1,.8,2,b,0,25,{spin:1});const e=b.events[0];");
+  assert.ok(run('e.on===1.8&&e.end-e.on<2&&Math.abs((e.end-e.on)*e.spin-2)<1e-8'));
+  run('b.age=e.on+.16;const actual=scoreShapes(b).find(s=>s.kind==="line"&&s.live);');
+  assert.ok(run('Math.abs(angleTo(actual,{x:actual.xx,y:actual.yy})-.16*e.spin)<1e-6'));
+});
+test('Cinética, Marea y Ejército cuentan ciclos lógicos de cadencia agrupada',()=>{
+  const run=game();run("playMode='sandbox';applyLoadout({fire:100,army:1,multi:1,tide:1});const p=state.player;activateExpansion('army');const cycles=Math.floor(.02/p.fireCdBase);shootDue(p,2,.02)");
+  assert.ok(run('p.firingCycles===cycles%7&&p.army.queue.reduce((s,q)=>s+q.cycles,0)===cycles'));
+  assert.equal(run("Math.round(state.bullets.filter(s=>s.style==='tide').reduce((s,b)=>s+b.damage,0))"),run('5*Math.floor(cycles/7)'));
+});
+test('Los efectos especiales y sus temporizadores funcionan con acumulaciones grandes',()=>{
+  const run=game();
+  for(const n of [1,10,50,100,1000]){
+    run(`playMode='sandbox';state=newState();applyLoadout(Object.fromEntries(['frames','anchor','reverse','timeBreak','crush','kame','plasma','activeHeal','dash','blink','thunderRain','chain','fury','giant','mini','size','needles'].map(id=>[id,${n}])));
+      state.halfHearts=3;
+      {
+        const p=state.player;state.slots=['frames','thunderRain','dash','blink','timeBreak'];
+        useSlot(0);useSlot(1);useSlot(2);globalThis.blinkBefore=state.specialCards.blink.charges;globalThis.blinked=tryBlink();useSlot(4);
+        activateExpansion('crush');activateExpansion('anchor');activateExpansion('plasma');activateExpansion('kame');activateExpansion('needles');
+        update(.05);render();
+      }`);
+    assert.ok(run(`state.player.frameTime<10+2*(${n}-1)&&state.player.plasma.end>state.time&&state.player.anchor.time>0&&state.player.crush.r>0&&
+       state.thunderRain.active&&state.player.needles.n===6+2*${n}&&state.specialCards.dash.cooldown>0&&state.specialCards.blink.charges===blinkBefore-Number(blinked)&&(!blinked||state.specialCards.blink.cooldown>0)&&
+       state.player.beam.every(b=>Number.isFinite(b.end))&&state.stopUntil>state.time&&Object.values(state.player).every(v=>typeof v!=='number'||Number.isFinite(v))`));
+  }
+});
+test('Gigantismo y Miniatura por separado permiten dibujar, apuntar y simular mil copias',()=>{
+  const run=game();
+  for(const id of ['mini','giant']){
+    run(`playMode='sandbox';state=newState();applyLoadout({${id}:1000,blink:1,dash:1});state.slots=['blink','dash'];spawnBoss({x:100,y:-120},'frontier');state.boss.phase=2;enterChase(state.boss);beginPattern(state.boss,'gates');
+      chaseBeat(state.boss,'gates',0);useSlot(0);useSlot(1);update(1/60);render()`);
+    assert.ok(run('Number.isFinite(state.player.x+state.player.y+state.player.size+viewZoom())&&state.player.size>0'));
+    assert.ok(run('state.boss.events.filter(e=>e.kind==="panel").every(e=>e.rx>=0&&e.ry>=0)'));
+  }
+});
+test('Al avanzar de ronda se conserva la poción sobrante y se cobra la XP antes de la cuenta atrás',()=>{
+  const run=game();run("playMode='rush';rules.disabled=Object.keys(BOSS_NAMES).filter(k=>k!=='boss');beginRush(false);updateRushSchedule(3);killBoss();updateRushSchedule(.01);state.cardRelics=[];const potion=state.potions[0];updateRushSchedule(10)");
+  assert.equal(run('state.rush.phase'),'reward');
+  run('state.orbs.forEach(o=>Object.assign(o,point(state.player)));update_experience(0);while(state.cardChoices)pickCard(state.cardChoices[0]);updateRushSchedule(.01);updateRushSchedule(5)');
+  assert.ok(run('state.rush.round===2&&state.rush.phase==="battle"&&state.potions.includes(potion)&&state.rush.defeated===1&&state.upgrades>0'));
 });

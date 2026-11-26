@@ -25,8 +25,8 @@ function render() {
   ctx.strokeStyle = 'rgba(70,110,255,0.08)';
   ctx.lineWidth = 1 / cam.zoom;
   ctx.beginPath();
-  for (let x = gx0; x <= gx1; x += gs) { ctx.moveTo(x + 0.5, gy0); ctx.lineTo(x + 0.5, gy1); }
-  for (let y = gy0; y <= gy1; y += gs) { ctx.moveTo(gx0, y + 0.5); ctx.lineTo(gx1, y + 0.5); }
+  for (let i=0;i<=(gx1-gx0)/gs;i++) { const x=gx0+i*gs; ctx.moveTo(x + 0.5, gy0); ctx.lineTo(x + 0.5, gy1); }
+  for (let i=0;i<=(gy1-gy0)/gs;i++) { const y=gy0+i*gs; ctx.moveTo(gx0, y + 0.5); ctx.lineTo(gx1, y + 0.5); }
   ctx.stroke();
 
   if (state.arena) {
@@ -170,6 +170,8 @@ function render() {
     ctx.fillText(f.text, f.x, f.y);
   }
   ctx.globalAlpha = 1;
+  if(state.extra)drawExtraField(state.extra);
+  if(playMode==='sandbox')drawTrainingStats();
   if(playMode==='sandbox'&&lab.hitboxes)drawLabHitboxes();
   ctx.restore();
 
@@ -191,7 +193,7 @@ function render() {
   if(mobileDevice)drawTouchHUD();else drawHUD();
   if (!mobileDevice && state.cardChoices) drawCards();
   if (!mobileDevice && state.inventoryOpen) drawInventory();
-  if (!mobileDevice && state.over && !state.rush) drawGameOver();
+  if (!mobileDevice && state.over && !state.rush && !state.extra) drawGameOver();
   drawCrosshair();
 }
 
@@ -455,7 +457,7 @@ function renderEntities1() {
       ctx.strokeStyle = '#ffdd00'; ctx.lineWidth = 5;
       ctx.beginPath();
       ctx.moveTo(b.x, b.y);
-      ctx.lineTo(b.x + Math.cos(b.dashAngle) * 1000, b.y + Math.sin(b.dashAngle) * 1000);
+      ctx.lineTo(b.x + Math.cos(b.dashAngle) * 880*(b.difficulty?.movement||1), b.y + Math.sin(b.dashAngle) * 880*(b.difficulty?.movement||1));
       ctx.stroke();
       ctx.restore();
     }
@@ -511,7 +513,7 @@ function renderEntities1() {
   }
 
   for (const ls of state.bossLasers) {
-    const length = 3000;
+    const length = bossLaserReach();
     const x1 = ls.x, y1 = ls.y;
     const x2 = ls.x + Math.cos(ls.angle) * length;
     const y2 = ls.y + Math.sin(ls.angle) * length;
@@ -743,24 +745,25 @@ function renderEntities7(view=state,p=state.player) {
 function renderEntities8(view=state,p=state.player) {
   // Rayos activos
   for (const lf of (playMode==='online' && view===state ? view.lasersFiring.concat(previewLasers) : view.lasersFiring)) {
+    const origin=lf.origin||p;
     for (let k = 0; k < lf.count; k++) {
       const angle = p.angle + lf.sweep + (k / lf.count) * TAU;
       const range = 2000;
-      const x2 = p.x + Math.cos(angle) * range;
-      const y2 = p.y + Math.sin(angle) * range;
+      const x2 = origin.x + Math.cos(angle) * range;
+      const y2 = origin.y + Math.sin(angle) * range;
       const w = lf.width;
       ctx.save();
       ctx.shadowColor = '#ff3366'; ctx.shadowBlur = 60;
       ctx.strokeStyle = 'rgba(255,80,120,0.85)';
       ctx.lineWidth = w; ctx.lineCap = 'round';
-      ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(x2, y2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(origin.x, origin.y); ctx.lineTo(x2, y2); ctx.stroke();
       ctx.shadowBlur = 0;
       ctx.strokeStyle = 'rgba(255,255,255,0.95)';
       ctx.lineWidth = Math.max(3, w * 0.35);
-      ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(x2, y2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(origin.x, origin.y); ctx.lineTo(x2, y2); ctx.stroke();
       ctx.strokeStyle = 'rgba(255,180,220,0.5)';
       ctx.lineWidth = Math.max(1, w * 0.15);
-      ctx.beginPath(); ctx.moveTo(p.x, p.y); ctx.lineTo(x2, y2); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(origin.x, origin.y); ctx.lineTo(x2, y2); ctx.stroke();
       ctx.restore();
     }
   }

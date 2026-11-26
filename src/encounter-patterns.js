@@ -53,7 +53,12 @@ function partDefeated(q){
 function hurtTarget(q,amount){
   if(q._dying||q.state==='final'||q.kind==='frontier'&&q.state==='transition')return;
   if(q.kind==='frontier'&&q.phase===1&&q.hp<=q.maxHp*.5)return;
+  amount=Math.min(Number.MAX_VALUE,amount);
   if(q.kind==='heart')amount/=1+.13*activeParts(q).length;
+  if(q.training){
+    const t=q.training;t.start??=state.time;t.total=Math.min(Number.MAX_VALUE,t.total+amount);t.hits++;
+    if(t.regen){q.hitFlash=.12;return;}
+  }
   q.hp-=amount;
   if(q.kind==='frontier'&&q.phase===1)q.hp=Math.max(q.maxHp*.499,q.hp);
 }
@@ -71,6 +76,9 @@ function makeScore(b){
   b.events=[];b.tracks=[];b.beat=0;b.age=0;b.timer=0;b.lastBeat=-2;b.lastCueAge=-1;
 }
 function cue(b,kind,start,warn,duration,data={}){
+  if(b.difficulty && ['burst','volley','portal'].includes(kind) && data.count>1 && b.state!=='final'){
+    data={...data,baseCount:data.count,count:Math.round(data.count*(kind==='portal'?1+(b.difficulty.density-1)*.4:b.difficulty.density))};
+  }
   b.events.push({kind,start,on:start+warn,end:start+warn+duration,...data});
   b.timer=Math.max(b.timer,start+warn+duration+.25-b.age);
 }
@@ -78,6 +86,10 @@ function travel(b,index,from,to,start,duration){
   b.tracks.push({index,from:point(from),to:point(to),start,duration});
 }
 function ray(b,start,warn,duration,origin,angle,width,extra={}){
+  if(extra.spin && b.difficulty && b.state!=='final'){
+    const tempo=b.difficulty.movement;
+    extra={...extra,spin:extra.spin*tempo};duration/=tempo;
+  }
   cue(b,'ray',start,warn,duration,{origin:point(origin),angle,width,...extra});
 }
 function volley(b,start,origin,count,speed,turn,extra={}){
@@ -98,7 +110,7 @@ function fusion(b,start,duration=1){ray(b,start,1.02,duration,b,b.angle,90,{impa
 function laserCurtain(b,start,vertical,n){
   const a=state.arena,span=vertical?a.w:a.h;
   // Switch banks on the beat. Adjacent beams always leave a body-sized lane.
-  const slots=Math.min(n,Math.max(2,Math.floor(span/((b.safeSize||30)+27))));
+  const slots=Math.min(Math.round(n*(1+.5*((b.difficulty?.density||1)-1))),Math.max(2,Math.floor(span/((b.safeSize||30)+27))));
   for(let bank=0;bank<3;bank++)for(let i=0;i<slots;i++){
     const f=(i+.35+.30*(bank%2))/slots;
     const q={x:a.x+(vertical?f*a.w:0),y:a.y+(vertical?0:f*a.h)};
@@ -339,7 +351,8 @@ function tickScore(b,dt){
     fireArenaEvent(b,e);fireEncoreEvent(b,e);
     if(e.kind==='volley'){
       for(let i=0;i<e.count;i++){
-        if(e.gaps&&i%Math.max(4,Math.floor(e.count/3))<2)continue;
+        const base=e.baseCount||e.count;
+        if(e.gaps&&Math.floor(i*base/e.count)%Math.max(4,Math.floor(base/3))<2)continue;
         patternShot(b,q,e.turn+(e.fan?(i/(e.count-1)-.5)*e.fan:i*TAU/e.count),e.speed,5,e.color||b.color,{square:e.square??b.kind==='fractal',curve:e.curve});
       }
     }

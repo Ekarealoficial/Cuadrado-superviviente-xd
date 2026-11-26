@@ -160,7 +160,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     const playing=playMode!=='menu';ui.hidden=!playing;
     if(oldMode!==playMode){clear();signature='';selected=null;oldMode=playMode;}
     if(!playing)return;
-    if(state.rush && (state.over || state.rush.bot)){
+    if((state.extra && state.over)||(state.rush && (state.over || state.rush.bot))){
       clear();combat.hidden=el('touchTools').hidden=panel.hidden=true;
       el('zoomControls').hidden=state.over;return;
     }

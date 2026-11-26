@@ -90,7 +90,7 @@
         if(b.state==='dash' && visibleContact(b,p,(b.size+p.size)/2))damagePlayer(2);
         else if(b.balls.some(ball=>ball.state==='flying' && visibleContact(ball,p,ball.r+p.size/2))
           || world.bossBombs.some(bomb=>bomb.exploded && bomb.fadeTimer===0 && near(bomb,100))
-          || world.bossLasers.some(laser=>laser.state==='active' && laserHits(p.x,p.y,p.size/2,laser.x,laser.y,laser.angle,laser.width,3000)))damagePlayer(1);
+          || world.bossLasers.some(laser=>laser.state==='active' && laserHits(p.x,p.y,p.size/2,laser.x,laser.y,laser.angle,laser.width,bossLaserReach())))damagePlayer(1);
         }
       }
       if(world.arena) {

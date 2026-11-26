@@ -14,6 +14,7 @@ function panel(b,t,p,q,rx,ry,warn=.64,run=1.4,extra={}){
   cue(b,'panel',t,warn,run,{origin:point(p),to:point(q),rx,ry,...extra});
 }
 function dashPath(b,t,p,q,warn,run,echo=false){
+  if(b.state!=='final')run/=b.difficulty?.movement||1;
   crossing(b,t,p,q,b.size*.72,warn,run,{moving:true,echo});
   if(!echo)travel(b,-1,p,q,t+warn,run);
 }

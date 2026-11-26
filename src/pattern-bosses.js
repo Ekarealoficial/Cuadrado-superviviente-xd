@@ -22,6 +22,7 @@ function phaseOf(b){
 }
 function boundedPoint(x,y,pad){const a=state.arena;return {x:clamp(x,a.x+pad,a.x+a.w-pad),y:clamp(y,a.y+pad,a.y+a.h-pad)};}
 function beginPattern(b,move,repeat=false){
+  b.lastAttack=move;
   b.safeSize=Math.max(state.player.size,...roomTargets.map(p=>p.size));
   b.combo=null;b.events=[];b.tracks=[];
   if(ENCOUNTER_SPECS[b.kind]||SCORED_MOVES.has(move)){beginEncounterMove(b,move);return;}
@@ -42,6 +43,7 @@ function beginPattern(b,move,repeat=false){
   if(b.phase===3 && move==='garden')b.overlap='dance';
   bossCue(move+'Charge',b);
 }
+function lungeDuration(b){return (b.repeats<=2?.204:.23)/(b.difficulty?.movement||1);}
 function motionPoint(b,u){
   u=clamp(u,0,1);
   return {x:b.origin.x+(b.end.x-b.origin.x)*u,y:b.origin.y+(b.end.y-b.origin.y)*u+(b.bend||0)*Math.sin(Math.PI*u)};
@@ -59,13 +61,18 @@ function replicaPoint(b,i){
   return boundedPoint(mark.x+(pt.x-replay[0].x)*.7,mark.y+(pt.y-replay[0].y)*.7,45);
 }
 function patternShot(b,pos,a,v,r=6,tint=b.color,extra={}){
-  state.enemyBullets.push({x:pos.x,y:pos.y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,r,tint,damage:1,life:7,source:b.id,square:b.kind==='fractal',...extra});
+  v*=b.difficulty?.shot||1;
+  state.enemyBullets.push({x:pos.x,y:pos.y,vx:Math.cos(a)*v,vy:Math.sin(a)*v,r,tint,damage:1,life:7,source:b.id,shotScale:b.difficulty?.shot||1,square:b.kind==='fractal',...extra});
 }
 function ringShots(b,pos,n,turn,speed,skip,extra){
   for(let i=0;i<n;i++){
     if(skip?.(i))continue;
     const a=turn+i*TAU/n;
-    patternShot(b,pos,a,typeof speed==='function'?speed(i):speed,5,i%3?b.color:'#fff3ef',extra);
+    const velocity=typeof speed==='function'?speed(i):speed;
+    patternShot(b,pos,a,velocity,5,i%3?b.color:'#fff3ef',extra);
+    const density=b.state==='final'?1:b.difficulty?.density||1;
+    if(Math.floor((i+1)*(density-1))>Math.floor(i*(density-1))&&!skip?.((i+1)%n))
+      patternShot(b,pos,a+Math.PI/n,velocity,5,b.color,extra);
   }
 }
 function patternBeat(b,k){
@@ -111,10 +118,11 @@ function updatePatternBoss(b,dt){
   const phase=phaseOf(b);
   if(phase>b.phase){if(b.kind==='general'){b.words=1;encounterVoice(b,GENERAL_LINES[phase-1][0]);}
     b.charging=false;b.overlap='';b.combo=null;b.laserGate=false;b.phase=phase;b.state='transition';b.events=[];b.tracks=[];b.posts=null;b.timer=b.kind==='frontier'?1.45:b.kind==='fractal'?1.5:1;b.age=0;b.deck=[];bossCue(b.kind+'Phase',b);return;}
+  if(b.state==='recover' && !(b.entry && b.clock<1.12))b.timer-=dt*(1/(b.difficulty?.recovery||1)-1);
   if(b.state==='recover'||b.state==='transition'){
     if(b.state==='recover'&&!b.chasing&&!(b.entry&&b.clock<1.12)){
       const p=bossPrey(b),ang=Math.atan2(p.y-b.y,p.x-b.x)+Math.sin(b.clock)*.9;
-      Object.assign(b,boundedPoint(b.x+Math.cos(ang)*dt*(45+15*b.phase),b.y+Math.sin(ang)*dt*(45+15*b.phase),b.size/2));
+      Object.assign(b,boundedPoint(b.x+Math.cos(ang)*dt*(45+15*b.phase)*(b.difficulty?.movement||1),b.y+Math.sin(ang)*dt*(45+15*b.phase)*(b.difficulty?.movement||1),b.size/2));
     }
     if(b.parts){
       for(const q of activeParts(b)){
@@ -150,7 +158,7 @@ function updatePatternBoss(b,dt){
   const m=b.state,t=b.age;
   if(b.combo&&b.events?.length)tickScore(b,dt);
   if(m==='lunge'){
-    const start=.7,run=b.repeats<=2?.204:.23;
+    const start=.7,run=lungeDuration(b);
     const u=clamp((t-start)/run,0,1);Object.assign(b,motionPoint(b,u));b.charging=t>=start && u<1;
     if(b.charging && !b.fired){bossCue(m+'Beat',b);b.fired=true;}
     if(b.overlap==='replicas' && t>=1 && !b.splitShot){for(const q of b.marks)ringShots(b,q,8,0,190);b.splitShot=true;}
@@ -189,7 +197,7 @@ function curveEnemyShot(s,dt){
   if(s.release===undefined)return;
   const age=state.time-s.born;
   if(state.time>=s.release){
-    const a=Math.atan2(s.y-s.orbitY,s.x-s.orbitX);s.vx=330*Math.cos(a);s.vy=330*Math.sin(a);delete s.release;
+    const a=Math.atan2(s.y-s.orbitY,s.x-s.orbitX);s.vx=330*(s.shotScale||1)*(s.labSpeed||1)*Math.cos(a);s.vy=330*(s.shotScale||1)*(s.labSpeed||1)*Math.sin(a);delete s.release;
   }else if(age>=1){
     const dx=s.x-s.orbitX,dy=s.y-s.orbitY,a=dt*1.65;
     s.vx=(dx*(Math.cos(a)-1)-dy*Math.sin(a))/dt;s.vy=(dx*Math.sin(a)+dy*(Math.cos(a)-1))/dt;

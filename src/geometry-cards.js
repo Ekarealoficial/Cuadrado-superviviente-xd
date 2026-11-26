@@ -21,6 +21,7 @@ function addGeometryCard(p,card){
     p.size=30*Math.exp((p.mini||0)*Math.log(.94)+(p.giant||0)*Math.log(1.08));
     if(card.id==='mini')p.speed*=1.02;
     p.scalePulse={kind:card.id,born:state.time};
+    if(p.geometryFX?.at(-1)?.born===state.time && ['mini','giant'].includes(p.geometryFX.at(-1).kind))p.geometryFX.pop();
     settleResizedPlayer(p);fitPlayerInArena(p,state.arena);geometryFX(card.id,p,Math.max(36,p.size*.72));
   }
 }
@@ -48,21 +49,26 @@ function geometryImpact(target,p){
   if(p.resonance){
     p.resonanceHits=((p.resonanceHits||0)+1)%12;
     if(!p.resonanceHits){
+      if(target.training)target.training.procs++;
       const r=84*(1+.12*(p.resonance-1));geometryFX('resonance',target,r);
       areaCard(target,r,1+.1*(p.resonance-1),0,false,target);bossCue('resonance',target);
     }
   }
+  chainImpact(target,p);
+}
+function chainImpact(target,p){
   if(!p.chain)return;
   const discharges=chanceCount(.15*p.chain);
+  const targets=state.enemies.concat(bossTargets());
   for(let i=0;i<discharges;i++){
     let from=target;const seen=new Set([from]);
     for(let hop=0;hop<p.chain;hop++){
       let next=null,best=185;
-      for(const e of state.enemies.concat(bossTargets())){
+      for(const e of targets){
         if(e._dying||seen.has(e))continue;
         const d=Math.hypot(e.x-from.x,e.y-from.y);if(d<best){best=d;next=e;}
       }
-      if(!next)break;seen.add(next);geometryFX('chain',from,0,next);expansionHit(next,1);from=next;
+      if(!next)break;if(next.training)next.training.procs++;seen.add(next);geometryFX('chain',from,0,next);expansionHit(next,1);from=next;
     }
     if(seen.size>1)bossCue('chain',target);
   }
@@ -77,19 +83,21 @@ function satellite(p,i,n,r,a){
   return {x:p.x+Math.cos(angle)*r,y:p.y+Math.sin(angle)*r,angle};
 }
 function replicaOrbit(p,i,n){return satellite(p,i,n,p.size/2+Math.max(38,n*4),Math.PI/2);}
-function geometryVolley(p){
-  p.firingCycles=(p.firingCycles||0)+1;
-  if(p.tide && p.firingCycles%7===0){
+function geometryVolley(p,cycles=1,lines=p.shots){
+  const previous=p.firingCycles||0;
+  const tides=Math.floor(cycles/7)+Math.floor((previous+cycles%7)/7);
+  p.firingCycles=(previous+cycles%7)%7;
+  if(p.tide && tides){
     const n=3+2*p.tide;
-    for(let i=0;i<n;i++)spawnBullet(p.x,p.y,p.angle-.55+1.1*i/(n-1),820,{radius:3,damage:1+p.sizeLevel*.75,style:'tide',bounces:p.bounces,homing:p.homingChance>0 && gameRandom()<p.homingChance});
+    for(let i=0;i<n;i++)spawnBullet(p.x,p.y,p.angle-.55+1.1*i/(n-1),820,{radius:3+p.sizeLevel*1.2,damage:Math.min(Number.MAX_VALUE,tides*(1+p.sizeLevel*.75)),style:'tide',bounces:p.bounces,homing:p.homingChance>0 && gameRandom()<p.homingChance});
     bossCue('tide',p);
   }
-  if(p.army)p.army.queue.push({angle:p.angle,delay:.14});
+  if(p.army)p.army.queue.push({angle:p.angle,cycles,lines,delay:.14});
 }
 function castGeometry(id,p,n,aim){
   if(id==='crush')p.crush={...aim,age:0,r:110*(1+.15*(n-1)),damage:12*(1+.2*(n-1))};
   if(id==='army')p.army={time:6+.5*(n-1),n:n+1,queue:[]};
-  if(id==='anchor')p.anchor={time:4+.5*(n-1),r:120*(1+.12*(n-1)),held:[]};
+  if(id==='anchor')p.anchor={time:4+.5*(n-1),r:120*(1+.12*(n-1)),held:p.anchor?.held||[]};
   if(id==='needles')p.needles={time:6,n:6+2*n,tick:0,damage:1+.08*(n-1),angle:0};
   bossCue(id,p);
 }
@@ -111,15 +119,24 @@ function updateGeometryCards(p,dt){
     for(const q of a.queue)q.delay-=dt;
     while(a.queue.length && a.queue[0].delay<=0){
       const q=a.queue.shift();
-      for(let i=0;i<a.n;i++){const pos=replicaOrbit(p,i,a.n);spawnBullet(pos.x,pos.y,q.angle,800,{radius:3,style:'army',damage:1+p.sizeLevel*.5});}
+      for(let i=0;i<a.n&&state.bullets.length<playerBulletLimit(p);i++){
+        const pos=replicaOrbit(p,i,a.n),lines=q.lines||1;
+        for(let j=0;j<lines&&state.bullets.length<playerBulletLimit(p);j++){
+          spawnBullet(pos.x,pos.y,q.angle+(j-(lines-1)/2)*.12,800,{radius:3+p.sizeLevel*1.2,style:'army',damage:Math.min(Number.MAX_VALUE,(q.cycles||1)*(1+p.sizeLevel*.5)),bounces:p.bounces,homing:gameRandom()<p.homingChance});
+        }
+      }
     }
     if(a.time<=0)p.army=null;
   }
   if(p.anchor){
     const a=p.anchor;a.time-=dt;
     for(const list of [state.enemyBullets,state.enemyDarts]){
-      for(let i=list.length-1;i>=0;i--){const s=list[i];if(Math.hypot(s.x-p.x,s.y-p.y)>a.r)continue;
-        a.held.push({x:s.x,y:s.y,r:s.r||5,damage:s.damage||1});list.splice(i,1);}
+      let keep=0;
+      for(const s of list){
+        if(Math.hypot(s.x-p.x,s.y-p.y)>a.r){list[keep++]=s;continue;}
+        a.held.push({x:s.x,y:s.y,r:s.r||5,damage:s.damage||1,dart:list===state.enemyDarts});
+      }
+      list.length=keep;
     }
     if(a.time<=0 || state.over){
       for(const s of a.held){
@@ -133,7 +150,7 @@ function updateGeometryCards(p,dt){
     const c=p.needles;c.time-=dt;c.tick-=dt;c.angle+=dt*1.45;
     if(c.time<=0){geometryFX('needles',p,55);p.needles=null;}
     else if(c.tick<=0){c.tick+=.48;
-      for(let i=0;i<c.n;i++){const pos=satellite(p,i,c.n,p.size/2+45,c.angle);spawnBullet(pos.x,pos.y,pos.angle,490,{radius:3,style:'needles',damage:c.damage});}
+      for(let i=0;i<c.n;i++){const pos=satellite(p,i,c.n,p.size/2+45,c.angle);spawnBullet(pos.x,pos.y,pos.angle,490,{radius:3+p.sizeLevel*1.2,style:'needles',damage:c.damage});}
       bossCue('needlesBeat',p);
     }
   }

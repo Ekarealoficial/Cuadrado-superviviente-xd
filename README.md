@@ -10,7 +10,11 @@ En **Extras → Sandbox** puedes abrir el laboratorio. En **Extras → Boss Rush
 
 Cada etapa agota todos los encuentros de un tamaño antes de pasar al siguiente. Cuando un grupo ya contiene todo el catálogo habilitado, ese grupo se repite en las rondas posteriores. Cada jefe entrega cuatro reliquias y cada reliquia ofrece una carta entre tres. Parte de la XP del jefe se adelanta durante el combate. El resto cae al morir. El bot y el jugador utilizan las mismas recompensas, estadísticas y tiempos de recarga.
 
-Boss Rush calcula la vida de los jefes con un factor de `1 + 0.22 × log2(ronda)`. En rondas avanzadas la dificultad proviene también del número de jefes simultáneos. El incremento del coste de cada nivel pasa a ser lineal cuando alcanza 1.000 XP por nivel adicional.
+El director favorece encuentros accesibles al inicio de cada etapa. Cuenta las combinaciones por dificultad y recorre cada categoría sin repetir grupos. La coincidencia de dos o más patrones de gran cobertura añade peso a la dificultad del grupo. Al invocar un encuentro, todos sus integrantes reciben el mismo perfil de movimiento, proyectiles y recuperación. El crecimiento de vida es logarítmico. El incremento del coste de cada nivel pasa a ser lineal cuando alcanza 1.000 XP por nivel adicional.
+
+En **Asedio Infinito** debes despejar la oleada para avanzar. Cada cinco oleadas llegan élites y cada diez hay un encuentro de jefes. En **Contrarreloj** tienes diez minutos de simulación para puntuar, con jefes en los minutos 2, 4, 6 y 8. El récord se guarda en este navegador. En **Caos Geométrico** cada treinta segundos se activa una regla durante doce segundos. Las seis reglas se barajan sin repetirse en cada ciclo.
+
+El laboratorio del Sandbox permite fijar el encuentro, la etapa y la amenaza de la siguiente invocación. Una amenaza de cero utiliza el cálculo automático. El muñeco registra daño y efectos con el tiempo de simulación. Puedes guardar tres combinaciones de cartas en el navegador.
 
 ## Activar multijugador desde GitHub Pages
 
@@ -34,4 +38,4 @@ Run regression tests with `npm test` (Node 18+).
 
 Use `?seed=42` for reproducible simulation randomness. Matching seeds require matching inputs and delta-time sequences; this version does not record/replay browser inputs. Cosmetic randomness is separate.
 
-Outside Boss Rush, boss health is `1200 * 1.25^(encounter-1) * enemyHpMult`, rounded to an integer. Spatial grids reduce sparse-world candidate counts; dense clusters can still have quadratic interactions. Scripts retain shared lexical state for compatibility; this is not yet an isolated ES-module architecture. Entity schemas are currently a documented base body plus enemy/projectile types, not runtime validation of every entity. Additional tuning constants and card text generation remain opportunities for follow-up.
+Spatial grids reduce sparse-world candidate counts; dense clusters can still have quadratic interactions. Scripts retain shared lexical state for compatibility; this is not yet an isolated ES-module architecture. Entity schemas are currently a documented base body plus enemy/projectile types, not runtime validation of every entity. Additional tuning constants and card text generation remain opportunities for follow-up.

@@ -10,6 +10,9 @@ function fireLasers(holdTime, commandId=0, output=state.lasersFiring) {
     startAngle: p.angle, sweep: 0, sweepSpeed: 6,
     width, damage, count, holdTime
   });
+  if(p.army){
+    for(let i=0;i<p.army.n;i++)output.push({commandId,origin:replicaOrbit(p,i,p.army.n),startAngle:p.angle,sweep:0,sweepSpeed:6,width:width*.65,damage:damage*.5,count:1,holdTime});
+  }
   if (output===state.lasersFiring) state.shake = Math.min(state.shake + 8, 20);
   Sfx.play('laser', 300);
 }
@@ -19,27 +22,28 @@ function updateLasersFiring(dt) {
   const range = 2000;
   for (let i = state.lasersFiring.length - 1; i >= 0; i--) {
     const lf = state.lasersFiring[i];
+    const origin=lf.origin||p;
     lf.sweep += lf.sweepSpeed * dt;
     if (lf.sweep >= TAU) { state.lasersFiring.splice(i, 1); continue; }
     for (let k = 0; k < lf.count; k++) {
       const angle = p.angle + lf.sweep + (k / lf.count) * TAU;
       for (let j = state.enemies.length - 1; j >= 0; j--) {
         const e = state.enemies[j];
-        if (laserHits(e.x, e.y, e.size / 2, p.x, p.y, angle, lf.width, range)) {
+        if (laserHits(e.x, e.y, e.size / 2, origin.x, origin.y, angle, lf.width, range)) {
           hurtTarget(e,lf.damage * dt * attackMultiplier(e));
           e.hitFlash = 0.05;
           if (e.hp <= 0) killEnemy(j);
         }
       }
       for (const b of bossTargets()) {
-        if (laserHits(b.x, b.y, b.size / 2, p.x, p.y, angle, lf.width, range)) {
+        if (laserHits(b.x, b.y, b.size / 2, origin.x, origin.y, angle, lf.width, range)) {
           hurtTarget(b,lf.damage * dt * attackMultiplier(b));
           b.hitFlash = 0.05;
           if (b.hp <= 0) { finishTarget(b); continue; }
         }
-        for (const ball of b.balls) {
+        for (const ball of b.balls||[]) {
           if (ball.state === 'attached') continue;
-          if (laserHits(ball.x, ball.y, ball.r, p.x, p.y, angle, lf.width, range)) {
+          if (laserHits(ball.x, ball.y, ball.r, origin.x, origin.y, angle, lf.width, range)) {
             hurtTarget(b,lf.damage * dt * attackMultiplier(ball) * 0.5);
             if (b.hp <= 0) { finishTarget(b); break; }
           }

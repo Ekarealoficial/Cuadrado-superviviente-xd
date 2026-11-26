@@ -34,7 +34,7 @@ function updateChase(b,dt){
   const party=roomTargets.length?roomTargets:[state.player];
   if(a.chase===b.id){
     const slow=Math.min(...party.map(p=>p.speed||320)),lead=Math.min(...party.map(p=>p.x))-b.x;
-    const speed=slow*(b.hp/b.maxHp<.2?.72:.57)+clamp((lead-350)*.48,0,slow*.7);
+    const speed=slow*(b.hp/b.maxHp<.2?.72:.57)*(1+.17*(b.difficulty?.overlap||0))+clamp((lead-350)*.48,0,slow*.7);
     a.x+=speed*dt;
     a.walls[0].x=a.walls[1].x=a.walls[2].x=a.x-60;a.walls[3].x=a.x+a.w;
     // Keep other encounters in world space. Bring a trailing body back between
@@ -61,9 +61,10 @@ function chaseBeat(b,m,k){
   const a=state.arena,p=targetForBeat(b,k),t=b.age;
   const x=Math.max(b.x+420,p.x+360),y=a.y+a.h*(.52+.29*Math.sin(k*.88)),size=b.safeSize||30;
   if(['gates','terminal','collapseRun','escape'].includes(m)){
-    const gap=Math.max(size+85,m==='escape'?180:130);
-    const door=clamp(y,a.y+gap,a.y+a.h-gap);
+    const gap=Math.min(a.h,Math.max(size+85,m==='escape'?180:130));
+    const margin=Math.min(gap,a.h/2),door=clamp(y,a.y+margin,a.y+a.h-margin);
     for(const [lo,hi] of [[a.y,door-gap/2],[door+gap/2,a.y+a.h]]){
+      if(hi<=lo)continue;
       const q={x:m==='escape'?b.x+60:x,y:(lo+hi)/2};
       panel(b,t,q,{x:m==='escape'?x+650:x-105,y:q.y+(k%2?22:0)},m==='escape'?16:24,(hi-lo)/2,.57,m==='escape'?.99:1.35,{jaw:true});
     }

@@ -44,7 +44,7 @@ function newState() {
     over: false, overTimer: 0,
     cardChoices: null, cardRects: null,
     pendingLevelUps: 0, bonusPicks: 0, cardRelics: [], remnants:[], cosmicZones: [], bossCues: [], bossCueId: 0,
-    rush:null, singleRemaining:null, boss: null, extraBosses: [], completedEncounters:0, unlockTimes:[], firstBossDefeatAt: null, bossActive: false, arena: null,
+    rush:null, extra:null, threat:1, upgrades:0, encounterTiers:null, boss: null, extraBosses: [], completedEncounters:0, unlockTimes:[], firstBossDefeatAt: null, bossActive: false, arena: null,
     bossBombs: [], bossLasers: [], bossLaserActive: false, bossLaserTimer: 0,
     bossSpawnTimer: BOSS_FIRST_TIME, bossCycle: [], nextBossId:0, groupSize:1, encounterRoster:null, bossOmen: null,
     playerDamageMult: 1.0, enemyHpMult: 1.0, spawnRateMult: 1.0,

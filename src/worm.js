@@ -119,11 +119,11 @@ function updateWorm(b,dt){
     addFloat(state.player.x,state.player.y-70,'¡ESTAMPIDA ESMERALDA!',b.color);
     state.shake=18;
   }
-  for(const piece of b.pieces){piece.bossId=b.id;updateWormPiece(piece,b.phase,dt,a);}
+  for(const piece of b.pieces){piece.bossId=b.id;updateWormPiece(piece,b.phase,dt,a,b.difficulty?.movement||1);}
   const head=b.pieces[0].parts[0];b.x=head.x;b.y=head.y;
   wormContact(b);
 }
-function updateWormPiece(piece,phase,dt,a){
+function updateWormPiece(piece,phase,dt,a,movement=1){
   const h=piece.parts[0],p=bossPrey({id:piece.bossId||1});
   for(const s of piece.parts){s.prevX=s.x;s.prevY=s.y;}
   const travel=moveTime(h,dt);
@@ -196,6 +196,7 @@ function updateWormPiece(piece,phase,dt,a){
       break;
     }
   }
+  speed*=movement;
   h.x+=Math.cos(piece.heading)*speed*travel;h.y+=Math.sin(piece.heading)*speed*travel;
   if(!['exit','pass','laneAim'].includes(piece.mode)){
     h.x=clamp(h.x,a.x+24,a.x+a.w-24);h.y=clamp(h.y,a.y+24,a.y+a.h-24);

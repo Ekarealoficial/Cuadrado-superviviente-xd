@@ -12,15 +12,16 @@ function checkAdaptive(dt) {
   const fastKills=kills.length===RAPID_KILLS && state.time-kills[0]<=KILL_WINDOW;
   if (!(levelSlow && noDamage && fastKills)) return;
   const r = gameRandom();
-  if (r < 0.40) {
+  const director=weightedModes();
+  if (r < (director ? .5 : .4)) {
     state.spawnRateMult = Math.max(0.55, state.spawnRateMult * 0.88);
     addFloat(state.player.x, state.player.y - 90, '¡MÁS ENEMIGOS!', '#ff5a6e');
-  } else if (r < 0.72) {
+  } else if(director || r<.72){
     state.enemyHpMult = Math.min(2.5, state.enemyHpMult * 1.12);
     addFloat(state.player.x, state.player.y - 90, 'ENEMIGOS +VIDA', '#ff9a6e');
-  } else {
-    state.playerDamageMult = Math.max(0.5, state.playerDamageMult * 0.92);
-    addFloat(state.player.x, state.player.y - 90, 'DAÑO -8%', '#fbbf24');
+  }else{
+    state.playerDamageMult=Math.max(.5,state.playerDamageMult*.92);
+    addFloat(state.player.x,state.player.y-90,'DAÑO -8%','#fbbf24');
   }
   state.shake = Math.max(state.shake, 12);
   Sfx.play('explode', 400);

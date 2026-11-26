@@ -139,3 +139,21 @@ body.rotated{width:100dvh;height:100dvw;transform-origin:0 0;transform:translate
 #rushBanner.stageChange{border-color:#f2cb89;box-shadow:0 0 0 100vmax #0f081a47;animation:rush-stage .55s ease-out}
 @keyframes rush-stage{from{opacity:0;letter-spacing:.12em}to{opacity:1;letter-spacing:normal}}
 @media(prefers-reduced-motion:reduce){#rushBanner.stageChange{animation:none}}
+.extraModes button{transition:transform .16s,border-color .16s}
+.extraModes button:hover,.extraModes button:focus-visible{transform:translateY(-2px);border-color:white}
+.extraModes button:active{transform:scale(.985)}
+.extraModes #siege{--ink:#ff9b78;background:linear-gradient(145deg,#3e2926,#1b1922)}
+#siege i{border:2px solid;transform:scale(.57);box-shadow:20px -18px 0 -4px,-23px 15px 0 -6px,24px 20px 0 -5px,-21px -21px 0 -6px}
+.extraModes #trial{--ink:#f9dc7c;background:linear-gradient(145deg,#373324,#191b22)}
+#trial i{border:2px solid;border-radius:50%;position:relative}
+#trial i::after{content:'';position:absolute;top:2px;left:9px;height:9px;border-left:2px solid;transform-origin:bottom}
+#trial:is(:hover,:focus-visible) i::after{transform:rotate(100deg);transition:transform .6s}
+.extraModes #chaos{--ink:#e3a6ff;background:linear-gradient(145deg,#39263e,#20192e)}
+#chaos i{border:2px solid;position:relative}
+#chaos i::after{content:'';position:absolute;inset:2px -9px -7px 6px;border:2px solid #ee79c5;border-radius:50%}
+#extraStats{display:grid;grid-template-columns:auto 1fr;gap:8px 16px}#extraStats dd{margin:0;text-align:right}
+#rushHUD.lastMinute{color:#ffe389;border-color:#ffd662;font-size:clamp(14px,2vw,21px)}
+.labReadout{grid-column:1/-1;white-space:pre-line;padding:10px;background:#0c1923;color:#acf1d8;font:13px/1.6 monospace}
+@media(prefers-reduced-motion:reduce){.extraModes button,#trial i::after{transition:none!important}}
+
+#rushHUD.trialHUD::first-line{font-weight:800;font-size:1.4em;letter-spacing:.045em;color:#ffdf86}

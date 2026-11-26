@@ -18,11 +18,9 @@ function queueRushRound(seconds){
   r.group=pickEncounter();
   r.newStage=state.groupSize!==previous;
   if(r.newStage || (r.round && state.groupSize===r.enabled))r.stageWins=0;
-  // The offset and stride reconstruct every group in a stage from its index.
-  // Only the weighted singles need explicit IDs, even across 65,535 rounds.
+  // Summarize completed stages without retaining every group drawn.
   if(!r.history.length || r.newStage){
-    r.history.push({size:state.groupSize,singles:[],offset:state.bossCycle[1]||0,
-      stride:state.bossCycle[2]||1,completed:0});
+    r.history.push({size:state.groupSize,singles:[],completed:0});
   }
   if(state.groupSize===1 && r.history[0].singles.length<r.enabled)r.history[0].singles.push(r.group[0]);
   r.round++;r.timer=seconds;r.phase='countdown';
@@ -51,7 +49,7 @@ function updateRushSchedule(dt){
       const dx=state.player.x-relic.x,dy=state.player.y-relic.y;
       const t=Math.min(1,dt*230/(Math.hypot(dx,dy)||1));relic.x+=dx*t;relic.y+=dy*t;
     }
-    if(state.cardRelics.length || state.bonusPicks || state.pendingLevelUps || state.cardChoices)return;
+    if(state.orbs.length || state.cardRelics.length || state.bonusPicks || state.pendingLevelUps || state.cardChoices)return;
     queueRushRound(5);return;
   }
   if(state.bonusPicks || state.pendingLevelUps || state.cardChoices || state.inventoryOpen)return;

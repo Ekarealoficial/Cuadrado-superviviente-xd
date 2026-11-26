@@ -67,7 +67,7 @@ function advanceEncoreShot(s,dt){
     const bx=(x<a.x+r&&s.vx<0)||(x>a.x+a.w-r&&s.vx>0),by=(y<a.y+r&&s.vy<0)||(y>a.y+a.h-r&&s.vy>0);
     if(bx||by){if(bx)s.vx*=-1;if(by)s.vy*=-1;s.bounce--;scatter||=s.shatter;}
   }
-  if(scatter){const b={id:s.source,color:s.tint};for(let j=-2;j<=2;j++)patternShot(b,s,Math.atan2(s.vy,s.vx)+j*.33,265,4,s.tint,{square:s.square});}
+  if(scatter){const b={id:s.source,color:s.tint,difficulty:{shot:s.shotScale||1}};for(let j=-2;j<=2;j++)patternShot(b,s,Math.atan2(s.vy,s.vx)+j*.33,265,4,s.tint,{square:s.square});}
 }
 function tickEncoreEvent(b,e){
   if(e.kind!=='portal'||b.age<e.on)return;
@@ -164,7 +164,8 @@ function naturalLayers(b,m){
   if(!pool.length&&b.kind==='heart')pool=[['discharge',...activeParts(b).map(q=>q.role)]];
   if(!pool.length)return;
   const group=pool[Math.floor(gameRandom()*pool.length)],busy=livingBosses().some(q=>q!==b&&!['idle','drift','recover','transition'].includes(q.state));
-  const max=busy?1:ph===1?1:Math.min(3,ph>=3||b.kind==='prism'&&b.hp/b.maxHp<.2?3:2);
+  const extraLayer=b.difficulty && gameRandom()<b.difficulty.overlap;
+  const max=extraLayer?(busy?2:3):busy?1:ph===1?1:Math.min(3,ph>=3||b.kind==='prism'&&b.hp/b.maxHp<.2?3:2);
   const choices=group.filter(eligible);
   if(ph>=3&&['dawn','general'].includes(b.kind)&&choices.length<3){
     const accent=b.kind==='dawn'?'halos':'bombard';if(accent!==m&&!choices.includes(accent))choices.push(accent);

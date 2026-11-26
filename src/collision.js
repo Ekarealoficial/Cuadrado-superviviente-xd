@@ -13,6 +13,7 @@ function pointInWall(x, y, walls) {
   return false;
 }
 function moveWithWalls(entity, dx, dy, walls) {
+  if(entity.training)return {blockedX:!!dx,blockedY:!!dy};
   const h=entity.size/2,x=entity.x,y=entity.y;
   let endX=x+dx,endY=y+dy;
   for(const w of walls){
@@ -37,16 +38,16 @@ function laserHits(x, y, radius, lx, ly, angle, width, range) {
   const perp = -dx * sin + dy * cos;
   return Math.abs(perp) < width / 2 + radius;
 }
-function getNearestTarget(x, y) {
+function getNearestTarget(x, y, bosses=bossTargets()) {
   let nearest = null, nearestD2 = Infinity;
   for (const e of state.enemies) {
     const dd = (e.x - x)**2 + (e.y - y)**2;
     if (dd < nearestD2) { nearestD2 = dd; nearest = e; }
   }
-  for (const b of bossTargets()) {
+  for (const b of bosses) {
     const dd = (b.x - x)**2 + (b.y - y)**2;
     if (dd < nearestD2) { nearestD2 = dd; nearest = b; }
-    for (const ball of b.balls) {
+    for (const ball of b.balls||[]) {
       if (ball.state === 'attached') continue;
       const dd2 = (ball.x - x)**2 + (ball.y - y)**2;
       if (dd2 < nearestD2) { nearestD2 = dd2; nearest = ball; }
@@ -103,7 +104,7 @@ function visibleContact(entity,p,radius){
 }
 
 function settleResizedPlayer(p){
-  if(state.arena)return;
+  if(state.arena || p.size>Math.max(W,H))return;
   const h=p.size/2,walls=getVisibleChunks(state.cam);
   // Try the nearest face first. A second wall can rule out a candidate.
   if(!walls.some(w=>aabbOverlapBox(p.x,p.y,p.size,w)))return;

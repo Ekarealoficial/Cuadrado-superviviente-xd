@@ -8,6 +8,7 @@ function createSingular(pos,hp){
     phase:1,balls:[],planets:[],absorbed:[],trail:[],orbitTime:0,state:'drift',timer:1.7,ambient:2.4,deck:[]};
 }
 function cosmicShot(x,y,angle,speed,tier,extra={}){
+  speed*=livingBosses().find(b=>b.id===extra.source)?.difficulty?.shot||1;
   state.enemyBullets.push({x,y,vx:Math.cos(angle)*speed,vy:Math.sin(angle)*speed,
     life:6,r:[6,11,17][tier-1],damage:tier,tint:['#fff1ac','#ffb648','#ff7545'][tier-1],...extra});
 }
@@ -28,7 +29,7 @@ function incomingMass(b){
 }
 function emitMassWave(b){
   const a=state.arena;
-  for(let i=0;i<MASS_PER_WAVE+4*(b.phase-1);i++){
+  for(let i=0;i<Math.round((MASS_PER_WAVE+4*(b.phase-1))*(b.difficulty?.density||1));i++){
     const vertical=gameRandom()<.5,side=gameRandom()<.5?-38:38;
     const x=vertical?a.x+(side>0?a.w:0)+side:gameRand(a.x,a.x+a.w);
     const y=vertical?gameRand(a.y,a.y+a.h):a.y+(side>0?a.h:0)+side;
@@ -73,6 +74,7 @@ function openBeam(b){
   b.state='blink';b.timer=1.12;b.remaining--;
 }
 function startSingularAttack(b,attack){
+  b.lastAttack=attack;
   if(attack==='attract'){incomingMass(b);return;}
   if(attack==='blink' && !canCoverArena(b)){b.state='drift';b.timer=.32;b.deck.push('blink');return;}
   if(attack==='blink'){b.remaining=4+Math.floor(gameRandom()*3);blinkBeam(b);return;}
@@ -124,8 +126,8 @@ function updateSingular(b,dt){
   if(b.state==='compress'){if(b.timer<=0)openBeam(b);return;}
   if(b.state==='drift'){
     const t=b.orbitTime,p=bossPrey(b),a=Math.atan2(p.y-b.y,p.x-b.x)+.9*Math.sin(t*1.3);
-    b.x=clamp(b.x+Math.cos(a)*125*moveTime(b,dt),state.arena.x+b.size/2,state.arena.x+state.arena.w-b.size/2);
-    b.y=clamp(b.y+Math.sin(a)*125*moveTime(b,dt),state.arena.y+b.size/2,state.arena.y+state.arena.h-b.size/2);
+    b.x=clamp(b.x+Math.cos(a)*125*moveTime(b,dt)*(b.difficulty?.movement||1),state.arena.x+b.size/2,state.arena.x+state.arena.w-b.size/2);
+    b.y=clamp(b.y+Math.sin(a)*125*moveTime(b,dt)*(b.difficulty?.movement||1),state.arena.y+b.size/2,state.arena.y+state.arena.h-b.size/2);
     if(b.timer<=0){
       if(!b.deck.length)b.deck=b.phase>1?['attract','solar','blink','lunar']:['attract','solar','blink'];
       const move=b.deck.splice(Math.floor(gameRandom()*b.deck.length),1)[0];startSingularAttack(b,move);
@@ -156,7 +158,7 @@ function updateSingular(b,dt){
       planet.moons=[];
     }
   }
-  b.state='drift';b.timer=1.45-.31*(b.phase-1);
+  b.state='drift';b.timer=(1.45-.31*(b.phase-1))*(b.difficulty?.recovery||1);
 }
 function planetContact(b,p){
   if(p.invuln>0 || b.state==='final')return;

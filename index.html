@@ -22,7 +22,10 @@
     <section id="extras" hidden>
       <h2>Extras</h2>
       <div class="extraModes"><button id="sandbox"><i aria-hidden="true"></i>Sandbox<small>Invoca enemigos, combina cartas y prueba ataques en el laboratorio.</small></button>
-      <button id="rushButton"><i aria-hidden="true"></i>Boss Rush<small>Encadena encuentros y construye tu arsenal con las reliquias de cada jefe.</small></button></div>
+      <button id="rushButton"><i aria-hidden="true"></i>Boss Rush<small>Encadena encuentros y construye tu arsenal con las reliquias de cada jefe.</small></button>
+      <button id="siege"><i aria-hidden="true"></i>Asedio Infinito<small>Despeja cada oleada. Cada cinco llega una élite y cada diez, un encuentro de jefes.</small></button>
+      <button id="trial"><i aria-hidden="true"></i>Contrarreloj<small>Diez minutos para sumar puntos. Cuatro encuentros marcan el ritmo.</small></button>
+      <button id="chaos"><i aria-hidden="true"></i>Caos Geométrico<small>Cada treinta segundos cambia una regla del combate.</small></button></div>
       <button data-back>Volver</button>
     </section>
     <form id="rushSetup" hidden><h2>Boss Rush</h2><p>Empieza con un jefe. Al herir a un jefe ganas parte de su XP. Derrótalo para recoger cuatro reliquias. Tras los individuales llegan duplas, tríos y grupos mayores.</p>
@@ -32,6 +35,8 @@
     </form>
     <section id="rushResults" hidden><h2>Fin de Boss Rush</h2><dl id="rushStats"></dl>
       <button id="retryRush">Reintentar Boss Rush</button> <button id="leaveRush">Volver a Extras</button></section>
+    <section id="extraResults" hidden><h2 id="extraTitle"></h2><dl id="extraStats"></dl>
+      <button id="retryExtra">Reintentar</button> <button id="leaveExtra">Volver a Extras</button></section>
     <form id="setup" hidden>
       <h2 id="setupTitle">Singleplayer</h2>
       <label id="soloColor">Color del cuadradito <input name="color" type="color" value="#4df3ff"></label>
@@ -102,6 +107,7 @@
 <script defer src="src/arena-art.js"></script>
 <script defer src="src/encounter-art.js"></script>
 <script defer src="src/pattern-art.js"></script>
+<script defer src="src/encounter-difficulty.js"></script>
 <script defer src="src/boss.js"></script>
 <script defer src="src/difficulty.js"></script>
 <script defer src="src/lightning.js"></script>
@@ -117,12 +123,14 @@
 <script defer src="src/effects.js"></script>
 <script defer src="src/layout.js"></script>
 <script defer src="src/runtime-config.js"></script>
+<script defer src="src/training.js"></script>
 <script defer src="src/sandbox-tools.js"></script>
 <script defer src="src/sandbox.js"></script>
 <script defer src="src/shot-wire.js"></script>
 <script defer src="src/menu.js"></script>
 <script defer src="src/presentation.js"></script>
 <script defer src="src/touch.js"></script>
+<script defer src="src/extra-modes.js"></script>
 <script defer src="src/boss-rush.js"></script>
 <script defer src="src/boss-rush-bot.js"></script>
 <script defer src="src/loop.js"></script>

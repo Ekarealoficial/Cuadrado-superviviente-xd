@@ -32,7 +32,7 @@ function chooseEnemyType(t){
   const next=advancedRotations[donor];
   if(next && state.completedEncounters>=next[0] && !rules.disabled.includes(next[1])){
     const elapsedReal=t/rules.difficulty-state.unlockTimes[next[0]-1];
-    if(gameRandom()<next[2]*clamp(elapsedReal/25,0,1))return next[1];
+    if(gameRandom()<(next[2]+.32*(1-Math.exp(-Math.max(0,state.completedEncounters-3)/6)))*clamp(elapsedReal/25,0,1))return next[1];
   }
   if(swap && elapsed>=swap[0] && !rules.disabled.includes(swap[1]) &&
       gameRandom()<swap[2]*Math.min(1,(1+elapsed-swap[0])/20))return swap[1];

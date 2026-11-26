@@ -29,23 +29,12 @@ function pickEncounter(){
   const pool=Object.keys(BOSS_NAMES).filter(k=>!rules.disabled.includes(k)).sort();
   if(!pool.length)return null;
   const roster=pool.join('+');
-  if(state.encounterRoster!==roster){state.encounterRoster=roster;state.groupSize=1;state.bossCycle=[];state.singleRemaining=null;}
+  if(state.encounterRoster!==roster){state.encounterRoster=roster;state.groupSize=1;state.bossCycle=[];state.encounterTiers=null;}
   let k=state.groupSize,n=chooseCount(pool.length,k),cycle=state.bossCycle;
   if(cycle[0]>=n){k=state.groupSize=Math.min(k+1,pool.length);n=chooseCount(pool.length,k);cycle=state.bossCycle=[];}
-  if(k===1 && (playMode==='solo'||playMode==='rush')){
-    const remaining=state.singleRemaining?.length?state.singleRemaining:[...pool];
-    const progress=1-remaining.length/pool.length;
-    const weights=remaining.map(id=>Math.exp(-(.92-.74*progress)*(BOSS_DIFFICULTY[id]-1)));
-    let roll=gameRandom()*weights.reduce((a,b)=>a+b,0),index=0;
-    while(index<weights.length-1 && roll>=weights[index])roll-=weights[index++];
-    const group=remaining.splice(index,1);
-    state.singleRemaining=remaining;
-    cycle[0]=pool.length-remaining.length;
-    return group;
-  }
+  if(weightedModes())return drawWeightedGroup(pool,k,n,cycle);
   if(!cycle.length){
-    let stride=1+Math.floor(gameRandom()*n);
-    for(;;){let a=n,b=stride;while(b){[a,b]=[b,a%b];}if(a===1)break;stride=stride%n+1;}
+    const stride=coprimeStep(n);
     cycle.push(0,Math.floor(gameRandom()*n),stride);
   }
   let rank=(cycle[1]+cycle[0]++*cycle[2])%n;
@@ -59,8 +48,10 @@ function pickEncounter(){
 let roomTargets=[];
 function bossPrey(b){return roomTargets.length?roomTargets[(b.id-1)%roomTargets.length]:state.player;}
 function spawnEncounter(group){
+  if(!group?.length)return;
   const p=state.player,occupied=livingBosses().flatMap(b=>b.pieces?b.pieces.flatMap(q=>q.parts):[b]);
-  if(!occupied.length){state.enemies=[];state.enemyDarts=[];state.enemyBullets=[];state.potions=[];}
+  if(!occupied.length){state.enemies=[];state.enemyDarts=[];state.enemyBullets=[];if(!state.rush)state.potions=[];}
+  const profile=encounterProfile(group);
   const ordered=group.includes('worm')?['worm',...group.filter(id=>id!=='worm')]:group;
   for(const kind of ordered){
     const candidates=[];
@@ -72,14 +63,15 @@ function spawnEncounter(group){
       candidates.push({x,y,space});
     }
     const pos=occupied.length?candidates.reduce((best,q)=>best.space>=q.space?best:q):candidates[0];
-    spawnBoss({x:pos.x,y:pos.y},kind);
+    spawnBoss({x:pos.x,y:pos.y},kind,profile);
     const b=livingBosses().at(-1);occupied.push(...(b.pieces?b.pieces.flatMap(q=>q.parts):[b]));
   }
 }
 
-function spawnBoss(position,kind='boss') {
+function spawnBoss(position,kind='boss',profile=encounterProfile([kind])) {
   if(!state.boss)state.bossEncounters = (state.bossEncounters || 0) + 1;
-  const bossHp = Math.round(BALANCE.bossHp * (state.rush ? 1+.22*Math.log2(state.bossEncounters) : Math.pow(BALANCE.bossGrowth, state.bossEncounters - 1)) * state.enemyHpMult);
+  const growth=profile?.hp ?? Math.pow(BALANCE.bossGrowth,state.bossEncounters-1);
+  const bossHp=Math.round(Math.min(Number.MAX_SAFE_INTEGER,BALANCE.bossHp*growth*state.enemyHpMult));
   state.bossActive = true;
   state.bossOmen = null;
   const p = state.player;
@@ -118,6 +110,7 @@ function spawnBoss(position,kind='boss') {
       { side: 'right',  x: 0, y: 0, r: 36, state: 'attached', vx: 0, vy: 0, life: 0 }
     ]
   };
+  boss.difficulty=profile;
   if(state.rush){
     boss.rushXp=300+state.xpNeeded*2;
     boss.awardedXp=0;
@@ -181,6 +174,7 @@ function killBoss(b = state.boss, completed = false) {
     state.cardRelics.push(rewardSpot(loot.x+48*Math.cos(angle),loot.y+24+48*Math.sin(angle)));
   }
   if(state.rush)state.rush.defeated++;
+  if(state.extra)state.extra.bosses++;
   addFloat(b.x, b.y - 60, '¡JEFE DERROTADO!', '#ffd54a');
   Sfx.play('bossdie');
   for (let i = 0; i < 25; i++) {
@@ -228,6 +222,7 @@ function explodeBossBomb(bomb) {
 }
 
 function startBossAttack(type, b = state.boss) {
+  b.lastAttack=type;
   const p = bossPrey(b);
   if (type === 'dash') {
     b.state = 'dash_windup';
@@ -236,7 +231,7 @@ function startBossAttack(type, b = state.boss) {
   } else if (type === 'bombs') {
     b.state = 'attack';
     b.timer = 1.2;
-    for (let i = 0; i < 6; i++) {
+    for (let i = 0; i < Math.round(6*(b.difficulty?.density||1)); i++) {
       let bx, by, tries = 0;
       do {
         bx = state.arena.x + 60 + gameRandom() * (state.arena.w - 120);
@@ -249,7 +244,7 @@ function startBossAttack(type, b = state.boss) {
   } else if (type === 'balls') {
     b.state = 'attack';
     b.timer = 0.6;
-    const ballSpeed = [0,700,930,1080][b.phase];
+    const ballSpeed = [0,700,930,1080][b.phase]*(b.difficulty?.shot||1);
     for (const ball of b.balls) {
       if (ball.state !== 'attached') continue;
       const a = Math.atan2(p.y - ball.y, p.x - ball.x);
@@ -303,30 +298,30 @@ function updateBoss(dt, b = state.boss) {
   const dist = Math.hypot(toPx, toPy) || 1;
 
   if (b.state === 'idle') {
-    b.x += (toPx / dist) * 60 * moveTime(b,dt);
-    b.y += (toPy / dist) * 60 * moveTime(b,dt);
+    b.x += (toPx / dist) * 60 * moveTime(b,dt)*(b.difficulty?.movement||1);
+    b.y += (toPy / dist) * 60 * moveTime(b,dt)*(b.difficulty?.movement||1);
     b.timer -= dt;
     if (b.timer <= 0) {
       const attacks = ['dash', 'bombs', 'balls'];
       if (b.phase >= 3) attacks.push('laser');
       const move=attacks[Math.floor(gameRandom()*attacks.length)];startBossAttack(move,b);
-      if(move!=='bombs'&&canCoverArena(b)&&gameRandom()<.44+.12*b.phase)addPatternLayer(b,'bombs');
+      if(move!=='bombs'&&canCoverArena(b)&&gameRandom()<.44+.12*b.phase+.2*(b.difficulty?.overlap||0))addPatternLayer(b,'bombs');
     }
   } else if (b.state === 'dash_windup') {
     b.timer -= dt;
     if (b.timer <= 0) { b.state = 'dash'; b.timer = 0.55; Sfx.play('dash', 100); }
   } else if (b.state === 'dash') {
     b.timer -= dt;
-    b.x += Math.cos(b.dashAngle) * 1600 * moveTime(b,dt);
-    b.y += Math.sin(b.dashAngle) * 1600 * moveTime(b,dt);
+    b.x += Math.cos(b.dashAngle) * 1600 * moveTime(b,dt)*(b.difficulty?.movement||1);
+    b.y += Math.sin(b.dashAngle) * 1600 * moveTime(b,dt)*(b.difficulty?.movement||1);
     if (p.invuln <= 0) {
       const rr = (b.size/2 + p.size/2);
       if (visibleContact(b,p,rr)) damagePlayer(2);
     }
-    if (b.timer <= 0) { b.state = 'idle'; b.timer = getBossIdleTime(b); }
+    if (b.timer <= 0) { b.state = 'idle'; b.timer = getBossIdleTime(b)*(b.difficulty?.recovery||1); }
   } else if (b.state === 'attack') {
     b.timer -= dt;
-    if (b.timer <= 0) { b.state = 'idle'; b.timer = getBossIdleTime(b); }
+    if (b.timer <= 0) { b.state = 'idle'; b.timer = getBossIdleTime(b)*(b.difficulty?.recovery||1); }
   }
 
   b.x = clamp(b.x, state.arena.x + b.size/2, state.arena.x + state.arena.w - b.size/2);
@@ -339,7 +334,8 @@ function updateBoss(dt, b = state.boss) {
       else if (ball.side === 'top') { ball.x = b.x; ball.y = b.y - b.size/2 - ball.r; }
       else if (ball.side === 'bottom') { ball.x = b.x; ball.y = b.y + b.size/2 + ball.r; }
     } else if (ball.state === 'flying') {
-      ball.x += ball.vx * dt; ball.y += ball.vy * dt;
+      const travel=dt*(playMode==='sandbox'?(state.labShotSpeed||1):1);
+      ball.x += ball.vx * travel; ball.y += ball.vy * travel;
       ball.life -= dt;
       if (ball.x - ball.r < state.arena.x) { ball.x = state.arena.x + ball.r; ball.vx = Math.abs(ball.vx); }
       if (ball.x + ball.r > state.arena.x + state.arena.w) { ball.x = state.arena.x + state.arena.w - ball.r; ball.vx = -Math.abs(ball.vx); }
@@ -404,7 +400,7 @@ function updateArenaHazards(dt){
         const dx = p.x - ls.x, dy = p.y - ls.y;
         const proj = dx * Math.cos(ls.angle) + dy * Math.sin(ls.angle);
         const perp = -dx * Math.sin(ls.angle) + dy * Math.cos(ls.angle);
-        if (proj > 0 && Math.abs(perp) < ls.width/2 + p.size/2) damagePlayer(1);
+        if (proj > 0 && proj<=bossLaserReach() && Math.abs(perp) < ls.width/2 + p.size/2) damagePlayer(1);
       }
     }
   }

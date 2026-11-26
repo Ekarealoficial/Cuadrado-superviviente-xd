@@ -14,23 +14,23 @@ function spawnBullet(x, y, angle, speed, opts, list = state.bullets) {
     bounces: opts.bounces || 0,
     homing: !!opts.homing,
     dupli: opts.dupli || 0,
-    damage: (opts.damage ?? 1)*(state.player.movingTime>=2?1+.05*(state.player.kinetic||0):1)
+    damage: opts.inheritedDamage ?? (opts.damage ?? 1)*(state.player.movingTime>=2?1+.05*(state.player.kinetic||0):1)
   });
 }
 
-function shoot(n, commandId = 0, preview = null) {
+function shoot(n, commandId = 0, preview = null, cycles = 1) {
   const p = state.player;
   const list = preview || state.bullets;
   const random = commandId ? makeRng(commandId) : gameRandom;
   const volley = commandId || (p.volley + 1);
-  if (!preview){p.volley=volley;geometryVolley(p);}
+  if (!preview){p.volley=volley;geometryVolley(p,cycles,n);}
   function line(angle, speed, lane) {
     const a = angle + (random() - .5) * .03;
     const x = p.x + Math.cos(a) * (p.size/2 + 6);
     const y = p.y + Math.sin(a) * (p.size/2 + 6);
     spawnBullet(x,y,a,speed,{
       homing:random() < p.homingChance, dupli:random() < p.dupliChance ? p.dupliCount : 0,
-      bounces:p.bounces, damage:1+Math.floor(p.sizeLevel*.75), radius:4+p.sizeLevel*1.2,
+      bounces:p.bounces, damage:Math.min(Number.MAX_VALUE,cycles*(1+Math.floor(p.sizeLevel*.75))), radius:4+p.sizeLevel*1.2,
       viewDelay:commandId && !preview ? state.viewDelay : 0, volley,lane
     },list);
     if (!preview) spawnParticles(x,y,2,lane<0?'#c77dff':'#9ef7ff',.5);
@@ -43,6 +43,13 @@ function shoot(n, commandId = 0, preview = null) {
   Sfx.play('shoot',30);
 }
 
+// Move the base into the exponent near overflow so a representable result
+// survives even when 1.5 ** (stacks - 1) alone would exceed a double.
+function compoundEffect(base, stacks){
+  if(!stacks)return 0;
+  const power=1.5**(stacks-1);
+  return Number.isFinite(power)?base*power:Math.exp(Math.min(Math.log(Number.MAX_VALUE),Math.log(base)+(stacks-1)*Math.log(1.5)));
+}
 function stackingChance(base, stacks) {
   return stacks ? Math.min(1, base * 1.5 ** (stacks - 1)) : 0;
 }
@@ -64,6 +71,7 @@ function attackMultiplier(target, attacker=state) {
   const chance = (10 + 5 * (upgrades % 18)) / 100;
   if (gameRandom() >= chance) return base;
   const tier=2+Math.floor(upgrades/18);
+  if(target?.training)target.training.critical++;
   if (target) cardPulse('critical',target,tier);
   return base*tier;
 }
@@ -80,12 +88,15 @@ function recordKill(victim = state.player) {
   if (healed) addFloat(p.x, p.y - 30, '+' + healed / 2 + ' ❤', '#ff608a');
 }
 function damagePlayer(amount, piercesPlasma=false) {
-  if(playMode==='sandbox' && lab.god)return;
+  if(playMode==='sandbox' && lab.god){
+    if(state.time>=(state.labContactAt||0)){state.labContactAt=state.time+.18;addFloat(state.player.x,state.player.y-40,'Contacto · '+(amount||1),'#ffd697');}
+    return;
+  }
   if(state.player.plasma?.end>state.time && !piercesPlasma)return;
   amount = amount || 1;
   const p = state.player;
   if (p.invuln > 0) return;
-  const blocks=p.armor?chanceCount(.10*1.5**(p.armor-1)):0;
+  const blocks=p.armor?chanceCount(compoundEffect(.10,p.armor)):0;
   if (blocks) {
     p.invuln = blocks;
     cardPulse('armor',p);
@@ -132,7 +143,8 @@ function gainXp(amount) {
     // A full Rush has tens of thousands of rounds. Linear growth in the late
     // game keeps XP representable while levels and card picks continue.
     const nextCost=Math.floor(state.xpNeeded * 1.35) + 4;
-    state.xpNeeded=state.rush?Math.min(nextCost,state.xpNeeded+1000):nextCost;
+    const step=state.rush?1000:Number.MAX_SAFE_INTEGER;
+    state.xpNeeded=Math.min(nextCost,state.xpNeeded+step);
     leveled = true;
   }
   if (leveled) {

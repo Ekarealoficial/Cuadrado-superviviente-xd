@@ -8,6 +8,7 @@ function closeSandboxPanel(){
   sandboxTab=null;
 }
 function openSandboxPanel(tab){
+  if(playMode!=='sandbox')return;
   const dialog=document.getElementById('sandboxPanel');
   const list=document.getElementById('sandboxList'),status=document.getElementById('sandboxStatus');
   sandboxTab=tab;
@@ -74,6 +75,7 @@ function placeSandboxEnemy(){
 }
 
 function clearSandboxCards(){
+  state.upgrades=0;
   const base=newState(),p=state.player;
   for(const key of ['drones','darts','shields','bullets','magnetRange','maxHalfHearts',
       'laserCharging','laserChargeTime','lasersFiring','lightningStrikes','specialCards',
