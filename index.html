@@ -33,6 +33,7 @@
       <details><summary>Jefes habilitados</summary><div id="rushRoster"></div></details>
       <button>Comenzar</button> <button type="button" data-back>Volver</button>
     </form>
+    <form id="extraSetup" hidden><h2 id="setupExtraTitle"></h2><button>Comenzar</button> <button type="button" data-back>Volver</button></form>
     <section id="rushResults" hidden><h2>Fin de Boss Rush</h2><dl id="rushStats"></dl>
       <button id="retryRush">Reintentar Boss Rush</button> <button id="leaveRush">Volver a Extras</button></section>
     <section id="extraResults" hidden><h2 id="extraTitle"></h2><dl id="extraStats"></dl>
@@ -48,7 +49,7 @@
       </div>
       <div class="split"><label>Ritmo de dificultad <select name="difficulty"></select></label>
       <label>Experiencia ganada <select name="xp"></select></label></div>
-      <fieldset><legend>Enemigos y jefes habilitados</legend><div id="roster"></div></fieldset>
+      <details><summary>Enemigos habilitados</summary><div id="roster"></div></details><details><summary>Jefes habilitados</summary><div id="setupBosses"></div></details>
       <button>Continuar</button> <button type="button" data-back>Volver</button>
     </form>
     <div id="lobby" hidden>
@@ -74,6 +75,7 @@
     <div id="touchSlots"></div></div>
   <section id="touchPanel" hidden aria-label="Opciones de partida"></section>
 </section>
+<aside id="roomWait" class="panel" hidden><h2>Sala de espera</h2><p id="waitMembers"></p><button id="markReady"></button><button id="hostStart">Iniciar partida</button></aside>
 <output id="rushHUD" hidden></output><div id="rushBanner" hidden></div>
 <aside id="sessionHUD" hidden><output id="sandboxDebug" hidden></output><button id="labTool" hidden>Laboratorio</button><span id="playerInfo"></span> <button id="exit">Salir al menú</button></aside>
 <script defer src="src/config.js"></script>
@@ -127,6 +129,7 @@
 <script defer src="src/sandbox-tools.js"></script>
 <script defer src="src/sandbox.js"></script>
 <script defer src="src/shot-wire.js"></script>
+<script defer src="src/launch-options.js"></script>
 <script defer src="src/menu.js"></script>
 <script defer src="src/impact-view.js"></script>
 <script defer src="src/presentation.js"></script>

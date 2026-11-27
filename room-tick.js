@@ -1,9 +1,10 @@
 (() => {
   playMode = 'online';
   rules = settings;
+  randomState=settings.seed??initialSeed;
   configureCardUpgrades();
   const world = newState();
-  const shared = 'encounterRoster nextBossId groupSize bossCues bossCueId cardRelics remnants cosmicZones extraBosses completedEncounters unlockTimes firstBossDefeatAt iceZones stopStarted stopUntil time enemies enemyBullets enemyDarts orbs potions spawnTimer potionTimer boss bossEncounters bossActive arena bossBombs bossLasers bossLaserActive bossLaserTimer bossSpawnTimer bossCycle bossOmen enemyHpMult spawnRateMult adaptiveCheckTimer'.split(' ');
+  const shared = 'encounterTiers threat encounterRoster nextBossId groupSize bossCues bossCueId cardRelics remnants cosmicZones extraBosses completedEncounters unlockTimes firstBossDefeatAt iceZones stopStarted stopUntil time enemies enemyBullets enemyDarts orbs potions spawnTimer potionTimer boss bossEncounters bossActive arena bossBombs bossLasers bossLaserActive bossLaserTimer bossSpawnTimer bossCycle bossOmen enemyHpMult spawnRateMult adaptiveCheckTimer'.split(' ');
   const party = new Map();
   let impactSerial=0;
   const impacts=[];

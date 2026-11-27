@@ -290,7 +290,7 @@ function update_stormAndBossSchedule(dt, worldStep = true) {
   if(state.extra && state.extra.id!=='chaos')return;
   if(state.rush){updateRushSchedule(dt);return;}
   if (playMode!=='sandbox' && !state.bossActive) {
-    const rate=rules.difficulty;
+    const rate=rules.difficulty*(rules.bossFrequency||1);
     state.bossSpawnTimer-=dt*rate;
     if(!state.bossOmen && state.bossSpawnTimer<=20*rate){
       const group=pickEncounter();
@@ -401,7 +401,7 @@ function applyControl(dt, direction, command) {
   }
 }
 function shootDue(p,lines,dt,command){
-  const interval=Math.max(p.fireCdBase/(state.extra?.modifier==='energy'?1.8:1),Number.MIN_VALUE);
+  const interval=Math.max(p.fireCdBase/(hasModifier('energy')?1.8:1),Number.MIN_VALUE);
   const count=interval>=dt?1:Math.max(1,Math.min(Number.MAX_VALUE,Math.floor((dt+(p.volleyRemainder||0))/interval)));
   p.volleyRemainder=interval>=dt?0:(dt+(p.volleyRemainder||0))%interval;
   p.fireCd=interval;
@@ -641,9 +641,9 @@ function update_spawning(dt) {
     if ((playMode!=='sandbox'||lab.spawnWaves) && state.spawnTimer <= 0) {
       if(state.extra?.id==='trial' && state.bossActive){if(state.enemies.length<64)extraSpawn(chooseEnemyType(state.time));}
       else spawnEnemy();
-      if(state.extra?.modifier==='double')spawnEnemy();
+      if(hasModifier('double'))spawnEnemy();
       const interval = Math.max(0.55, 1.7 - state.time * rules.difficulty * 0.009) * state.spawnRateMult;
-      state.spawnTimer = interval * gameRand(0.80, 1.25)*(state.extra?.id==='trial'&&state.time>=540?.42:1);
+      state.spawnTimer = interval * gameRand(0.80, 1.25)*(state.extra?.id==='trial'&&state.time>=(state.extra.duration||600)*.9?.42:1);
     }
     state.potionTimer -= dt;
     if (state.potionTimer <= 0) {
@@ -664,7 +664,7 @@ function update_enemyAI(dt) {
     const e = state.enemies[i];
     if (!e) continue;
     if(e.training){Object.assign(e,e.training.origin);continue;}
-    const travel = moveTime(e,dt)*(state.extra?.modifier==='haste'?1.6:1);
+    const travel = moveTime(e,dt)*(hasModifier('haste')?1.6:1);
     const toPx = p.x - e.x, toPy = p.y - e.y;
     const distToPlayer = Math.hypot(toPx, toPy) || 1;
 

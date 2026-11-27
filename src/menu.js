@@ -41,7 +41,7 @@ async function roomRequest(action,data){
 let syncLocalUI=()=>{};
 function initializeMenu(){
   const el=id=>document.getElementById(id);
-  const setup=el('setup'), identity=el('identity'), screens=['home','setup','lobby','identity','extras','rushSetup','rushResults','extraResults'];
+  const setup=el('setup'), identity=el('identity'), screens=['home','setup','lobby','identity','extras','rushSetup','rushResults','extraResults','extraSetup'];
 
   el('menu').addEventListener('click',ensureAudio,{once:true});
   let screen='home',creating=false,code='',listed=[], multiplayerSettings;
@@ -57,7 +57,7 @@ function initializeMenu(){
   function end(message='',destination='home'){
     if(sandboxTab)closeSandboxPanel();
     el('rushHUD').hidden=el('rushBanner').hidden=true;
-    netSession=null;queuedActions=[];inventoryChoice=null;playMode='menu';restart();el('playerInfo').textContent='';
+    el('roomWait').hidden=true;netSession=null;queuedActions=[];inventoryChoice=null;playMode='menu';restart();el('playerInfo').textContent='';
     el('menu').hidden=false;el('sessionHUD').hidden=true;show(destination);el('notice').textContent=message;
   }
   el('exit').onclick=()=>{
@@ -68,14 +68,16 @@ function initializeMenu(){
   }
   for(const [id,name] of Object.entries(ENEMY_NAMES)){
     const label=document.createElement('label'),box=document.createElement('input');
-    box.type='checkbox';box.checked=true;box.value=id;label.append(box,name);el('roster').append(label);
+    box.type='checkbox';box.checked=true;box.value=id;label.append(box,name);el(BOSS_NAMES[id]?'setupBosses':'roster').append(label);
   }
+  const options=createLaunchOptions(el);
   function configure(multi){
+    options.open(multi?'online':'solo',setup);
     creating=multi;el('roomOptions').hidden=!multi;el('soloColor').hidden=multi;
     el('setupTitle').textContent=multi?'Crear partida':'Singleplayer';show('setup');
   }
   el('extrasButton').onclick=()=>show('extras');
-  el('rushButton').onclick=()=>show('rushSetup');
+  el('rushButton').onclick=()=>{options.open('rush',el('rushSetup'));show('rushSetup');};
   for(const [id,name] of Object.entries(BOSS_NAMES)){
     const label=document.createElement('label'),box=document.createElement('input');
     box.type='checkbox';box.checked=true;box.value=id;label.append(box,name);el('rushRoster').append(label);
@@ -83,7 +85,7 @@ function initializeMenu(){
   function startRush(){
     const disabled=[...el('rushRoster').querySelectorAll('input:not(:checked)')].map(n=>n.value);
     if(disabled.length===Object.keys(BOSS_NAMES).length){el('notice').textContent='Habilita al menos un jefe para comenzar.';return;}
-    rules={difficulty:1,xp:1,color:setup.elements.color.value,disabled};
+    rules={difficulty:1,xp:1,color:setup.elements.color.value,disabled,...options.read('rush')};
     screen='playing';start('rush');beginRush(el('botPlay').checked);
   }
   el('rushSetup').onsubmit=e=>{e.preventDefault();startRush();};
@@ -112,10 +114,15 @@ function initializeMenu(){
     }
   };
   function startExtra(id){
-    rules={difficulty:1,xp:1,color:setup.elements.color.value,disabled:[]};
+    rules={difficulty:1,xp:1,color:setup.elements.color.value,disabled:[],...options.read(id)};
     screen='playing';start(id);beginExtra(id);
   }
-  for(const id of Object.keys(EXTRA_NAMES))el(id).onclick=()=>startExtra(id);
+  let extraId;
+  for(const id of [...Object.keys(EXTRA_NAMES),'sandbox'])el(id).onclick=()=>{
+    extraId=id;el('setupExtraTitle').textContent=EXTRA_NAMES[id]||'Sandbox';
+    options.open(id,el('extraSetup'));show('extraSetup');
+  };
+  el('extraSetup').onsubmit=e=>{e.preventDefault();if(extraId==='sandbox')startSandbox();else startExtra(extraId);};
   el('retryExtra').onclick=()=>startExtra(state.extra.id);
   el('leaveExtra').onclick=()=>end('','extras');
   syncLocalUI=()=>{
@@ -130,13 +137,13 @@ function initializeMenu(){
       }
       return;
     }
-    hud.hidden=false;hud.classList.toggle('lastMinute',m?.id==='trial'&&state.time>=540);
+    hud.hidden=false;hud.classList.toggle('lastMinute',m?.id==='trial'&&state.time>=(m.duration||600)*.9);
     const info=(m?extraHUD(m)+'\n':'')+threatLabel(state.threat);
     if(hud.textContent!==info)hud.textContent=info;
   };
-  el('sandbox').onclick=()=>{
-    rules={difficulty:1,xp:1,disabled:[],color:'#4df3ff'};
-    restart();Object.assign(lab,{god:false,speed:1,debug:false,hitboxes:false,spawnWaves:false,bossId:0});lab.group.clear();sandboxEnemy='normal';start('sandbox');sandboxHint();
+  function startSandbox(){
+    rules={difficulty:1,xp:1,disabled:[],color:'#4df3ff',...options.read('sandbox')};
+    restart();Object.assign(lab,{god:false,speed:1,debug:false,hitboxes:false,spawnWaves:false,bossId:0});lab.group.clear();sandboxEnemy='normal';start('sandbox');if(rules.boss)spawnEncounter([rules.boss]);applyStartingDeck();sandboxHint();
   };
   el('labTool').onclick=()=>openSandboxPanel('lab');
   el('sandboxClose').onclick=closeSandboxPanel;
@@ -144,8 +151,8 @@ function initializeMenu(){
   el('solo').onclick=()=>configure(false);el('create').onclick=()=>configure(true);
   setup.onsubmit=e=>{
     e.preventDefault();const f=setup.elements;
-    const chosen={difficulty:Number(f.difficulty.value),xp:Number(f.xp.value),disabled:[...el('roster').querySelectorAll('input:not(:checked)')].map(n=>n.value)};
-    if(!creating){rules={...chosen,color:f.color.value};restart();start('solo');return;}
+    const chosen={...options.read(creating?'online':'solo'),difficulty:Number(f.difficulty.value),xp:Number(f.xp.value),disabled:[...setup.querySelectorAll('#roster input:not(:checked),#setupBosses input:not(:checked)')].map(n=>n.value)};
+    if(!creating){rules={...chosen,color:f.color.value};restart();start('solo');applyStartingDeck();return;}
     if(!f.roomName.value.trim()){el('notice').textContent='Escribe un nombre para la partida.';return;}
     multiplayerSettings={...chosen,name:f.roomName.value,max:Number(f.max.value),private:f.privateRoom.checked,pvp:f.pvp.checked};show('identity');
   };
@@ -156,7 +163,7 @@ function initializeMenu(){
       const button=document.createElement('button'),meta=document.createElement('small');
       const seconds=Math.max(0,Math.floor((Date.now()-room.opened)/1000));
       meta.textContent=room.count+'/'+room.max+' jugadores · Dificultad '+room.difficulty+'× · XP '+room.xp+'× · PvP '+(room.pvp?'ON':'OFF')+' · Abierta '+Math.floor(seconds/60)+'m '+seconds%60+'s';
-      button.append(room.name,meta);button.disabled=room.count>=room.max;button.onclick=()=>join(room.code);list.append(button);
+      button.append(room.name,meta);meta.textContent+=' · '+(room.started?'En curso':'En espera')+' · '+(room.lateJoin?'Admite entrada tardía':'Solo antes de iniciar');button.disabled=room.count>=room.max||(room.started&&!room.lateJoin);button.onclick=()=>join(room.code);list.append(button);
     }
     if(!list.children.length)list.textContent='Sin partidas públicas que coincidan.';
   }
@@ -169,7 +176,7 @@ function initializeMenu(){
   el('multi').onclick=lobby;el('search').oninput=displayRooms;setInterval(refresh,3000);
   el('byCode').onsubmit=e=>{e.preventDefault();join(e.target.elements.code.value.trim().toUpperCase());};
   for(const b of document.querySelectorAll('[data-back]'))b.onclick=()=>{
-    if(screen==='rushSetup')show('extras');
+    if(screen==='rushSetup'||screen==='extraSetup')show('extras');
     else if(screen==='identity'&&creating)configure(true);
     else if(screen==='identity'||screen==='setup'&&creating)lobby();else show('home');
   };
@@ -183,13 +190,22 @@ function initializeMenu(){
       const session=netSession;
       let socket=null,live=false,lastFrameSent=0,seen=0,nextPing=0,nextAttempt=0,lastStateAt=0;
       let fallbackBusy=0,lastFallback=-Infinity;
+      function waiting(next){
+        const info=next.waiting,panel=el('roomWait');panel.hidden=!info;
+        if(!info)return;
+        el('waitMembers').textContent=info.participants.map(m=>m.name+(m.host?' ★':'')+(m.ready?' · Listo':' · En espera')).join(' / ');
+        el('markReady').textContent=info.ready?'Cancelar listo':'Estoy listo';el('hostStart').hidden=!info.host;
+        const send=(action,data)=>roomRequest(action,{...session,...data}).catch(e=>{el('waitMembers').textContent=e.message;});
+        el('markReady').onclick=()=>send('ready',{ready:!info.ready});el('hostStart').onclick=()=>send('start',{});
+      }
+      waiting(state);
       function accept(next){
         if(session!==netSession || next.time<state.time || (next.ack??0)<(state.ack??0))return;
         if(next.shotTable){next.enemyBullets=unpackHostileShots(next.shotTable);delete next.shotTable;}
         const now=performance.now();
         lastStateAt=now;queuedActions=queuedActions.filter(a=>a.id>(next.actionAck||0));
         prepareMotion(state,next,now);
-        state=next;state.inventorySelection=inventoryChoice;
+        state=next;waiting(next);state.inventorySelection=inventoryChoice;
         currentWalls=state.arena?state.arena.walls:getVisibleChunks(state.cam);
         const ping=netPingMs==null?'…':Math.round(netPingMs)+' ms';
         el('playerInfo').textContent=profile.name+' · X '+Math.round(state.player.x)+'  Y '+Math.round(state.player.y)+' · Código '+session.code+' · Ping '+ping;

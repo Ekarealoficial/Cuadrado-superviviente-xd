@@ -883,3 +883,9 @@ test('Un disparo anticipado se detiene visualmente sin escribir vida y se reconc
  run("shot.volley=8;predictContact(shot,100,0,200);const real={...shot,shooterId:3,x:80};reconcileContacts({bullets:[real]},650)");
  assert.ok(run('real.blendFrom && !pendingContacts.size && dummy.hp===hp'));
 });
+
+test('Configuración de partida conserva semilla cero, amenaza y reloj proporcional',()=>{
+ const run=game();run("rules={...rules,seed:0,intensity:3,duration:5};beginExtra('trial');state.time=61;updateTrial(state.extra)");
+ assert.ok(run('state.bossActive && state.threat>=3 && state.extra.duration===300'));
+ run('state.time=300;updateTrial(state.extra)');assert.ok(run('state.extra.won && state.over'));
+});

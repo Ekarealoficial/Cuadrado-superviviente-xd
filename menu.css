@@ -157,3 +157,7 @@ body.rotated{width:100dvh;height:100dvw;transform-origin:0 0;transform:translate
 @media(prefers-reduced-motion:reduce){.extraModes button,#trial i::after{transition:none!important}}
 
 #rushHUD.trialHUD::first-line{font-weight:800;font-size:1.4em;letter-spacing:.045em;color:#ffdf86}
+#roomWait{position:fixed;left:50%;top:40%;transform:translate(-50%,-50%);z-index:8;max-width:min(88vw,540px)}
+#setupBosses{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:4px}
+#extraSetup fieldset,#rushSetup fieldset,#setup fieldset{display:grid;gap:.6rem;border:1px solid #344254;margin:12px 0;padding:12px}
+#menu select[multiple]{min-height:5.5em;width:100%}

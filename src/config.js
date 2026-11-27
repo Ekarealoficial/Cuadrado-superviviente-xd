@@ -17,4 +17,5 @@ function gameRandom() {
   t=Math.imul(t^(t>>>15),t|1); t^=t+Math.imul(t^(t>>>7),t|61);
   return ((t^(t>>>14))>>>0)/4294967296;
 }
+function hasModifier(id){return state.extra?.modifier===id||state.extra?.secondary===id;}
 const gameRand=(a,b)=>a+gameRandom()*(b-a);

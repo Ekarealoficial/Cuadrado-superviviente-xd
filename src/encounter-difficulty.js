@@ -2,7 +2,7 @@
 // Count each difficulty tier by suffix, rather than constructing individual groups.
 // Two arena-covering bosses in one group add pressure beyond their base ratings.
 const widePatterns=new Set(['prism','dawn','beacon','crown','singular']);
-function weightedModes(){return ['solo','rush','siege','trial','chaos'].includes(playMode);}
+function weightedModes(){return playMode==='online' && Number.isFinite(rules.progression) || ['daily','duel','pursuit','solo','rush','siege','trial','chaos'].includes(playMode);}
 function groupCost(id,alreadyWide){return 2*BOSS_DIFFICULTY[id]+(alreadyWide&&widePatterns.has(id)?2:0);}
 function groupRating(group){
   let sum=0,wide=false;
@@ -61,7 +61,7 @@ function encounterDifficulty(group){
   const labSettings=playMode==='sandbox'?state.labDifficulty:null;
   const encounters=labSettings?labSettings.encounter-1:state.completedEncounters;
   const stage=labSettings?.stage||Math.max(state.groupSize,group.length);
-  const pace=state.rush?1.45:rules.difficulty;
+  const pace=(state.rush?1.45:rules.difficulty)*(rules.progression||1);
   const deck=Math.log1p(state.upgrades||0);
   const progress=Math.log1p(encounters*pace)*(.8+.065*groupRating(group))+
     .64*(stage-1)+.12*Math.min(deck,Math.log1p(encounters*8));

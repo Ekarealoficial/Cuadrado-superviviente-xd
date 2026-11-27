@@ -138,7 +138,7 @@ window.addEventListener('blur', () => { mouse.down = false; for (const k in keys
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
 function restart() {
-  randomState=new URLSearchParams(location.search).has('seed')?initialSeed:Math.floor(Math.random()*4294967296);
+  randomState=rules.seed??(new URLSearchParams(location.search).has('seed')?initialSeed:Math.floor(Math.random()*4294967296));
   state=newState();
   localLens.target=localLens.value=1;
   touchMove.x=touchMove.y=0;

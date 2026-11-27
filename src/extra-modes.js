@@ -7,6 +7,7 @@ function beginExtra(id){
   restart();
   state.extra={id,wave:0,cleared:0,next:1,timer:0,remaining:0,phase:'rest',bosses:0,
     milestones:0,modifiers:0,bag:[],zones:[],rays:[],nextChange:30,modifier:null};
+  state.extra.wave=(rules.wave||1)-1;state.extra.duration=(rules.duration||10)*60;state.extra.nextChange=rules.chaosPeriod||30;
   state.spawnTimer=.1;
 }
 function extraSpawn(type,angle=gameRandom()*TAU){
@@ -35,7 +36,9 @@ function updateSiege(m,dt){
   if(m.remaining){
     m.timer-=dt;
     if(m.timer<=0 && state.enemies.length<64){
-      const pool=siegePool(m.wave);
+      let pool=siegePool(m.wave).filter(t=>!rules.disabled.includes(t));
+      if(!pool.length)pool=Object.keys(ENEMY_NAMES).filter(t=>!BOSS_NAMES[t]&&!rules.disabled.includes(t));
+      if(!pool.length){m.remaining=0;return;}
       for(let i=0;i<4&&m.remaining;i++,m.remaining--,m.sent++){
         const advanced=m.wave%5===0&&m.sent%2===0;
         const options=advanced?pool.slice(-3):pool;
@@ -53,23 +56,31 @@ function clockText(seconds){
   const t=Math.max(0,Math.ceil(seconds));return Math.floor(t/60)+':'+String(t%60).padStart(2,'0');
 }
 function updateTrial(m){
-  if(state.time>=600){state.time=600;state.over=true;m.won=true;return;}
-  const due=Math.min(4,Math.floor(state.time/120));
+  const duration=m.duration||600;
+  if(state.time>=duration){state.time=duration;state.over=true;m.won=true;return;}
+  const due=Math.min(4,Math.floor(state.time/(duration/5)));
   if(m.milestones<due){m.milestones++;spawnEncounter(pickEncounter());}
 }
 function activateModifier(m,id){
-  m.modifier=id;m.until=state.time+12;m.tick=0;m.zones=[];m.rays=[];
+  m.modifier=id;m.until=state.time+(rules.chaosDuration||12);m.tick=0;m.zones=[];m.rays=[];
   if(id==='gravity')for(let i=0;i<3;i++)m.zones.push({...polarPoint(state.player,190,i*TAU/3+gameRandom()*.4),pull:i!==1});
   addFloat(state.player.x,state.player.y-60,CHAOS_RULES[id].toUpperCase(),'#f7aaff');
   spawnParticles(state.player.x,state.player.y,18,id==='energy'?'#f4e784':'#c68aff',.8);
 }
 function updateChaos(m,dt){
   if(m.modifier&&state.time>=m.until){m.modifiers++;if(m.modifier==='rain')state.enemyBullets=state.enemyBullets.filter(b=>!b.chaos);
-    m.modifier=null;m.zones=[];m.rays=[];}
+    m.modifier=null;m.secondary=null;m.zones=[];m.rays=[];}
   if(state.time>=m.nextChange){
-    if(!m.bag.length)m.bag=Object.keys(CHAOS_RULES);
+    if(!m.bag.length)m.bag=[...(rules.chaosPool??Object.keys(CHAOS_RULES))];
+    if(!m.bag.length){m.nextChange=Infinity;return;}
     const next=m.bag.splice(Math.floor(gameRandom()*m.bag.length),1)[0];
-    activateModifier(m,next);m.nextChange=state.time+30;
+    activateModifier(m,next);
+    if(rules.doubleChaos&&state.time>=180){
+      const passive=(rules.chaosPool??Object.keys(CHAOS_RULES)).filter(k=>k!==next&&['energy','double','haste'].includes(k));
+      m.secondary=passive[Math.floor(gameRandom()*passive.length)];
+      if(m.secondary)addFloat(state.player.x,state.player.y-92,CHAOS_RULES[m.secondary],'#dcaaff');
+    }
+    m.nextChange=state.time+(rules.chaosPeriod||30);
   }
   const p=state.player;
   for(const z of m.zones){
@@ -111,8 +122,8 @@ function drawExtraField(m){
 }
 function extraHUD(m){
   if(m.id==='siege')return 'ASEDIO · OLEADA '+m.wave+'\n'+(m.phase==='rest'?'Próxima en '+Math.ceil(m.next)+' s':(m.remaining+state.enemies.length+livingBosses().length)+' restantes')+' · Especial '+(5*(1+Math.floor(m.wave/5)));
-  if(m.id==='trial')return clockText(600-state.time)+' · CONTRARRELOJ\n'+state.score+' puntos';
-  return 'CAOS GEOMÉTRICO\n'+(CHAOS_RULES[m.modifier]||'Próximo cambio')+' · '+Math.ceil((m.modifier?m.until:m.nextChange)-state.time)+' s';
+  if(m.id==='trial')return clockText((m.duration||600)-state.time)+' · CONTRARRELOJ\n'+state.score+' puntos';
+  return 'CAOS GEOMÉTRICO\n'+([m.modifier,m.secondary].filter(Boolean).map(k=>CHAOS_RULES[k]).join(' + ')||'Próximo cambio')+' · '+Math.ceil((m.modifier?m.until:m.nextChange)-state.time)+' s';
 }
 function extraResults(m){
   const rows=[['Tiempo sobrevivido',clockText(state.time)],['Puntuación',state.score],['Jefes derrotados',m.bosses]];

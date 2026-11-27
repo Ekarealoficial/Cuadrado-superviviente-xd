@@ -6,6 +6,8 @@ const engine=require('./room-engine.cjs');
 const {packHostileShots}=require('./src/shot-wire.js');
 function clientSnapshot(room,token,compact){
   const snapshot=room.game.snapshot(token);
+  if(!room.started)snapshot.waiting={host:room.host===token,ready:room.ready.has(token),
+    participants:Array.from(room.members.keys(),id=>({name:room.names.get(id),ready:room.ready.has(id),host:room.host===id}))};
   if(compact&&snapshot.enemyBullets.length>=64){
     if(room.shotTime!==snapshot.time){
       room.packedShots=packHostileShots(snapshot.enemyBullets);room.shotTime=snapshot.time;
@@ -28,15 +30,20 @@ function gameWire(key,value){
 const types='pulseRing erratic twinCannon rebound tackler splitter cannon frostMage normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss worm singular fractal clock crown beacon twins heart monolith dawn prism sovereign channel general frontier'.split(' ');
 const rates=[0.5,1,1.5,2,3];
 function requireValue(ok,message,status=400){if(!ok)throw Object.assign(new Error(message),{status});}
+function validated(value,valid){requireValue(valid(value),'Ajuste de sala inválido');return value;}
 function settings(s) {
   requireValue(s && rates.includes(s.xp) && rates.includes(s.difficulty) && Array.isArray(s.disabled),'Ajustes inválidos');
   requireValue(Number.isInteger(s.max) && s.max>=2 && s.max<=12 && typeof s.name==='string' && s.name.trim(),'Revisa el nombre y el límite de jugadores');
   return {name:s.name.trim().slice(0,40),max:s.max,pvp:s.pvp===true,private:s.private===true,
+    seed:s.seed==null?crypto.randomBytes(4).readUInt32BE():validated(s.seed,v=>Number.isInteger(v)&&v>=0&&v<=4294967295),
+    bossFrequency:validated(s.bossFrequency??1,v=>[1,1.5,2].includes(v)),progression:validated(s.progression??1,v=>[1,1.5].includes(v)),
+    manualStart:s.manualStart===true,lateJoin:s.lateJoin!==false,
     difficulty:s.difficulty,xp:s.xp,disabled:types.filter(t=>s.disabled.includes(t))};
 }
 function leave(room,token){
   sockets.get(token)?.close(1000);streams.get(token)?.end();
-  room.members.delete(token); room.game.remove(token);
+  room.members.delete(token);room.names.delete(token);room.ready.delete(token);room.game.remove(token);
+  if(room.host===token)room.host=room.members.keys().next().value;
   if(!room.members.size)rooms.delete(room.code);
 }
 const stepMs=1000/30;
@@ -49,7 +56,7 @@ setInterval(()=>{
   debt-=steps*stepMs;
   for(const r of rooms.values()){
     for(const [token,seen] of r.members)if(Date.now()-seen>20000)leave(r,token);
-    if(r.members.size){
+    if(r.members.size&&r.started){
       try{for(let i=0;i<steps;i++)r.game.tick(1/30);}
       catch(error){console.error('Error de simulación',r.code,error.message);for(const token of r.members.keys())leave(r,token);}
     }
@@ -88,7 +95,7 @@ const server=http.createServer(async(req,res)=>{
       return res.end(content);
     }
     if(req.method==='GET' && url.pathname==='/api/rooms'){
-      return json(200,[...rooms.values()].filter(r=>!r.settings.private).map(r=>({...r.settings,code:r.code,opened:r.opened,count:r.members.size})));
+      return json(200,[...rooms.values()].filter(r=>!r.settings.private).map(r=>({...r.settings,code:r.code,opened:r.opened,started:r.started,count:r.members.size})));
     }
     requireValue(req.method==='POST','Método inválido',405);
     const data=await body(req);
@@ -101,17 +108,24 @@ const server=http.createServer(async(req,res)=>{
         requireValue(rooms.size<100,'Servidor lleno',503);
         const s=settings(data.settings);
         let code;do{code=crypto.randomBytes(4).toString('hex').toUpperCase();}while(rooms.has(code));
-        room={settings:s,code,opened:Date.now(),members:new Map(),game:engine(s)};
+        room={settings:s,code,opened:Date.now(),members:new Map(),names:new Map(),ready:new Set(),started:!s.manualStart,game:engine(s)};
         rooms.set(code,room);
       }
       requireValue(room,'Código desconocido o sala cerrada',404);
       requireValue(room.members.size<room.settings.max,'Sala llena',409);
       const token=crypto.randomUUID();
+      requireValue(action==='create'||!room.started||room.settings.lateJoin,'Esta partida ya comenzó y no admite incorporaciones',409);
+      room.host??=token;room.names.set(token,p.name.trim().slice(0,24));
       room.game.add(token,{name:p.name.trim().slice(0,24),color:p.color});
       room.members.set(token,Date.now());
-      return json(200,{code:room.code,token,settings:room.settings,state:room.game.snapshot(token)});
+      return json(200,{code:room.code,token,settings:room.settings,state:clientSnapshot(room,token,false)});
     }
     requireValue(room?.members.has(data.token),'Sesión terminada',403);
+    if(action==='ready'||action==='start'){
+      if(action==='ready'){if(data.ready===true)room.ready.add(data.token);else room.ready.delete(data.token);}
+      else {requireValue(data.token===room.host,'Solo el anfitrión puede iniciar',403);room.started=true;}
+      return json(200,{started:room.started});
+    }
     if(action==='leave'){leave(room,data.token);return json(200,{});}
     if(action==='stream'){
       res.writeHead(200,{'Content-Type':'application/x-ndjson','Cache-Control':'no-store, no-transform','X-Accel-Buffering':'no'});
@@ -134,6 +148,7 @@ const server=http.createServer(async(req,res)=>{
   }catch(e){json(e.status||500,{error:e.status?e.message:'Error del servidor'});}
 });
 function submitInput(room,token,data){
+    if(!room.started)return;
     const incoming=data.input||{},input={};
     for(const key of ['w','a','s','d','tap','fire'])input[key]=incoming[key]===true;
     for(const key of ['stamp','width','height','reach','angle','dx','dy'])if(Number.isFinite(incoming[key]))input[key]=incoming[key];
