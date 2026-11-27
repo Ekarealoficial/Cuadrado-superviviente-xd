@@ -171,6 +171,7 @@ function render() {
   }
   ctx.globalAlpha = 1;
   if(state.extra)drawExtraField(state.extra);
+  if(playMode==='online')drawImpactLights(performance.now());
   if(playMode==='sandbox')drawTrainingStats();
   if(playMode==='sandbox'&&lab.hitboxes)drawLabHitboxes();
   ctx.restore();
@@ -558,6 +559,7 @@ function renderEntities2() {
   // Balas jugador
   ctx.save();
   for (const b of (playMode==='online' && previewShots.length ? state.bullets.concat(previewShots) : state.bullets)) {
+    if(b.occluded)continue;
     if(b.style||b.persist){const t=.012+.004*Math.log1p(b.persist||0);ctx.strokeStyle=SHOT_INK[b.style]||'#8faeda';ctx.lineWidth=Math.max(1,b.r*.8);ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.lineTo(b.x-b.vx*t,b.y-b.vy*t);ctx.stroke();}
     if (b.dupli > 0) { ctx.shadowColor = '#ff4dd2'; ctx.shadowBlur = 16; ctx.fillStyle = '#ffd1f0'; }
     else if (b.homing) { ctx.shadowColor = '#a855f7'; ctx.shadowBlur = 16; ctx.fillStyle = '#e9d5ff'; }

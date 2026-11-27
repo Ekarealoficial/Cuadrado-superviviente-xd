@@ -874,3 +874,12 @@ test('Al avanzar de ronda se conserva la poción sobrante y se cobra la XP antes
   run('state.orbs.forEach(o=>Object.assign(o,point(state.player)));update_experience(0);while(state.cardChoices)pickCard(state.cardChoices[0]);updateRushSchedule(.01);updateRushSchedule(5)');
   assert.ok(run('state.rush.round===2&&state.rush.phase==="battle"&&state.potions.includes(potion)&&state.rush.defeated===1&&state.upgrades>0'));
 });
+
+test('Un disparo anticipado se detiene visualmente sin escribir vida y se reconcilia una vez',()=>{
+ const run=game();run("state.selfId=3;const dummy=createEnemy('tank',50,0);state.enemies=[dummy];const hp=dummy.hp;const shot={x:0,y:0,r:4,volley:7,lane:0};predictContact(shot,100,0,10)");
+ assert.ok(run('shot.occluded && dummy.hp===hp && impactLights.length===1'));
+ run("const packet={bullets:[],impacts:[{seq:1,volley:7,lane:0,contact:1,shooterId:3,x:42,y:0}]};reconcileContacts(packet,100);reconcileContacts(packet,120)");
+ assert.ok(run('impactLights.length===1 && impactLights[0].confirmed && !pendingContacts.size'));
+ run("shot.volley=8;predictContact(shot,100,0,200);const real={...shot,shooterId:3,x:80};reconcileContacts({bullets:[real]},650)");
+ assert.ok(run('real.blendFrom && !pendingContacts.size && dummy.hp===hp'));
+});

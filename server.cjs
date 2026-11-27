@@ -35,7 +35,7 @@ function settings(s) {
     difficulty:s.difficulty,xp:s.xp,disabled:types.filter(t=>s.disabled.includes(t))};
 }
 function leave(room,token){
-  sockets.get(token)?.close(1000);
+  sockets.get(token)?.close(1000);streams.get(token)?.end();
   room.members.delete(token); room.game.remove(token);
   if(!room.members.size)rooms.delete(room.code);
 }
@@ -51,13 +51,13 @@ setInterval(()=>{
     for(const [token,seen] of r.members)if(Date.now()-seen>20000)leave(r,token);
     if(r.members.size){
       try{for(let i=0;i<steps;i++)r.game.tick(1/30);}
-      catch(error){console.error('Error de simulación',error);rooms.delete(r.code);}
+      catch(error){console.error('Error de simulación',r.code,error.message);for(const token of r.members.keys())leave(r,token);}
     }
   }
 },1000/30).unref();
 async function body(req){
-  let raw='';
-  for await(const part of req){raw+=part;requireValue(raw.length<8192,'Solicitud demasiado grande',413);}
+  let raw='',size=0;
+  for await(const part of req){size+=part.length;raw+=part;requireValue(size<=16384,'Solicitud demasiado grande',413);}
   try{return JSON.parse(raw);}catch{throw Object.assign(new Error('JSON inválido'),{status:400});}
 }
 const server=http.createServer(async(req,res)=>{
@@ -134,9 +134,12 @@ const server=http.createServer(async(req,res)=>{
   }catch(e){json(e.status||500,{error:e.status?e.message:'Error del servidor'});}
 });
 function submitInput(room,token,data){
-    const input=data.input||{};
+    const incoming=data.input||{},input={};
+    for(const key of ['w','a','s','d','tap','fire'])input[key]=incoming[key]===true;
+    for(const key of ['stamp','width','height','reach','angle','dx','dy'])if(Number.isFinite(incoming[key]))input[key]=incoming[key];
+    if(Array.isArray(incoming.frames))input.frames=incoming.frames.slice(0,48);
     for(const k of ['dx','dy']) input[k]=Number.isFinite(input[k])?Math.max(-2000,Math.min(2000,input[k])):0;
-    const actions=(Array.isArray(data.actions)?data.actions:[]).filter(a=>a && (a.kind==='inventory'||Number.isInteger(a.i)&&a.i>=0&&a.i<5));
+    const actions=(Array.isArray(data.actions)?data.actions:[]).filter(a=>a && (a.kind==='inventory'||['slot','pick','equip'].includes(a.kind)&&Number.isInteger(a.i)&&a.i>=0&&a.i<5&&(a.kind!=='equip'||a.card===null||typeof a.card==='string'&&a.card.length<=40)));
     room.game.input(token,input,actions);
 }
 
@@ -150,6 +153,7 @@ server.on('upgrade',(req,socket,head)=>{
 });
 wsServer.on('connection',ws=>{
   let room,token,timer,serial=0,seen=0,compact=false;
+  let budget=120,lastMessage=performance.now();
   const authTimer=setTimeout(()=>ws.close(1008),5000);
   ws.on('error',()=>ws.terminate());
   ws.on('close',()=>{
@@ -158,12 +162,14 @@ wsServer.on('connection',ws=>{
   });
   ws.on('message',raw=>{
     try{
+      const now=performance.now();budget=Math.min(120,budget+(now-lastMessage)*.09);lastMessage=now;
+      if(--budget<0){ws.close(1008,'Demasiados mensajes');return;}
       const data=JSON.parse(raw);
       if(!room){
         room=rooms.get(data.code);token=data.token;compact=data.shotFormat===1;
         if(!room?.members.has(token)){ws.close(1008);return;}
         clearTimeout(authTimer);
-        sockets.get(token)?.close(1000);
+        sockets.get(token)?.close(1000);streams.get(token)?.end();
         sockets.set(token,ws);
         ws.send(JSON.stringify({type:'ready'}));
         timer=setInterval(()=>{

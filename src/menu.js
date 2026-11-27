@@ -1,11 +1,13 @@
 'use strict';
 const ENEMY_NAMES={pulseRing:'Anillo pulsante',erratic:'Cuadrado errático',twinCannon:'Cañón gemelo',rebound:'Círculo rebotador',tackler:'Tacleador',splitter:'Divisor',cannon:'Cañón',frostMage:'Hechicero helado',normal:'Normal',fast:'Veloz',tank:'Tanque',shooter:'Tirador',invoker:'Invocador',teleporter:'Teletransportador',kamikaze:'Kamikaze',dardante:'Dardante',juggernaut:'Juggernaut',...BOSS_NAMES};
 let netSession=null, queuedActions=[], inventoryChoice=null;
+let actionSeq=0;
+function sendGameAction(action){queuedActions.push({...action,id:++actionSeq,offer:action.kind==='pick'?state.offerId:undefined});}
 const multiplayerServer = String(window.MULTIPLAYER_SERVER_URL || '').replace(/\/$/, '');
 function handleNetKey(e){
   const k=e.key.toLowerCase();
-  if(k==='e'||(k==='escape'&&state.inventoryOpen)){ if(!e.repeat)queuedActions.push({kind:'inventory'}); }
-  else if(/^[1-5]$/.test(k)){if(!e.repeat)queuedActions.push({kind:state.cardChoices?'pick':'slot',i:Number(k)-1});}
+  if(k==='e'||(k==='escape'&&state.inventoryOpen)){ if(!e.repeat)sendGameAction({kind:'inventory'}); }
+  else if(/^[1-5]$/.test(k)){if(!e.repeat)sendGameAction({kind:state.cardChoices?'pick':'slot',i:Number(k)-1});}
   else if(k!=='r')return false;
   e.preventDefault();return true;
 }
@@ -15,25 +17,25 @@ function handleNetClick(e){
   if(state.over)return true;
   if(state.cardChoices){
     const i=state.cardRects.findIndex(hit);
-    if(i>=0)queuedActions.push({kind:'pick',i});
+    if(i>=0)sendGameAction({kind:'pick',i});
     return true;
   }
   if(state.inventoryOpen){
     const card=state.inventoryCardRects.find(hit);
     if(card)inventoryChoice=card.id;
     const i=state.inventorySlotRects.findIndex(hit);
-    if(i>=0&&(inventoryChoice||e.button===2))queuedActions.push({kind:'equip',i,card:e.button===2?null:inventoryChoice});
+    if(i>=0&&(inventoryChoice||e.button===2))sendGameAction({kind:'equip',i,card:e.button===2?null:inventoryChoice});
     return true;
   }
   return false;
 }
 async function roomRequest(action,data){
   let response;
-  try {response=await fetch(multiplayerServer+'/api/'+action,data?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}:{cache:'no-store'});}
+  try {response=await fetch(multiplayerServer+'/api/'+action,data?{method:'POST',signal:AbortSignal.timeout(action==='step'?5500:60000),headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}:{cache:'no-store',signal:AbortSignal.timeout(6000)});}
   catch {throw Error('No se pudo conectar con el servidor de salas.');}
   if(!response.headers.get('content-type')?.includes('application/json'))throw Error('El multijugador requiere abrir el juego desde su servidor Node.');
   const result=await response.json();
-  if(!response.ok)throw Error(result.error);
+  if(!response.ok)throw Object.assign(Error(result.error),{status:response.status});
   return result;
 }
 let syncLocalUI=()=>{};
@@ -176,7 +178,7 @@ function initializeMenu(){
     const profile={name:identity.elements.nick.value.trim(),color:identity.elements.color.value};
     try{
       const r=await roomRequest(creating?'create':'join',{code,settings:multiplayerSettings,profile});
-      resetPresentation();
+      resetPresentation();actionSeq=0;queuedActions=[];
       rules={...r.settings,color:profile.color};state=r.state;netSession={code:r.code,token:r.token,shotFormat:1};start('online');
       const session=netSession;
       let socket=null,live=false,lastFrameSent=0,seen=0,nextPing=0,nextAttempt=0,lastStateAt=0;
@@ -185,7 +187,7 @@ function initializeMenu(){
         if(session!==netSession || next.time<state.time || (next.ack??0)<(state.ack??0))return;
         if(next.shotTable){next.enemyBullets=unpackHostileShots(next.shotTable);delete next.shotTable;}
         const now=performance.now();
-        lastStateAt=now;
+        lastStateAt=now;queuedActions=queuedActions.filter(a=>a.id>(next.actionAck||0));
         prepareMotion(state,next,now);
         state=next;state.inventorySelection=inventoryChoice;
         currentWalls=state.arena?state.arena.walls:getVisibleChunks(state.cam);
@@ -227,7 +229,7 @@ function initializeMenu(){
             // Ordered delivery lets us send new frames immediately, without waiting for the next ACK.
             const frames=inputHistory.filter(c=>c[0]>lastFrameSent).slice(-48);
             if(frames.length || queuedActions.length || seen){
-              socket.send(JSON.stringify({type:'input',seen,input:controls(frames,now),actions:queuedActions.splice(0)}));
+              socket.send(JSON.stringify({type:'input',seen,input:controls(frames,now),actions:queuedActions.slice(0,16)}));
               if(frames.length)lastFrameSent=frames.at(-1)[0];
               seen=0;
             }
@@ -238,9 +240,13 @@ function initializeMenu(){
           }
         }else if(fallbackBusy<3 && now-lastFallback>=60){
           lastFallback=now;fallbackBusy++;
-          roomRequest('step',{...session,input:controls(inputHistory.slice(-48),now),actions:queuedActions.splice(0)})
+          roomRequest('step',{...session,input:controls(inputHistory.slice(-48),now),actions:queuedActions.slice(0,16)})
             .then(next=>{if(!live && session===netSession){netPingMs=performance.now()-now;accept(next);}})
-            .catch(err=>{if(!live && session===netSession)end(err.message);})
+            .catch(err=>{
+              if(live||session!==netSession)return;
+              if(err.status===403||err.status===404)end('La sala se cerró o caducó la sesión.','lobby');
+              else el('playerInfo').textContent='Reconectando con la sala '+session.code+'…';
+            })
             .finally(()=>{fallbackBusy--;});
         }
         setTimeout(sync,20);

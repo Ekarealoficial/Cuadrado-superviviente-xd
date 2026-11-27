@@ -9,7 +9,7 @@ function spawnBullet(x, y, angle, speed, opts, list = state.bullets) {
     r: opts.radius !== undefined ? opts.radius : 4,
     life: 1.6*(1+.15*(state.player.persist||0)),persist:state.player.persist||0,style:opts.style, viewDelay:opts.viewDelay || 0,
     venom: state.player.venom || 0,
-    volley: opts.volley, lane: opts.lane,
+    volley: opts.volley, lane: opts.lane, batch:opts.batch,
     drone: !!opts.drone,inverted:opts.inverted,
     bounces: opts.bounces || 0,
     homing: !!opts.homing,
@@ -18,7 +18,7 @@ function spawnBullet(x, y, angle, speed, opts, list = state.bullets) {
   });
 }
 
-function shoot(n, commandId = 0, preview = null, cycles = 1) {
+function shoot(n, commandId = 0, preview = null, cycles = 1, batch = 0) {
   const p = state.player;
   const list = preview || state.bullets;
   const random = commandId ? makeRng(commandId) : gameRandom;
@@ -31,7 +31,7 @@ function shoot(n, commandId = 0, preview = null, cycles = 1) {
     spawnBullet(x,y,a,speed,{
       homing:random() < p.homingChance, dupli:random() < p.dupliChance ? p.dupliCount : 0,
       bounces:p.bounces, damage:Math.min(Number.MAX_VALUE,cycles*(1+Math.floor(p.sizeLevel*.75))), radius:4+p.sizeLevel*1.2,
-      viewDelay:commandId && !preview ? state.viewDelay : 0, volley,lane
+      viewDelay:commandId && !preview ? state.viewDelay : 0, volley,lane,batch
     },list);
     if (!preview) spawnParticles(x,y,2,lane<0?'#c77dff':'#9ef7ff',.5);
   }

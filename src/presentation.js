@@ -6,6 +6,11 @@ function viewLead(now){
   return clamp(((netPingMs||0)*.5+now-receivedAt)/1000,0,.10);
 }
 function prepareMotion(old,next,now){
+  const confirmedShots=reconcileContacts(next,now);
+  for(const preview of previewShots){
+    const authoritative=confirmedShots.get(shotKey(preview,next.selfId));
+    if(authoritative&&!preview.occluded&&!authoritative.blendFrom){authoritative.blendFrom=point(preview);authoritative.blendAt=now;}
+  }
   reconcilePlayer(old,next);
   motion=[];patternClocks=[];receivedAt=now;
   const positions=new Map();
@@ -16,14 +21,17 @@ function prepareMotion(old,next,now){
     positions.set(id,{x:e.x,y:e.y,time:next.time});
     const dt=prior ? next.time-prior.time : 0;
     const dx=prior?e.x-prior.x:0,dy=prior?e.y-prior.y:0;
-    if(dt<0 || dt>.2 || Math.hypot(dx,dy)>80)return;
+    if(dt<0 || dt>.45 || (group!=='bullets' && Math.hypot(dx,dy)>Math.max(80,1800*dt)))return;
     let vx=e.vx,vy=e.vy;
+    if(group==='enemies'&&dt>0){vx=dx/dt;vy=dy/dt;}
+    if(group==='bullets'&&prior?.shot?.rejectedUntil>now){e.rejectedUntil=prior.shot.rejectedUntil;e.blendFrom=prior.shot.blendFrom;e.blendAt=prior.shot.blendAt;}
+    if(group==='bullets')positions.get(id).shot=e;
     if(group==='ball' && e.state!=='flying'){vx=undefined;vy=undefined;}
     if(!Number.isFinite(vx)||!Number.isFinite(vy)){
       if(dt<=0)return;
       vx=dx/dt;vy=dy/dt;
     }
-    motion.push({e,x:e.x,y:e.y,vx,vy});
+    motion.push({e,x:e.x,y:e.y,vx,vy,shot:group==='bullets'});
   }
   for(const group of ['peers','enemies','bullets','enemyBullets','enemyDarts','orbs','potions']){
     (next[group]||[]).forEach((e,i)=>track(group,e,i));
@@ -41,13 +49,18 @@ function prepareMotion(old,next,now){
   }
   lastPositions=positions;
   previewLasers=previewLasers.filter(l=>l.commandId>(next.ack ?? 0));
-  previewShots=previewShots.filter(b=>b.volley>(next.ack ?? next.player.volley ?? 0));
+  previewShots=previewShots.filter(b=>!confirmedShots.has(shotKey(b,next.selfId))&&b.volley>(next.ack??next.player.volley??0));
 }
 function animateMotion(now){
   const dt=viewLead(now);
-  for(const {e,x,y,vx,vy} of motion){
+  for(const {e,x,y,vx,vy,shot} of motion){
     const tx=x+vx*dt,ty=y+vy*dt;
-    if(!pointInWall(tx,ty,currentWalls)){e.x=tx;e.y=ty;}
+    if(!pointInWall(tx,ty,currentWalls)){
+      if(shot&&e.shooterId===state.selfId&&!e.occluded)predictContact(e,tx,ty,now);
+      const blend=e.blendFrom?clamp((now-e.blendAt)/100,0,1):1;
+      e.x=blend===1?tx:e.blendFrom.x+(tx-e.blendFrom.x)*blend;
+      e.y=blend===1?ty:e.blendFrom.y+(ty-e.blendFrom.y)*blend;
+    }
   }
   for(const {b,age,clock,secondary} of patternClocks){
     b.age=age+dt;b.clock=clock+dt;if(secondary)continue;
@@ -63,6 +76,7 @@ let inputHistory=[], correction={x:0,y:0}, previewShots=[], unconfirmedTime=0;
 let previewLasers=[],localCharge=0;
 let commandNumber=0, previewCooldown=0, pendingTap=false, previewTap=false;
 function resetPresentation(){
+  lastProvisional.clear();visualFrame=-1;pendingContacts.clear();impactLights.length=0;seenImpact=0;
   previewLasers=[];localCharge=0;netPingMs=null;lastPositions.clear();motion=[];patternClocks=[]; receivedAt=0; inputHistory=[]; correction={x:0,y:0};
   previewShots=[]; commandNumber=0; previewCooldown=0; pendingTap=false; previewTap=false;
   unconfirmedTime=0;
@@ -134,17 +148,12 @@ function predictLocalFrame(now,dt){
   }
   previewTap=false;
   if(state.stopUntil>state.time)return;
-  if(previewShots.length)enemyGrid.rebuild(state.enemies);
+
   for(const b of previewShots){
     advanceBullet(b,p,dt);
     const wall=currentWalls.find(w=>aabbOverlapCircle(b.x,b.y,b.r,w));
-    if(!wall && !b.dupli && !b.bounces){
-      const travel=Math.hypot(b.x-b.prevX,b.y-b.prevY);
-      const targets=enemyGrid.query(b.x,b.y,45+b.r+travel);
-      if(state.boss){
-        targets.push(...bossTargets(),...livingBosses().flatMap(b=>b.balls.filter(ball=>ball.state!=='attached')));
-      }
-      if(targets.some(e=>bulletEntry(b,e,(e.size?e.size/2:e.r)+b.r)!==Infinity))b.life=0;
+    if(!wall&&!b.occluded){
+      const end=point(b);b.x=b.prevX;b.y=b.prevY;predictContact(b,end.x,end.y,now);Object.assign(b,end);
     }
     if(wall){
       if(b.bounces || b.dupli){reflectBulletOffWall(b,wall);if(b.bounces)b.bounces--;}

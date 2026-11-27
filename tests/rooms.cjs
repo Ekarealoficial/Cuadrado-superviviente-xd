@@ -210,3 +210,34 @@ test('La persecución comparte terreno y daño, concede cuatro Dash por particip
   const a=r.snapshot('a');a.player.x=boss.x;a.player.invuln=0;const hp=a.halfHearts;
   r.tick(1/30);assert.ok(r.snapshot('a').halfHearts<hp);
 });
+
+for(const count of [2,4,8,12])test('Impactos autoritativos con '+count+' participantes, latencia y reintentos',()=>{
+  for(const rtt of [30,60,120,200,350]){
+    const room=engine({xp:1,difficulty:1,disabled,pvp:false});
+    const ids=Array.from({length:count},(_,i)=>'jugador'+i);
+    for(const id of ids)room.add(id,{name:id});
+    const enemy={x:130,y:0,type:'normal',size:20,speed:0,hp:1000,maxHp:1000,wob:0,color:'#faf'};
+    room.snapshot(ids[0]).enemies.push(enemy);
+    const acked=new Set(),events=new Map();
+    const frames=[[1,1/30,0,0,0,true,0]];
+    for(let tick=0;tick<30;tick++){
+      for(const [i,id] of ids.entries()){
+        // Stagger input delivery and retransmit one lost packet per four senders.
+        const delay=Math.ceil((rtt/2+(i%3)*12)/33)+(i%4===0?2:0);
+        if(tick===delay||tick===delay+2)room.input(id,{stamp:tick,frames},[]);
+      }
+      room.tick(1/30);
+      for(const h of room.snapshot(ids[0]).impacts)events.set(h.seq,h);
+      for(const id of ids)if(room.snapshot(id).ack===1)acked.add(id);
+    }
+    assert.equal(acked.size,count);
+    assert.equal(events.size,count);assert.equal(enemy.hp,1000-count);
+    assert.equal(new Set([...events.values()].map(h=>h.shooterId)).size,count);
+    for(const id of ids)assert.deepEqual(room.snapshot(id).impacts,room.snapshot(ids[0]).impacts);
+  }
+});
+test('Una acción reenviada después de reconectar se confirma una sola vez',()=>{
+  const r=engine({xp:1,difficulty:1,disabled});r.add('a',{});
+  for(let i=0;i<8;i++){r.input('a',{stamp:i},[{id:1,kind:'inventory'}]);r.tick(1/30);}
+  assert.equal(r.snapshot('a').inventoryOpen,true);assert.equal(r.snapshot('a').actionAck,1);
+});

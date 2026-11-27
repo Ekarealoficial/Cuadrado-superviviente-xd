@@ -95,11 +95,11 @@ window.addEventListener('DOMContentLoaded',()=>{
     drawCardIcon(32,32,40,card,card.color,icon.getContext('2d'));return icon;
   }
   const slots=Array.from({length:5},(_,i)=>button(el('touchSlots'),String(i+1),()=>{
-    ensureAudio();if(playMode==='online')queuedActions.push({kind:'slot',i});else useSlot(i);
+    ensureAudio();if(playMode==='online')sendGameAction({kind:'slot',i});else useSlot(i);
   }));
   function bag(){
     clear();selected=null;
-    if(playMode==='online')queuedActions.push({kind:'inventory'});
+    if(playMode==='online')sendGameAction({kind:'inventory'});
     else{state.inventoryOpen=!state.inventoryOpen;state.laserCharging=false;state.laserChargeTime=0;}
   }
   el('bag').onclick=bag;
@@ -123,7 +123,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     }else if(view==='reward'){
       title.textContent=state.bonusPicks?'Botín del jefe · '+state.bonusPicks+' por elegir':'Elige una mejora';
       for(const [i,c] of state.cardChoices.entries()){
-        const b=button(panel,c.name,()=>playMode==='online'?queuedActions.push({kind:'pick',i}):pickCard(c));
+        const b=button(panel,c.name,()=>playMode==='online'?sendGameAction({kind:'pick',i}):pickCard(c));
         const desc=document.createElement('small');desc.textContent=c.desc;b.append(desc);b.prepend(cardIcon(c));b.style.setProperty('--accent',c.color);
       }
     }else if(view==='inventory'){
@@ -136,7 +136,7 @@ window.addEventListener('DOMContentLoaded',()=>{
         const b=button(row,String(i+1),()=>{
           if(selected===null)return;
           const card=selected||null;
-          if(playMode==='online')queuedActions.push({kind:'equip',i,card});else state.slots[i]=card;
+          if(playMode==='online')sendGameAction({kind:'equip',i,card});else state.slots[i]=card;
         });
         b.setAttribute('aria-label','Ranura '+(i+1)+' · '+(c?.name||'Vacía'));
         if(c){b.append(cardIcon(c));note(b,'').dataset.charge=id;}else note(b,'Vacía');

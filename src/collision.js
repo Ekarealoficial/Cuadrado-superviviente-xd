@@ -77,7 +77,7 @@ const combatHistory=new WeakMap();
 function rememberPosition(e,time){
   const points=combatHistory.get(e)||[];
   points.push({x:e.x,y:e.y,time});
-  if(points.length>8)points.shift();
+  if(points.length>14)points.shift();
   combatHistory.set(e,points);
 }
 function combatPosition(e,delay){

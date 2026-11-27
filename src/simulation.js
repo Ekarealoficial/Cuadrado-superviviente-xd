@@ -347,7 +347,7 @@ function movePlayer(p,dt,dx,dy,walls) {
 }
 
 function applyControl(dt, direction, command) {
-  state.viewDelay=Number.isFinite(command?.[6]) ? clamp(state.time-command[6],0,.18) : 0;
+  state.viewDelay=Number.isFinite(command?.[6]) ? clamp(state.time-command[6],0,.35) : 0;
   const p=state.player;
   movePlayer(p,dt,direction.x,direction.y,currentWalls);
   fitPlayerInArena(p,state.arena);
@@ -412,7 +412,7 @@ function shootDue(p,lines,dt,command){
   const batches=Math.max(1,Math.min(count,footprints,Math.ceil(free/Math.max(1,lines+p.backShots))));
   for(let i=0;i<batches;i++){
     const cycles=Math.floor(count/batches)+(i<count%batches?1:0);
-    shoot(lines,command?.[0],null,cycles);
+    shoot(lines,command?.[0],null,cycles,i);
   }
 }
 function update_movementAndWeapons(dt, worldStep = true, commands = null) {
@@ -861,6 +861,7 @@ function reboundFromTarget(shot, surface, center, radius) {
   return true;
 }
 
+let onRoomImpact=null;
 function update_projectileHits() {
   enemyGrid.rebuild(state.enemies);
   const bosses=bossTargets();
@@ -882,7 +883,9 @@ function update_projectileHits() {
     }
     if (!victim) continue;
     shot.x-=dx*(1-first);shot.y-=dy*(1-first);
+    const hpBefore=victim.hp;
     projectileImpact(victim,shot,victim===surface?1:BALANCE.ballDamage);
+    if(onRoomImpact)onRoomImpact(shot,victim,Math.max(0,hpBefore-Math.max(0,victim.hp)));
     victim.hitFlash=.12;
     spawnParticles(shot.x,shot.y,5,victim.color,.6);
     if(victim.hp<=0)finishTarget(victim);

@@ -5,6 +5,13 @@
   const world = newState();
   const shared = 'encounterRoster nextBossId groupSize bossCues bossCueId cardRelics remnants cosmicZones extraBosses completedEncounters unlockTimes firstBossDefeatAt iceZones stopStarted stopUntil time enemies enemyBullets enemyDarts orbs potions spawnTimer potionTimer boss bossEncounters bossActive arena bossBombs bossLasers bossLaserActive bossLaserTimer bossSpawnTimer bossCycle bossOmen enemyHpMult spawnRateMult adaptiveCheckTimer'.split(' ');
   const party = new Map();
+  let impactSerial=0;
+  const impacts=[];
+  onRoomImpact=(shot,target,damage)=>{
+    shot.contacts=(shot.contacts||0)+1;
+    impacts.push({seq:++impactSerial,time:world.time,shooterId:state.ownerId,volley:shot.volley,lane:shot.lane,batch:shot.batch,
+      netId:wireId(shot),targetId:wireId(target),contact:shot.contacts,x:shot.x,y:shot.y,color:target.color,damage});
+  };
   function add(id, profile) {
     const personal = newState();
     for (const key of shared) Object.defineProperty(personal,key,{
@@ -13,9 +20,11 @@
     const leader = party.values().next().value;
     if (leader) Object.assign(personal.player,{x:leader.state.player.x,y:leader.state.player.y});
     personal.player.color = profile.color;
-    party.set(id,{state:personal,profile,input:{},actions:[],queue:[],ack:0,credit:0,sequenced:false});
+    const member={state:personal,profile,input:{},actions:[],queue:[],ack:0,credit:0,sequenced:false,actionAck:0};
+    personal.ownerId=wireId(member);party.set(id,member);
   }
   function tick(dt) {
+    let expired=0;while(expired<impacts.length&&world.time-impacts[expired].time>1)expired++;if(expired)impacts.splice(0,expired);
     for(const group of [world.enemies,world.enemyBullets,world.enemyDarts])
       for(const e of group)rememberPosition(e,world.time);
     for(const boss of [world.boss,...world.extraBosses].filter(Boolean)){
@@ -51,8 +60,9 @@
       }
       if (Number.isFinite(member.inputTime)) member.inputTime += dt * 1000;
       for (const action of member.actions.splice(0)) {
+        if(action.id)member.actionAck=action.id;
         if (state.over) continue;
-        if (action.kind==='pick' && state.cardChoices?.[action.i]) pickCard(state.cardChoices[action.i]);
+        if (action.kind==='pick' && (action.offer==null||action.offer===state.offerId) && state.cardChoices?.[action.i]) pickCard(state.cardChoices[action.i]);
         if (action.kind==='inventory' && !state.cardChoices) state.inventoryOpen=!state.inventoryOpen;
         if (action.kind==='slot' && !state.inventoryOpen && !state.cardChoices){
           if(state.slots[action.i]==='reverse' && state.specialCards.reverse.charges){
@@ -131,7 +141,7 @@
       b.shooterId = wireId(m);
       return b;
     }));
-    return {...self.state, bullets, selfId:wireId(self), inputTime:self.inputTime, ack:self.ack, controlVersion:2,
+    return {...self.state, impacts,actionAck:self.actionAck, bullets, selfId:wireId(self), inputTime:self.inputTime, ack:self.ack, controlVersion:2,
       peers:others.map(m=>{
         const s=m.state, p=s.player;
         return {...m.profile,netId:wireId(m),x:p.x,y:p.y,size:p.size,angle:p.angle,
@@ -145,7 +155,12 @@
   return {add,tick,snapshot,remove:id=>party.delete(id),input(id,input,actions){
     const member=party.get(id);
     if (Number.isFinite(input.stamp) && input.stamp <= (member.input.stamp ?? -1)) return;
-    member.actions.push(...actions.slice(0,32-member.actions.length));
+    let lastAction=member.actions.at(-1)?.id||member.actionAck;
+    for(const a of actions){
+      if(member.actions.length>=32)break;
+      if(a.id!=null){if(!Number.isSafeInteger(a.id)||a.id!==lastAction+1)continue;lastAction=a.id;}
+      member.actions.push(a);
+    }
     if (Array.isArray(input.frames)) {
       member.sequenced=true;
       let last=member.queue.at(-1)?.[0] ?? member.ack;
@@ -154,7 +169,7 @@
             !Number.isFinite(c[1]) || c[1]<=0 || c[1]>.05 ||
             !Number.isFinite(c[2]) || Math.abs(c[2])>1 || !Number.isFinite(c[3]) || Math.abs(c[3])>1 || !Number.isFinite(c[4])) continue;
 
-        member.queue.push(c); last=c[0];
+        member.queue.push([c[0],c[1],c[2],c[3],c[4],c[5]===true||c[5]===1,Number.isFinite(c[6])?c[6]:null]); last=c[0];
       }
       // After a stall, accept only a bounded interval of recent controls.
       let duration=0;
