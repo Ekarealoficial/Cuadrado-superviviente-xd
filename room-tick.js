@@ -147,7 +147,7 @@
         const s=m.state, p=s.player;
         return {...m.profile,netId:wireId(m),x:p.x,y:p.y,size:p.size,angle:p.angle,
           vx:p.vx,vy:p.vy,backShots:p.backShots,dashTimer:p.dashTimer,invuln:p.invuln,
-          scalePulse:p.scalePulse,geometryFX:p.geometryFX,kinetic:p.kinetic,movingTime:p.movingTime,crush:p.crush,anchor:p.anchor,army:p.army&&{n:p.army.n},needles:p.needles,
+          actCasts:p.actCasts,fireTime:p.fireTime,capacitor:p.capacitor,nearby:p.nearby,survivalUntil:p.survivalUntil,scalePulse:p.scalePulse,geometryFX:p.geometryFX,kinetic:p.kinetic,movingTime:p.movingTime,crush:p.crush,anchor:p.anchor,army:p.army&&{n:p.army.n},needles:p.needles,
           dashGiftAt:p.dashGiftAt,pulses:p.pulses?.filter(hit=>world.time-hit.born<.7),fury:p.fury,missingHealth:1-s.halfHearts/s.maxHalfHearts,beam:p.beam,plasma:p.plasma,cast:p.cast,iceUntil:p.iceUntil,field:p.field,burst:p.burst,impact:p.impact,blades:p.blades,echoes:p.echoes,
           drones:s.drones,shields:s.shields,darts:s.darts.map(({x,y,angle,type})=>({x,y,angle,type})),
           laserCharging:s.laserCharging,laserChargeTime:s.laserChargeTime,lasersFiring:s.lasersFiring,over:s.over};

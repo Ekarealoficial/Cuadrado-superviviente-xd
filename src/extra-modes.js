@@ -1,13 +1,17 @@
 'use strict';
-const EXTRA_NAMES={siege:'Asedio Infinito',trial:'Contrarreloj',chaos:'Caos Geométrico'};
+const EXTRA_NAMES={daily:'Desafío diario',duel:'Duelo de jefes',pursuit:'Persecución infinita',siege:'Asedio Infinito',trial:'Contrarreloj',chaos:'Caos Geométrico'};
 const CHAOS_RULES={rain:'Lluvia de proyectiles',haste:'Velocidad alterada',gravity:'Gravedad circular',
   laser:'Sobrecarga de láseres',double:'Oleada duplicada',energy:'Carga de energía'};
 function beginExtra(id){
   if(!Object.hasOwn(EXTRA_NAMES,id))return;
+  if(id==='daily')rules={...rules,...dailyChallenge()};
   restart();
   state.extra={id,wave:0,cleared:0,next:1,timer:0,remaining:0,phase:'rest',bosses:0,
     milestones:0,modifiers:0,bag:[],zones:[],rays:[],nextChange:30,modifier:null};
   state.extra.wave=(rules.wave||1)-1;state.extra.duration=(rules.duration||10)*60;state.extra.nextChange=rules.chaosPeriod||30;
+  if(id==='daily')state.extra.day=rules.day;
+  if(id==='pursuit')startPursuit(state.extra);
+  if(id==='duel'){rules.boss||='boss';spawnEncounter([rules.boss]);}
   state.spawnTimer=.1;
 }
 function extraSpawn(type,angle=gameRandom()*TAU){
@@ -106,10 +110,14 @@ function updateChaos(m,dt){
 function updateExtra(dt){
   const m=state.extra;
   if(m.id==='siege')updateSiege(m,dt);
-  if(m.id==='trial')updateTrial(m);
+  if(m.id==='trial'||m.id==='daily')updateTrial(m);
+  if(m.id==='daily'&&!state.over)updateChaos(m,dt);
+  if(m.id==='duel'&&!state.bossActive&&m.bosses){m.won=true;state.over=true;}
+  if(m.id==='pursuit')advancePursuit(m,dt);
   if(m.id==='chaos')updateChaos(m,dt);
 }
 function drawExtraField(m){
+  if(m.wall)drawPursuit(m);
   ctx.save();
   for(const z of m.zones){
     ctx.strokeStyle=z.pull?'#bd84f2':'#78e7de';ctx.lineWidth=2;
@@ -121,6 +129,9 @@ function drawExtraField(m){
   ctx.restore();
 }
 function extraHUD(m){
+  if(m.id==='daily')return clockText(600-state.time)+' · DESAFÍO DIARIO '+m.day+' · '+state.score+' pts';
+  if(m.id==='duel')return BOSS_NAMES[rules.boss]+' · '+clockText(state.time)+' · '+(state.damageTaken||0)/2+' ♥ recibidos';
+  if(m.id==='pursuit')return 'PERSECUCIÓN · '+m.distance+' px · Próxima carta '+m.upgradeAt+' px';
   if(m.id==='siege')return 'ASEDIO · OLEADA '+m.wave+'\n'+(m.phase==='rest'?'Próxima en '+Math.ceil(m.next)+' s':(m.remaining+state.enemies.length+livingBosses().length)+' restantes')+' · Especial '+(5*(1+Math.floor(m.wave/5)));
   if(m.id==='trial')return clockText((m.duration||600)-state.time)+' · CONTRARRELOJ\n'+state.score+' puntos';
   return 'CAOS GEOMÉTRICO\n'+([m.modifier,m.secondary].filter(Boolean).map(k=>CHAOS_RULES[k]).join(' + ')||'Próximo cambio')+' · '+Math.ceil((m.modifier?m.until:m.nextChange)-state.time)+' s';
@@ -133,5 +144,5 @@ function extraResults(m){
     rows.unshift(['Resultado',m.won?'Tiempo completado':'Derrota']);
     try{const key='cs.trial.best',best=Math.max(Number(localStorage.getItem(key))||0,state.score);localStorage.setItem(key,String(best));rows.push(['Récord local',best]);}catch{}
   }
-  return rows;
+  return actModeResults(m,rows);
 }

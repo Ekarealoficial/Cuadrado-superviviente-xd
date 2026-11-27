@@ -1,5 +1,5 @@
 'use strict';
-const GEOMETRY_NORMALS=[
+const GEOMETRY_NORMALS=[...ACT_NORMALS,
  ['mini','Miniatura','Reduce el tamaño un 6 % y aumenta la velocidad un 2 %.','#6fffe6','⌗'],
  ['giant','Gigantismo','Aumenta el tamaño un 8 % y el daño de contacto un 12 %.','#ff9e5c','⛶'],
  ['resonance','Resonancia','Cada 12 impactos libera una onda. +12 % de radio y +10 % de daño por copia adicional.','#62e8f2','◎'],
@@ -9,7 +9,7 @@ const GEOMETRY_NORMALS=[
  ['tide','Marea de proyectiles','Cada siete ciclos dispara cinco balas en abanico. +2 por copia adicional.','#73bfff','⋔'],
  ['reaction','Reacción defensiva','Al recibir daño, empuja e hiere alrededor. +15 % de radio y daño por copia adicional.','#b8eaff','◈']
 ];
-const GEOMETRY_SPECIALS=[
+const GEOMETRY_SPECIALS=[...ACT_SPECIALS,
  ['crush','Colapso geométrico','Atrae durante 1,5 s y comprime un cuadrado en el puntero. +15 % de tamaño y +20 % de daño por copia.',38,'#ff77cc','⊠'],
  ['army','Ejército de réplicas','Dos réplicas imitan tus disparos durante 6 s. +1 réplica y +0,5 s por copia.',50,'#c190ff','▦'],
  ['anchor','Ancla temporal','Suspende proyectiles en un círculo durante 4 s y los devuelve al expirar. +12 % de radio y +0,5 s por copia.',55,'#79c7ff','◷'],
@@ -95,6 +95,7 @@ function geometryVolley(p,cycles=1,lines=p.shots){
   if(p.army)p.army.queue.push({angle:p.angle,cycles,lines,delay:.14});
 }
 function castGeometry(id,p,n,aim){
+  if(ACT_SPECIALS.some(c=>c[0]===id))actCast(id,p,n,aim);
   if(id==='crush')p.crush={...aim,age:0,r:110*(1+.15*(n-1)),damage:12*(1+.2*(n-1))};
   if(id==='army')p.army={time:6+.5*(n-1),n:n+1,queue:[]};
   if(id==='anchor')p.anchor={time:4+.5*(n-1),r:120*(1+.12*(n-1)),held:p.anchor?.held||[]};
@@ -102,6 +103,7 @@ function castGeometry(id,p,n,aim){
   bossCue(id,p);
 }
 function updateGeometryCards(p,dt){
+  updateActCards(p,dt);
   if(p.geometryFX)p.geometryFX=p.geometryFX.filter(z=>state.time-z.born<.65);
   if(p.kinetic){
     if(Math.hypot(p.vx,p.vy)>15){p.movingTime=(p.movingTime||0)+dt;p.stillTime=0;}

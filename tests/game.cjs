@@ -889,3 +889,22 @@ test('Configuración de partida conserva semilla cero, amenaza y reloj proporcio
  assert.ok(run('state.bossActive && state.threat>=3 && state.extra.duration===300'));
  run('state.time=300;updateTrial(state.extra)');assert.ok(run('state.extra.won && state.over'));
 });
+
+test('Acto I: rebotes y recorrido real, fuego sostenido y resistencia en el Dash',()=>{
+ const run=game();run("const p=state.player;Object.assign(p,{refract:2,compression:1,capacitor:3,dashPulse:2});const b={x:10,y:0,vx:150,vy:0,r:4,life:4,damage:10};advanceBullet(b,p,1);reflectBulletOffWall(b,{x:161,y:-10,w:5,h:20})");
+ assert.ok(Math.abs(run('b.damage')-10*1.06*1.16)<1e-8);
+ assert.equal(run('releaseWeaponControl(p,2,true);capacitorGain(p)'),1.15);assert.equal(run('releaseWeaponControl(p,.71,false);capacitorGain(p)'),1);
+ assert.ok(run('state.enemyBullets=[{x:1,y:0,r:17}];pulseOnDash(p);state.enemyBullets[0].cancelHP<289 && state.enemyBullets[0].cancelHP>0'));
+});
+test('Las cuatro especiales del acto consumen su carga y terminan, sin dejar redes ni arcos',()=>{
+ const run=game();
+ run("for(const [i,[id]] of ACT_SPECIALS.entries()){applyCard(SPECIAL_CARDS.find(c=>c.id===id));state.slots[i]=id;useSlot(i);useSlot(i);}");assert.equal(run('state.player.actCasts.length'),4);
+ run("for(let i=0;i<360;i++){state.time+=1/60;updateActCards(state.player,1/60);if(i%25===0)render();}");
+ assert.ok(run("state.player.actCasts.length===0 && state.bullets.some(b=>b.style==='omega') && state.bullets.filter(b=>b.style==='starTide').length===48"));
+});
+test('Diario UTC reproducible, duelo con final y persecución con puertas y cuatro Dash',()=>{
+ const run=game();assert.ok(run("JSON.stringify(dailyChallenge(new Date('2026-03-09T23:00Z')))===JSON.stringify(dailyChallenge(new Date('2026-03-09T01:00Z')))"));
+ run("playMode='duel';rules.boss='clock';beginExtra('duel');state.boss.hp=0;updateBoss(.01,state.boss);updateExtra(.01)");assert.ok(run('!state.over'));
+ run("playMode='pursuit';beginExtra('pursuit');state.player.invuln=100;for(let i=0;i<650;i++){state.player.x+=2;update(1/60);if(i%60===0)render();if(state.cardChoices)pickCard(state.cardChoices[0]);}");
+ assert.ok(run('state.extra.beat>=4 && state.extra.distance>=900 && state.specialCards.dash.totalCards>=4 && state.arena.x>0'));
+});

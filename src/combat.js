@@ -14,7 +14,7 @@ function spawnBullet(x, y, angle, speed, opts, list = state.bullets) {
     bounces: opts.bounces || 0,
     homing: !!opts.homing,
     dupli: opts.dupli || 0,
-    damage: opts.inheritedDamage ?? (opts.damage ?? 1)*(state.player.movingTime>=2?1+.05*(state.player.kinetic||0):1)
+    damage: opts.inheritedDamage ?? (opts.damage ?? 1)*capacitorGain(state.player)*(state.player.movingTime>=2?1+.05*(state.player.kinetic||0):1)
   });
 }
 
@@ -65,7 +65,7 @@ function cardPulse(kind,target,power=1) {
 function attackMultiplier(target, attacker=state) {
   const p = attacker.player;
   const missing = 1 - attacker.halfHearts / attacker.maxHalfHearts;
-  const base = attacker.playerDamageMult * (1 + missing * 0.5 * p.fury);
+  const base = attacker.playerDamageMult * (1+.04*(p.saturation||0)*(p.nearby||0)) * (1 + missing * 0.5 * p.fury);
   if (!p.critical) return base;
   const upgrades = p.critical - 1;
   const chance = (10 + 5 * (upgrades % 18)) / 100;
@@ -105,6 +105,8 @@ function damagePlayer(amount, piercesPlasma=false) {
   }
   const absorbed=Math.min(amount,state.blueHealth);state.blueHealth-=absorbed;
   state.halfHearts -= amount-absorbed;
+  if(p.survival)p.survivalUntil=state.time+2+.15*p.survival;
+  state.damageTaken=(state.damageTaken||0)+amount;
   p.invuln = 1.0;defensiveReaction(p);
   state.shake = 20 + amount * 5;
   state.flash = 0.4;

@@ -33,7 +33,7 @@ function update(dt, worldStep = true, commands = null) {
   }
   const targetZoom=Math.min(chaseZoom(p),(p.frameTime>0?.86:1)*Math.max(.35,Math.min(1,130/p.size)));
   state.cam.zoom += (targetZoom - state.cam.zoom) * Math.min(1, 4.5 * dt);
-  currentWalls=state.bossActive && state.arena?state.arena.walls:getVisibleChunks(state.cam);
+  currentWalls=state.arena?state.arena.walls:getVisibleChunks(state.cam);
 
   if (state.over) { state.overTimer += dt; return; }
   if (playMode !== 'online' && (state.cardChoices || state.inventoryOpen)) return;
@@ -205,6 +205,7 @@ function updateCardFields(dt,worldStep) {
 }
 
 function reflectBulletOffWall(b, w) {
+  if(state.player.refract){b.damage=Math.min(Number.MAX_VALUE,b.damage*(1+.08*state.player.refract));b.energized=true;spawnParticles(b.x,b.y,3,'#fff');}
   const distLeft   = Math.abs(b.x - w.x);
   const distRight  = Math.abs(b.x - (w.x + w.w));
   const distTop    = Math.abs(b.y - w.y);
@@ -334,10 +335,11 @@ function movePlayer(p,dt,dx,dy,walls) {
   } else {
     const moving = (dx !== 0 || dy !== 0);
     if (moving) { const l = Math.max(1,Math.hypot(dx, dy)); dx /= l; dy /= l; }
+    const speed=p.speed*(p.survivalUntil>state.time?1+.05*p.survival:1);
     const response = moving ? 16 : 11;
     const k = 1 - Math.exp(-response * dt);
-    p.vx += (dx * p.speed * (p.frameTime>0 ? 4 : 1) - p.vx) * k;
-    p.vy += (dy * p.speed * (p.frameTime>0 ? 4 : 1) - p.vy) * k;
+    p.vx += (dx * speed * (p.frameTime>0 ? 4 : 1) - p.vx) * k;
+    p.vy += (dy * speed * (p.frameTime>0 ? 4 : 1) - p.vy) * k;
   }
   if(state.stopUntil<=state.time)pullIntoWells(p,dt,walls);
   const res = moveWithWalls(p, p.vx * dt, p.vy * dt, walls);
@@ -364,7 +366,7 @@ function applyControl(dt, direction, command) {
         p.pendingDashes--;
         const target = getWorldMouse();
         p.dashAngle = Math.atan2(target.y - p.y, target.x - p.x);
-        p.dashTimer = 0.18;
+        p.dashTimer = 0.18;pulseOnDash(p);
         p.invuln = Math.max(p.invuln, 0.3);
         state.specialCards.dash.charges--;
         if (state.specialCards.dash.cooldown <= 0) state.specialCards.dash.cooldown = state.specialCards.dash.cooldownMax;
@@ -380,7 +382,9 @@ function applyControl(dt, direction, command) {
   p.fireCd-=dt;
 
   // Disparo / carga láser
-  if (command ? command[5] && !state.inventoryOpen && !state.cardChoices : mouse.down) {
+  const firing=command ? command[5] && !state.inventoryOpen && !state.cardChoices : mouse.down;
+  releaseWeaponControl(p,dt,firing);
+  if (firing) {
     if (p.laserCount > 0) {
       state.laserCharging = true;
       state.laserChargeTime += dt;
@@ -446,7 +450,11 @@ function update_shieldPositions(dt) {
 
 function advanceBullet(b,p,dt,bosses) {
     b.prevX=b.x;b.prevY=b.y;
-    if (b.homing) {
+    if(b.returned){
+      const angle=angleTo(b,p)+Math.min(.7,Math.hypot(b.x-p.x,b.y-p.y)/650);
+      b.vx=Math.cos(angle)*800;b.vy=Math.sin(angle)*800;
+      if(Math.hypot(b.x-p.x,b.y-p.y)<18+dt*800)b.life=0;
+    }else if (b.homing) {
       const nearest = getNearestTarget(b.x, b.y,bosses);
       if (nearest) {
         const targetAngle = Math.atan2(nearest.y - b.y, nearest.x - b.x);
@@ -461,6 +469,10 @@ function advanceBullet(b,p,dt,bosses) {
       }
     }
     b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
+    if(p.compression){const before=b.compressed||0;b.distance=(b.distance||0)+Math.hypot(b.x-b.prevX,b.y-b.prevY);
+      b.compressed=Math.floor(b.distance/150)*.06*p.compression;
+      if(b.compressed!==before){b.damage=Math.min(Number.MAX_VALUE,b.damage*((1+b.compressed)/(1+before)));b.energized=true;}
+    }
 }
 
 function update_playerProjectiles(dt) {
@@ -470,7 +482,7 @@ function update_playerProjectiles(dt) {
   for (let i = state.bullets.length - 1; i >= 0; i--) {
     const b = state.bullets[i];
     advanceBullet(b,p,dt,targets);
-    if (b.life <= 0) { state.bullets.splice(i, 1); continue; }
+    if (b.life <= 0) {if(!beginReturn(b,p)){omegaBurst(b);state.bullets.splice(i,1);}continue;}
     let removed = false;
     for (const w of currentWalls) {
       if (aabbOverlapCircle(b.x, b.y, b.r, w)) {
@@ -493,7 +505,7 @@ function update_playerProjectiles(dt) {
           spawnParticles(b.x, b.y, 4, '#fbbf24', 0.6);
         } else {
           spawnParticles(b.x, b.y, 4, b.drone ? '#4dff88' : '#9ef7ff', 0.5);
-          state.bullets.splice(i, 1);
+          if(!beginReturn(b,p)){omegaBurst(b);state.bullets.splice(i,1);}else {b.x=b.prevX;b.y=b.prevY;}
           removed = true;
         }
         break;
@@ -552,8 +564,7 @@ function update_projectileCancellation(){
   for(const {s,e,t} of hits){
     if(spent.has(s)||destroyed.has(e))continue;
     spent.add(s);
-    e.cancelHP=(e.cancelHP??e.r**2)-s.r**2;
-    e.cancelHit=state.time;
+    wearProjectile(e,s.r**2);
     const x=(s.prevX??s.x)*(1-t)+s.x*t,y=(s.prevY??s.y)*(1-t)+s.y*t;
     if(e.cancelHP<=0){
       destroyed.add(e);
@@ -633,7 +644,7 @@ function update_enemyProjectileHits(dt) {
 }
 
 function update_spawning(dt) {
-  if(state.rush||state.extra?.id==='siege')return;
+  if(state.rush||['duel','pursuit','siege'].includes(state.extra?.id))return;
   const p=state.player;
   // Spawn
   if (!state.bossActive || state.extra?.id==='trial') {
@@ -890,6 +901,7 @@ function update_projectileHits() {
     spawnParticles(shot.x,shot.y,5,victim.color,.6);
     if(victim.hp<=0)finishTarget(victim);
     else Sfx.play('hit',25);
+    omegaBurst(shot);
     if(!reboundFromTarget(shot,surface,center,radius))state.bullets.splice(i,1);
   }
 }

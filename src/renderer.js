@@ -560,6 +560,8 @@ function renderEntities2() {
   ctx.save();
   for (const b of (playMode==='online' && previewShots.length ? state.bullets.concat(previewShots) : state.bullets)) {
     if(b.occluded)continue;
+    if(b.energized){strokeRing(b.x,b.y,b.r+2,'#fff3bc',2);}
+    if(b.style==='omega'){ctx.save();ctx.translate(b.x,b.y);etchedSquare(b.r,state.time*6,'#ffab92',4);ctx.restore();}
     if(b.style||b.persist){const t=.012+.004*Math.log1p(b.persist||0);ctx.strokeStyle=SHOT_INK[b.style]||'#8faeda';ctx.lineWidth=Math.max(1,b.r*.8);ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.lineTo(b.x-b.vx*t,b.y-b.vy*t);ctx.stroke();}
     if (b.dupli > 0) { ctx.shadowColor = '#ff4dd2'; ctx.shadowBlur = 16; ctx.fillStyle = '#ffd1f0'; }
     else if (b.homing) { ctx.shadowColor = '#a855f7'; ctx.shadowBlur = 16; ctx.fillStyle = '#e9d5ff'; }

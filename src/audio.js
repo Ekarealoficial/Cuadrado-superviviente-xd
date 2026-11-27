@@ -133,7 +133,7 @@ function presentBossCues(){
     if(state.time-cue.time<.35)Sfx.play(cue.name,100);
   }
 }
-for(const [i,name] of ['resonance','chain','reaction','tide','crush','crushBeat','army','anchor','anchorBeat','needles','needlesBeat'].entries()){
+for(const [i,name] of ['omega','omegaFire','nullArc','starTide','resNet','resonance','chain','reaction','tide','crush','crushBeat','army','anchor','anchorBeat','needles','needlesBeat'].entries()){
   const f=170+43*i;BOSS_SCORES[name]={notes:[[f,.18,'triangle',.13,f*1.6],[f*.66,.25,'sine',.11,f*.36,.06]]};
 }
 // Each boss has a timbre, and each attack has a different pitch contour and beat length.

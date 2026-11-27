@@ -5,7 +5,7 @@ function fireLasers(holdTime, commandId=0, output=state.lasersFiring) {
   const count = p.laserCount;
   if (count === 0 || holdTime < 0.15) return;
   const width = 20 + holdTime * 25;
-  const damage = width * 0.4;
+  const damage = width * 0.4 * capacitorGain(p);
   output.push({commandId,
     startAngle: p.angle, sweep: 0, sweepSpeed: 6,
     width, damage, count, holdTime

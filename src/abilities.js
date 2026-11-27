@@ -149,7 +149,7 @@ function tryDash() {
   if (sc.charges <= 0) return false;
   const target = getWorldMouse();
   p.dashAngle = Math.atan2(target.y - p.y, target.x - p.x);
-  p.dashTimer = 0.18;
+  p.dashTimer = 0.18;pulseOnDash(p);
   p.invuln = Math.max(p.invuln, 0.3);
   sc.charges--;
   if (sc.cooldown <= 0) sc.cooldown = sc.cooldownMax;
