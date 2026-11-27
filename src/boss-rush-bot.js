@@ -6,6 +6,9 @@ const botDistance=(a,b)=>Math.hypot(a.x-b.x,a.y-b.y);
 function botPriority(id){
   const p=state.player,missing=state.maxHalfHearts-state.halfHearts;
   const value={
+    nullArc:state.enemyBullets.length>24?17:11,omega:16,starTide:14,resNet:state.groupSize>1?17:12,
+    dashPulse:state.specialCards.dash.totalCards?13:5,survival:missing?12:8,
+    refract:p.bounces?13:5,saturation:state.groupSize>1?13:8,returnShot:9+p.shots*.2,capacitor:12,compression:10,
     activeHeal:16+missing,kame:16,reverse:15,frames:14,dash:12,blink:10,timeBreak:12,
     plasma:13,army:11,crush:12,anchor:9,needles:10,thunderRain:11,
     health:7+missing*2,regen:p.regenLevel?5:12,armor:12,mini:11,
@@ -185,13 +188,17 @@ function botGoal(target){
   const score=q=>Math.min(130,margin(q))+.0007*forward(q);
   return score(options[0])>score(options[1])?options[0]:options[1];
 }
-function botRoute(dir,scene,goal,burst=0){
+function botRoute(dir,scene,goal,burst=0,turn=null){
   const p=state.player,a=state.arena,speed=p.speed*(p.frameTime>0?4:1);
   let risk=0,imminent=0,edge=0,progress=0,prev=p;
   for(let i=0;i<BOT_LOOK.length;i++){
     const t=BOT_LOOK[i],lag=(1-Math.exp(-16*t))/16;
     const travel=burst?burst*Math.min(1,t/.18)+speed*Math.max(0,t-.18):speed*(t-lag);
     const q={x:p.x+dir.x*travel+(burst?0:p.vx*lag),y:p.y+dir.y*travel+(burst?0:p.vy*lag),size:p.size+8};
+    if(turn && t>.34){
+      const elapsed=t-.34,delta=speed*(elapsed-(1-Math.exp(-16*elapsed))/16);
+      q.x+=(turn.x-dir.x)*delta;q.y+=(turn.y-dir.y)*delta;
+    }
     if(a){
       const margin=Math.min(q.x-a.x,a.x+a.w-q.x,q.y-a.y,a.y+a.h-q.y)-p.size/2;
       edge+=Math.max(0,75-margin)*.13;
@@ -215,7 +222,7 @@ function botRoute(dir,scene,goal,burst=0){
     progress+=botDistance(goal,q)/(1+t);prev=q;
   }
   const continuity=state.rush.intent;
-  return {dir,risk,imminent,cost:risk+edge+progress*.041-
+  return {dir,turn,end:point(prev),risk,imminent,cost:risk+edge+progress*.041-
     (continuity?3*(continuity.x*dir.x+continuity.y*dir.y):0)};
 }
 function bestBotRoute(scene,goal,burst){
@@ -228,10 +235,21 @@ function bestBotRoute(scene,goal,burst){
     candidates.push({x:0,y:0});
     for(let i=0;i<BOT_DIRECTIONS.length;i+=2)candidates.push({x:BOT_DIRECTIONS[i].x*.45,y:BOT_DIRECTIONS[i].y*.45});
   }
+  const routes=[];
   for(const dir of candidates){
-    const route=botRoute(dir,scene,goal,burst);
+    const route=botRoute(dir,scene,goal,burst);routes.push(route);
     if(!best||route.cost<best.cost)best=route;
   }
+  const skill=rules.botSkill||'Normal';
+  if(!burst&&skill!=='Normal'){
+    const finalists=routes.sort((a,b)=>a.cost-b.cost).slice(0,skill==='Experto'?5:2);
+    for(const first of finalists)for(const angle of (skill==='Experto'?[-1.8,-.9,.9,1.8]:[-1.2,1.2])){
+      const a=Math.atan2(first.dir.y,first.dir.x)+angle;
+      const route=botRoute(first.dir,scene,goal,0,{x:Math.cos(a),y:Math.sin(a)});
+      routes.push(route);if(route.cost<best.cost)best=route;
+    }
+  }
+  if(rules.botVision&&!burst)state.rush.routes=routes.sort((a,b)=>a.cost-b.cost).slice(0,4);
   return best;
 }
 function botUse(id,aim){
@@ -244,7 +262,7 @@ function botUse(id,aim){
 function rushBotControl(){
   const r=state.rush,p=state.player;
   if(r.intent && state.time<r.nextPlan)return r.intent;
-  r.nextPlan=state.time+.065;
+  r.nextPlan=state.time+({Normal:.075,Avanzado:.065,Experto:.05}[rules.botSkill]||.065);
   const target=botTarget(),scene=botScene(),goal=botGoal(target);
   const route=bestBotRoute(scene,goal,0);
   const aim=target?{x:target.x,y:target.y}:{x:p.x+1,y:p.y};
@@ -276,10 +294,10 @@ function rushBotControl(){
     const escape=bestBotRoute(scene,goal,295),dest={x:p.x+escape.dir.x*295,y:p.y+escape.dir.y*295};
     if((wallClose&&escape.dir.x>.5 || escape.risk<route.risk*.8) &&
       (botUse('dash',dest)||botUse('blink',dest))){r.action='EVADIENDO';return r.intent;}
-    for(const id of ['frames','timeBreak','plasma','anchor'])if(botUse(id,p))return r.intent;
+    for(const id of ['timeBreak','frames','plasma','anchor'])if(botUse(id,p))return r.intent;
   }
-  if(target && state.enemyBullets.length>=8 && botUse('reverse',aim))return r.intent;
-  if(target && botDistance(target,p)<1100)for(const id of ['kame','crush','army','needles','thunderRain']){
+  if(target && scene.moving.length>=8 && still.risk>25 && (botUse('reverse',aim)||botUse('nullArc',aim)))return r.intent;
+  if(target && botDistance(target,p)<1100)for(const id of ['omega','resNet','starTide','kame','crush','army','needles','thunderRain']){
     if(botUse(id,aim))break;
   }
   return r.intent;

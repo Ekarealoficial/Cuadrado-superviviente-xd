@@ -170,6 +170,11 @@ function render() {
     ctx.fillText(f.text, f.x, f.y);
   }
   ctx.globalAlpha = 1;
+  if(rules.botVision&&state.rush?.bot){
+    const p=state.player;ctx.save();ctx.lineWidth=2;
+    for(const [i,r] of (state.rush.routes||[]).entries()){ctx.strokeStyle=i?'#74d2e84d':'#a5ffad';ctx.beginPath();ctx.moveTo(p.x,p.y);ctx.lineTo(p.x+r.dir.x*p.speed*.28,p.y+r.dir.y*p.speed*.28);ctx.lineTo(r.end.x,r.end.y);ctx.stroke();}
+    const aim=state.rush.intent?.aim;if(aim)ctx.strokeRect(aim.x-9,aim.y-9,18,18);ctx.restore();
+  }
   if(state.extra)drawExtraField(state.extra);
   if(playMode==='online')drawImpactLights(performance.now());
   if(playMode==='sandbox')drawTrainingStats();

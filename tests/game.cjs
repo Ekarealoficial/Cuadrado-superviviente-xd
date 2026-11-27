@@ -908,3 +908,8 @@ test('Diario UTC reproducible, duelo con final y persecución con puertas y cuat
  run("playMode='pursuit';beginExtra('pursuit');state.player.invuln=100;for(let i=0;i<650;i++){state.player.x+=2;update(1/60);if(i%60===0)render();if(state.cardChoices)pickCard(state.cardChoices[0]);}");
  assert.ok(run('state.extra.beat>=4 && state.extra.distance>=900 && state.specialCards.dash.totalCards>=4 && state.arena.x>0'));
 });
+
+test('Bot experto compara rutas con giro sin alterar las estadísticas del jugador',()=>{
+ const run=game();run("playMode='rush';rules.botSkill='Experto';rules.botVision=true;beginRush(true);const health=state.halfHearts;spawnEncounter(['beacon','prism']);for(let i=0;i<45;i++)updateRushFrame(1/60)");
+ assert.ok(run("state.rush.routes.length===4 && state.rush.intent.fire && state.player.speed===320 && state.halfHearts<=health"));
+});
