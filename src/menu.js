@@ -2,7 +2,7 @@
 const ENEMY_NAMES={pulseRing:'Anillo pulsante',erratic:'Cuadrado errático',twinCannon:'Cañón gemelo',rebound:'Círculo rebotador',tackler:'Tacleador',splitter:'Divisor',cannon:'Cañón',frostMage:'Hechicero helado',normal:'Normal',fast:'Veloz',tank:'Tanque',shooter:'Tirador',invoker:'Invocador',teleporter:'Teletransportador',kamikaze:'Kamikaze',dardante:'Dardante',juggernaut:'Juggernaut',...BOSS_NAMES};
 let netSession=null, queuedActions=[], inventoryChoice=null;
 let actionSeq=0;
-function sendGameAction(action){queuedActions.push({...action,id:++actionSeq,offer:action.kind==='pick'?state.offerId:undefined});}
+function sendGameAction(action){if(state.waiting)return;queuedActions.push({...action,id:++actionSeq,offer:action.kind==='pick'?state.offerId:undefined});}
 const multiplayerServer = String(window.MULTIPLAYER_SERVER_URL || '').replace(/\/$/, '');
 function handleNetKey(e){
   const k=e.key.toLowerCase();
@@ -33,7 +33,7 @@ async function roomRequest(action,data){
   let response;
   try {response=await fetch(multiplayerServer+'/api/'+action,data?{method:'POST',signal:AbortSignal.timeout(action==='step'?5500:60000),headers:{'Content-Type':'application/json'},body:JSON.stringify(data)}:{cache:'no-store',signal:AbortSignal.timeout(6000)});}
   catch {throw Error('No se pudo conectar con el servidor de salas.');}
-  if(!response.headers.get('content-type')?.includes('application/json'))throw Error('El multijugador requiere abrir el juego desde su servidor Node.');
+  if(!response.headers.get('content-type')?.includes('application/json'))throw Error(response.status>=500?'El servidor está iniciándose o temporalmente fuera de servicio.':'Respuesta inesperada del servidor de salas.');
   const result=await response.json();
   if(!response.ok)throw Object.assign(Error(result.error),{status:response.status});
   return result;
@@ -51,10 +51,11 @@ function initializeMenu(){
     el('notice').textContent='';
   }
   function start(mode){
-    playMode=mode;el('rushHUD').classList.toggle('trialHUD',mode==='trial');el('rushHUD').classList.remove('lastMinute');el('sandboxDebug').hidden=true;el('labTool').hidden=mode!=='sandbox';el('menu').hidden=true;el('sessionHUD').hidden=false;
+    playMode=mode;startActivity();if(mode==='online'){activity.time=state.time;activity.defeats=state.totalDefeats||0;}el('rushHUD').classList.toggle('trialHUD',mode==='trial');el('rushHUD').classList.remove('lastMinute');el('sandboxDebug').hidden=true;el('labTool').hidden=mode!=='sandbox';el('menu').hidden=true;el('sessionHUD').hidden=false;
     mouse.down=false;for(const k in keys)keys[k]=false;
   }
   function end(message='',destination='home'){
+    checkpointActivity(true);activity=null;
     if(sandboxTab)closeSandboxPanel();
     el('rushHUD').hidden=el('rushBanner').hidden=true;
     el('roomWait').hidden=true;netSession=null;queuedActions=[];inventoryChoice=null;playMode='menu';restart();el('playerInfo').textContent='';
@@ -64,7 +65,7 @@ function initializeMenu(){
     if(netSession)roomRequest('leave',netSession).catch(()=>{});end('',state.rush||state.extra||playMode==='sandbox'?'extras':'home');
   };
   for(const key of ['difficulty','xp'])for(const rate of [0.5,1,1.5,2,3]){
-    const option=new Option(rate+'×',rate,false,rate===1);setup.elements[key].add(option);
+    const option=new Option(rate+'×',rate,rate===1,rate===1);setup.elements[key].add(option);
   }
   for(const [id,name] of Object.entries(ENEMY_NAMES)){
     const label=document.createElement('label'),box=document.createElement('input');
@@ -122,7 +123,9 @@ function initializeMenu(){
     extraId=id;el('setupExtraTitle').textContent=EXTRA_NAMES[id]||'Sandbox';
     options.open(id,el('extraSetup'));show('extraSetup');
   };
-  el('extraSetup').onsubmit=e=>{e.preventDefault();if(extraId==='sandbox')startSandbox();else startExtra(extraId);};
+  el('extraSetup').onsubmit=e=>{e.preventDefault();
+    if(extraId==='siege'&&!options.read('siege').enemyPool.length){el('notice').textContent='Habilita al menos un enemigo para el asedio.';return;}
+    if(extraId==='sandbox')startSandbox();else startExtra(extraId);};
   el('retryExtra').onclick=()=>startExtra(state.extra.id);
   el('leaveExtra').onclick=()=>end('','extras');
   syncLocalUI=()=>{
@@ -186,7 +189,7 @@ function initializeMenu(){
     try{
       const r=await roomRequest(creating?'create':'join',{code,settings:multiplayerSettings,profile});
       resetPresentation();actionSeq=0;queuedActions=[];
-      rules={...r.settings,color:profile.color};state=r.state;netSession={code:r.code,token:r.token,shotFormat:1};start('online');
+      rules={...r.settings,color:profile.color};chunkCache.clear();state=r.state;netSession={code:r.code,token:r.token,shotFormat:1,impactFormat:1};start('online');
       const session=netSession;
       let socket=null,live=false,lastFrameSent=0,seen=0,nextPing=0,nextAttempt=0,lastStateAt=0;
       let fallbackBusy=0,lastFallback=-Infinity;
@@ -205,6 +208,7 @@ function initializeMenu(){
         const now=performance.now();
         lastStateAt=now;queuedActions=queuedActions.filter(a=>a.id>(next.actionAck||0));
         prepareMotion(state,next,now);
+        if(state.waiting&&!next.waiting){mouse.down=false;queuedActions=[];actionSeq=next.actionAck||0;}
         state=next;waiting(next);state.inventorySelection=inventoryChoice;
         currentWalls=state.arena?state.arena.walls:getVisibleChunks(state.cam);
         const ping=netPingMs==null?'…':Math.round(netPingMs)+' ms';
@@ -223,6 +227,7 @@ function initializeMenu(){
           if(msg.type==='ready'){
             live=true;seen=0;lastFrameSent=state.ack||0;nextPing=0;lastStateAt=performance.now();
           }else if(msg.type==='state'){seen=msg.serial;accept(msg.state);}
+          else if(msg.type==='contacts')presentConfirmedContacts(msg.hits,performance.now(),state);
           else if(msg.type==='pong')netPingMs=performance.now()-msg.stamp;
         };
         ws.onclose=()=>{if(socket===ws){socket=null;live=false;if(session===netSession)netPingMs=null;}};
@@ -260,7 +265,7 @@ function initializeMenu(){
             .then(next=>{if(!live && session===netSession){netPingMs=performance.now()-now;accept(next);}})
             .catch(err=>{
               if(live||session!==netSession)return;
-              if(err.status===403||err.status===404)end('La sala se cerró o caducó la sesión.','lobby');
+              if(err.status===403||err.status===404){end('La sala se cerró o caducó la sesión.','lobby');refresh();}
               else el('playerInfo').textContent='Reconectando con la sala '+session.code+'…';
             })
             .finally(()=>{fallbackBusy--;});

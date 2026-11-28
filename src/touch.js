@@ -119,7 +119,7 @@ window.addEventListener('DOMContentLoaded',()=>{
     panel.dataset.view=view;panel.replaceChildren();
     const title=document.createElement('h2');panel.append(title);
     if(view==='over'){
-      title.textContent='Fin de la partida';button(panel,playMode==='online'?'Salir al menú':'Volver a jugar',()=>playMode==='online'?el('exit').click():restart());
+      title.textContent='Fin de la partida';button(panel,playMode==='online'?'Salir al menú':'Volver a jugar',()=>playMode==='online'?el('exit').click():retryLocalRun());
     }else if(view==='reward'){
       title.textContent=state.bonusPicks?'Botín del jefe · '+state.bonusPicks+' por elegir':'Elige una mejora';
       for(const [i,c] of state.cardChoices.entries()){

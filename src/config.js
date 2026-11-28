@@ -1,4 +1,5 @@
 'use strict';
+const visualPrefs={volume:.8,effects:1,shake:1,flash:1,particles:1};
 let playMode = 'menu';
 let rules = { difficulty: 1, xp: 1, disabled: [], color: '#4df3ff' };
 const BOSS_NAMES = Object.freeze({boss:'Gran Malabarista',worm:'Gusano Esmeralda',singular:'Círculo Singular',fractal:'Cuadrado Fractal',clock:'Reloj Roto',crown:'Corona Vacía',beacon:'Faro de Aniquilación',twins:'Gemelos de Polaridad',heart:'Corazón Mecánico',monolith:'Monolito Sísmico',dawn:'La Madre del Alba',prism:'Emperatriz Prismática',sovereign:'Gran Invocador',channel:'CANAL CERO',general:'La Última Orden',frontier:'La Frontera Voraz'});

@@ -10,20 +10,20 @@ function loop(now) {
   if(playMode!=='menu')updateLens(dt);
   if(mobileDevice)updateTouchUI();
   if (playMode !== 'menu') {
+    if(launchDialog && playMode!=='online'){requestAnimationFrame(loop);return;}
     if(playMode==='rush'){
       advanceRush(dt);
       syncRushUI();
     }
     else if (playMode === 'online') { if(!state.waiting){animateMotion(now);predictLocalFrame(now,dt);} }
-    else if(playMode==='daily'){
-      const m=state.extra;m.remainder=(m.remainder||0)+dt;
-      while(m.remainder>=1/60){m.remainder-=1/60;update(1/60);}
-    }else if(playMode!=='sandbox')update(dt);
+    else if(playMode==='daily')advanceDaily(dt);
+    else if(playMode!=='sandbox')update(dt);
     else if(!sandboxTab){
       const scaled=dt*lab.speed,steps=Math.max(1,Math.ceil(scaled/(1/60)));
       for(let i=0;i<steps;i++)update(scaled/steps);
     }
-    if(weightedModes()&&!state.rush)syncLocalUI();
+    checkpointActivity();
+    if(playMode!=='online'&&weightedModes()&&!state.rush)syncLocalUI();
     updateUILayout();
     render();
   }

@@ -2,6 +2,8 @@
 const SHOT_INK={returnShot:'#75fff5',starTide:'#ceacff',omega:'#ff9470',tide:'#62b9ff',anchor:'#9cdcff',army:'#bc91ff',needles:'#ffe68a'};
 function drawGeometryCards(p){
   if(p.nearby||p.survivalUntil>state.time){ctx.save();ctx.translate(p.x,p.y);etchedSquare(p.size/2+3,0,p.nearby?'#ffa3b5':'#88ffb1',2);ctx.restore();}
+  if(p.survivalUntil>state.time){ctx.save();ctx.strokeStyle='#91f4a4';for(let i=1;i<=3;i++){ctx.globalAlpha=.38/i;
+    ctx.strokeRect(p.x-p.vx*i*.035-p.size/2,p.y-p.vy*i*.035-p.size/2,p.size,p.size);}ctx.restore();}
   if(p.capacitor&&p.fireTime)for(let i=0;i<4;i++){const q=polarPoint(p,p.size*.75,state.time*(p.fireTime>=2?7:2)+i*TAU/4);ctx.fillStyle='#ffff9a';ctx.fillRect(q.x-2,q.y-2,4,4);}
   for(const c of p.actCasts||[]){
     if(c.id==='nullArc')for(const a of c.arcs){for(const [ink,w] of [['#55edea',9],['#fff',3]])strokeRing(a.x,a.y,a.radius,ink,w,c.angle-a.spread,c.angle+a.spread);}

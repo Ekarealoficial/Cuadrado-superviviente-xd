@@ -62,7 +62,8 @@ function cardPulse(kind,target,power=1) {
   while(pulses.length && (pulses[0].born<state.time-.7 || pulses.length>=18))pulses.shift();
   pulses.push({kind,x:target.x,y:target.y,born:state.time,power});
 }
-function attackMultiplier(target, attacker=state) {
+function attackMultiplier(target, attacker=state,shot=null) {
+  if(shot)shot.criticalHit=false;
   const p = attacker.player;
   const missing = 1 - attacker.halfHearts / attacker.maxHalfHearts;
   const base = attacker.playerDamageMult * (1+.04*(p.saturation||0)*(p.nearby||0)) * (1 + missing * 0.5 * p.fury);
@@ -71,6 +72,7 @@ function attackMultiplier(target, attacker=state) {
   const chance = (10 + 5 * (upgrades % 18)) / 100;
   if (gameRandom() >= chance) return base;
   const tier=2+Math.floor(upgrades/18);
+  if(shot)shot.criticalHit=true;
   if(target?.training)target.training.critical++;
   if (target) cardPulse('critical',target,tier);
   return base*tier;

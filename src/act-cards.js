@@ -27,9 +27,11 @@ function pulseOnDash(p){
   geometryFX('dashPulse',p,radius);areaCard(p,radius,3*power);
   state.enemyBullets=state.enemyBullets.filter(s=>Math.hypot(s.x-p.x,s.y-p.y)>radius+s.r||!wearProjectile(s,36*power));
 }
-function beginReturn(b,p){
+const returnSurfaces=new WeakMap();
+function beginReturn(b,p,surface=null){
   if(!p.returnShot||b.returned||b.style==='omega')return false;
   const extra=chanceCount(.2*p.returnShot);if(!extra)return false;
+  if(surface)returnSurfaces.set(b,surface);
   b.returned=true;b.life=2.2;b.style='returnShot';b.homing=false;
   b.damage=Math.min(Number.MAX_VALUE,b.damage*(1+.08*p.returnShot)*extra);
   const angle=angleTo(b,p)+.7;b.vx=Math.cos(angle)*760;b.vy=Math.sin(angle)*760;return true;
@@ -69,14 +71,16 @@ function updateActCast(c,p,dt){
   }
   if(c.id==='starTide'){
     if(c.age>=c.next){for(const [i,q] of c.nodes.entries()){
-      const a=angleTo(q,c.aim)+.09*Math.sin(i+c.sent);spawnSkillShot(q,a,610,4,2*(1+.08*(c.n-1)),'starTide');}
-      c.next+=.25;c.sent++;}return c.sent<c.n+3;
+      const phase=i*TAU/c.nodes.length+c.sent*.48;
+      const focus=c.sent%2?{x:c.aim.x+(i%2?36:-36),y:c.aim.y+(i%2?36:-36)}:polarPoint(c.aim,38,phase);
+      const a=angleTo(q,focus);spawnSkillShot(q,a,610,4,2*(1+.08*(c.n-1)),'starTide');}
+      bossCue('starSalvo',p);c.next+=.25;c.sent++;}return c.sent<c.n+3;
   }
   const targets=state.enemies.concat(bossTargets()).filter(e=>!e._dying&&e.state!=='final');
   targets.sort((a,b)=>Math.hypot(a.x-p.x,a.y-p.y)-Math.hypot(b.x-p.x,b.y-p.y));
   const n=c.n+2;
   for(let i=0;i<n;i++){
-    const target=targets[i%targets.length]||c.aim,dest=polarPoint(target,44+i%3*12,c.age*1.3+i*TAU/n);
+    const target=targets[i%targets.length]||c.aim,dest=polarPoint(target,Math.min(52,12+(target.size||40)*.33)+i%3*3,c.age*1.3+i*TAU/n);
     const q=c.nodes[i]||=point(p);q.x+=(dest.x-q.x)*Math.min(1,dt*7);q.y+=(dest.y-q.y)*Math.min(1,dt*7);
   }
   if(c.age>=c.next){

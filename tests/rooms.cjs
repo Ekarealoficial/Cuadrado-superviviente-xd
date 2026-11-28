@@ -241,3 +241,39 @@ test('Una acción reenviada después de reconectar se confirma una sola vez',()=
   for(let i=0;i<8;i++){r.input('a',{stamp:i},[{id:1,kind:'inventory'}]);r.tick(1/30);}
   assert.equal(r.snapshot('a').inventoryOpen,true);assert.equal(r.snapshot('a').actionAck,1);
 });
+
+test('Arsenal y especiales mantienen su dueño al disparar simultáneamente en sala',()=>{
+ const room=engine({xp:1,difficulty:1,disabled,seed:42});
+ for(const id of ['a','b','c','d'])room.add(id,{name:id});
+ const clients=['a','b','c','d'].map(id=>room.snapshot(id));
+ const target={x:230,y:0,type:'tank',size:50,speed:0,hp:10000,maxHp:10000,wob:0,color:'#abc'};
+ clients[0].enemies.push(target);
+ Object.assign(clients[0].player,{shots:4,fireCdBase:.06,homingChance:1});
+ Object.assign(clients[1].player,{shots:2,laserCount:1});
+ clients[2].drones.push({lines:3,x:0,y:0,angle:0,cd:0,bob:0});
+ Object.assign(clients[3].specialCards.omega,{totalCards:3,maxCharges:1,charges:1});clients[3].slots[0]='omega';
+ room.input('a',{angle:0,fire:true},[]);room.input('b',{angle:0,fire:true},[]);
+ room.input('d',{angle:0},[{kind:'slot',i:0,id:1}]);
+ const shooters=new Set(),shots=new Set();let laser=false,netIds=true;
+ for(let t=0;t<120;t++){
+   if(t===20)room.input('b',{angle:0,fire:false},[]);
+   room.tick(1/30);const s=room.snapshot('c');
+   assert.equal(s.enemies[0].hp,room.snapshot('a').enemies[0].hp);
+   for(const hit of s.impacts)shooters.add(hit.shooterId);
+   netIds&&=new Set(s.bullets.map(x=>x.netId)).size===s.bullets.length;
+   for(const q of s.bullets)shots.add(q.style|| (q.drone?'drone':q.homing?'homing':'normal'));
+   laser||=s.peers.some(m=>m.name==='b'&&m.lasersFiring.length);
+ }
+ assert.ok(netIds&&laser&&target.hp<10000);
+ assert.ok(shots.has('omega')&&shots.has('drone')&&shots.has('homing'));
+ assert.equal(shooters.size,4);assert.equal(room.snapshot('d').specialCards.omega.charges,0);
+});
+test('Elegir dos veces la misma oferta no cobra la siguiente recompensa',()=>{
+ const r=engine({xp:1,difficulty:1,disabled});r.add('a',{});
+ r.snapshot('a').orbs.push({x:0,y:0,value:100,life:9,r:8,vx:0,vy:0,pulse:0});r.tick(1/30);
+ const s=r.snapshot('a'),first={id:1,kind:'pick',offer:s.offerId,i:0};
+ assert.ok(s.cardChoices);r.input('a',{stamp:1},[first]);r.tick(1/30);
+ r.input('a',{stamp:2},[first,{...first,id:2}]);r.tick(1/30);
+ assert.equal(r.snapshot('a').actionAck,2);assert.equal(r.snapshot('a').upgrades,1);
+ assert.equal(r.snapshot('a').pendingLevelUps,s.pendingLevelUps-1);
+});

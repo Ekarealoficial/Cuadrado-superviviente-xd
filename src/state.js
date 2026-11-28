@@ -38,7 +38,7 @@ function newState() {
     halfHearts: START_HALF_HEARTS,
     maxHalfHearts: START_HALF_HEARTS,
     xp: 0, xpNeeded: 8, level: 1,
-    score: 0, kills: 0, time: 0,
+    totalDefeats:0, score: 0, kills: 0, time: 0,
     spawnTimer: 1.8, potionTimer: 9,
     shake: 0, flash: 0, flashRGB: '255,60,100',
     over: false, overTimer: 0,

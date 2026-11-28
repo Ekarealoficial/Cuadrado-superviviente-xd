@@ -3,9 +3,16 @@
   "scripts": {
     "start": "node server.cjs",
     "test": "node --test tests/*.cjs",
-    "prestart": "npm ls ws --depth=0 --silent || npm ci --omit=dev --ignore-scripts"
+    "prestart": "npm ls ws --depth=0 --silent || npm ci --omit=dev --ignore-scripts",
+    "test:browser": "node tests/browser/menus.cjs && node tests/browser/room.cjs",
+    "benchmark": "node tools/room-benchmark.cjs"
   },
   "dependencies": {
     "ws": "8.23.0"
+  },
+  "name": "cuadrado-superviviente-xd",
+  "version": "1.0.0",
+  "devDependencies": {
+    "playwright": "^1.57.0"
   }
 }

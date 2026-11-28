@@ -8,7 +8,7 @@ const Sfx = {
     if (!AC) return;
     this.ctx = new AC();
     this.master = this.ctx.createGain();
-    this.master.gain.value = 0.4;
+    this.master.gain.value = .5*visualPrefs.volume*visualPrefs.effects;
     this.master.connect(this.ctx.destination);
   },
   tone(freq, dur, type, vol, slideTo, delay=0) {
@@ -133,9 +133,17 @@ function presentBossCues(){
     if(state.time-cue.time<.35)Sfx.play(cue.name,100);
   }
 }
-for(const [i,name] of ['omega','omegaFire','nullArc','starTide','resNet','resonance','chain','reaction','tide','crush','crushBeat','army','anchor','anchorBeat','needles','needlesBeat'].entries()){
+for(const [i,name] of ['resonance','chain','reaction','tide','crush','crushBeat','army','anchor','anchorBeat','needles','needlesBeat'].entries()){
   const f=170+43*i;BOSS_SCORES[name]={notes:[[f,.18,'triangle',.13,f*1.6],[f*.66,.25,'sine',.11,f*.36,.06]]};
 }
+Object.assign(BOSS_SCORES,{
+  omega:{notes:[[70,.9,'triangle',.13,270],[135,.9,'sine',.09,510]]},
+  omegaFire:{notes:[[142,.42,'sine',.27,34],[340,.21,'triangle',.13,60]],noise:[.2,.16,2600,130]},
+  nullArc:{notes:[[680,.23,'sine',.13,170]],noise:[.15,.11,4200,800]},
+  resNet:{notes:[[320,.29,'sine',.12,390],[480,.32,'triangle',.1,530,.07],[640,.38,'sine',.08,780,.14]]},
+  starTide:{notes:[[440,.32,'sine',.12,660],[660,.35,'triangle',.09,990,.16],[880,.4,'sine',.08,1320,.32]]},
+  starSalvo:{notes:[[960,.13,'triangle',.075,380]]}
+});
 // Each boss has a timbre, and each attack has a different pitch contour and beat length.
 for(const [family,moves,base,wave] of [
   ['beacon',['tracking','curtain','sweep','refraction','emitters','fusion','overload'],155,'sawtooth'],

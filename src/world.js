@@ -15,7 +15,7 @@ function getChunk(cx, cy) {
   const key = cx + ',' + cy;
   let c = chunkCache.get(key);
   if (c) return c;
-  const rng = makeRng(hash2D(cx, cy));
+  const rng = makeRng(hash2D(cx, cy)^(rules.seed??0));
   const isSpawn = (cx === 0 && cy === 0);
   const walls = [];
   if (!isSpawn) {

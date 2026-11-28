@@ -96,7 +96,7 @@ function projectileImpact(target, bullet, factor = 1) {
     target.slow = Math.max(target.slowUntil > state.time ? target.slow : 0, Math.min(1, p.frost / 10));
     target.slowUntil = state.time + 2 + Math.max(0,p.frost-10)*.2;
   }
-  const damage = bullet.damage * attackMultiplier(target) * factor;
+  const damage = bullet.damage * attackMultiplier(target,state,bullet) * factor;
   hurtTarget(target,damage);
   const bursts=p.explosive?chanceCount(compoundEffect(.15,p.explosive)):0;
   if(target.training)target.training.procs+=Number(!!p.frost)+Number(!!bullet.venom)+bursts;
@@ -448,6 +448,16 @@ function update_shieldPositions(dt) {
 
 }
 
+function adjustFlightDistance(shot,delta,copies){
+  const before=shot.compressed||0;
+  shot.distance=Math.max(0,(shot.distance||0)+delta);
+  shot.compressed=Math.floor(shot.distance/150)*.06*copies;
+  if(shot.compressed!==before){
+    shot.damage=Math.min(Number.MAX_VALUE,shot.damage*((1+shot.compressed)/(1+before)));
+    shot.energized=shot.compressed>0||Boolean(state.player.refract&&shot.energized);
+  }
+}
+
 function advanceBullet(b,p,dt,bosses) {
     b.prevX=b.x;b.prevY=b.y;
     if(b.returned){
@@ -469,10 +479,7 @@ function advanceBullet(b,p,dt,bosses) {
       }
     }
     b.x += b.vx * dt; b.y += b.vy * dt; b.life -= dt;
-    if(p.compression){const before=b.compressed||0;b.distance=(b.distance||0)+Math.hypot(b.x-b.prevX,b.y-b.prevY);
-      b.compressed=Math.floor(b.distance/150)*.06*p.compression;
-      if(b.compressed!==before){b.damage=Math.min(Number.MAX_VALUE,b.damage*((1+b.compressed)/(1+before)));b.energized=true;}
-    }
+    if(p.compression)adjustFlightDistance(b,Math.hypot(b.x-b.prevX,b.y-b.prevY),p.compression);
 }
 
 function update_playerProjectiles(dt) {
@@ -486,7 +493,6 @@ function update_playerProjectiles(dt) {
     let removed = false;
     for (const w of currentWalls) {
       if (aabbOverlapCircle(b.x, b.y, b.r, w)) {
-        b.prevX=b.x;b.prevY=b.y;
         if (b.dupli > 0) {
           reflectBulletOffWall(b, w);
           const newDupli = b.dupli - 1;
@@ -508,6 +514,7 @@ function update_playerProjectiles(dt) {
           if(!beginReturn(b,p)){omegaBurst(b);state.bullets.splice(i,1);}else {b.x=b.prevX;b.y=b.prevY;}
           removed = true;
         }
+        b.prevX=b.x;b.prevY=b.y;
         break;
       }
     }
@@ -873,18 +880,23 @@ function reboundFromTarget(shot, surface, center, radius) {
 }
 
 let onRoomImpact=null;
-function update_projectileHits() {
+function update_projectileHits(dt=0) {
   enemyGrid.rebuild(state.enemies);
   const bosses=bossTargets();
   for (let i=state.bullets.length-1;i>=0;i--) {
     const shot=state.bullets[i];
     const dx=shot.x-(shot.prevX??shot.x),dy=shot.y-(shot.prevY??shot.y);
-    const range=45+shot.r+Math.hypot(dx,dy)/2+(shot.viewDelay||0)*1800;
+    const range=45+shot.r+Math.hypot(dx,dy)/2+((shot.viewDelay||0)+(onRoomImpact?dt:0))*1800;
     let first=Infinity, victim, surface, center, radius;
     function consider(body,owner,r) {
       if (owner._dying || owner.state==='final') return;
+      if(shot.returned&&returnSurfaces.get(shot)===body){
+        if(Math.hypot(shot.x-body.x,shot.y-body.y)>r+shot.r+1)returnSurfaces.delete(shot);
+        return;
+      }
       const pos=combatPosition(body,shot.viewDelay);
-      const t=bulletEntry(shot,pos,r+shot.r);
+      const start=onRoomImpact&&dt?combatPosition(body,(shot.viewDelay||0)+dt):pos;
+      const t=sweptTargetEntry(shot,start,pos,r+shot.r);
       if (t<first) { first=t;victim=owner;surface=body;center=pos;radius=r+shot.r; }
     }
     for(const e of enemyGrid.query(shot.x-dx/2,shot.y-dy/2,range)) consider(e,e,e.size/2);
@@ -893,16 +905,21 @@ function update_projectileHits() {
       for(const ball of boss.balls||[])if(ball.state!=='attached')consider(ball,boss,ball.r);
     }
     if (!victim) continue;
+    // A swept impact ends this step early, also for shots that will ricochet.
+    if(state.player.compression&&shot.distance!=null)
+      adjustFlightDistance(shot,-Math.hypot(dx,dy)*(1-first),state.player.compression);
     shot.x-=dx*(1-first);shot.y-=dy*(1-first);
     const hpBefore=victim.hp;
     projectileImpact(victim,shot,victim===surface?1:BALANCE.ballDamage);
-    if(onRoomImpact)onRoomImpact(shot,victim,Math.max(0,hpBefore-Math.max(0,victim.hp)));
+    const hitPoint=onRoomImpact?point(shot):null;
     victim.hitFlash=.12;
     spawnParticles(shot.x,shot.y,5,victim.color,.6);
     if(victim.hp<=0)finishTarget(victim);
     else Sfx.play('hit',25);
     omegaBurst(shot);
-    if(!reboundFromTarget(shot,surface,center,radius))state.bullets.splice(i,1);
+    const survives=reboundFromTarget(shot,surface,center,radius)||beginReturn(shot,state.player,surface);
+    if(!survives)state.bullets.splice(i,1);
+    if(onRoomImpact)onRoomImpact(shot,victim,Math.max(0,hpBefore-Math.max(0,victim.hp)),hitPoint,!survives);
   }
 }
 

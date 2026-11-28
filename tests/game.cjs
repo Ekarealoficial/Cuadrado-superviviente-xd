@@ -896,6 +896,11 @@ test('Acto I: rebotes y recorrido real, fuego sostenido y resistencia en el Dash
  assert.equal(run('releaseWeaponControl(p,2,true);capacitorGain(p)'),1.15);assert.equal(run('releaseWeaponControl(p,.71,false);capacitorGain(p)'),1);
  assert.ok(run('state.enemyBullets=[{x:1,y:0,r:17}];pulseOnDash(p);state.enemyBullets[0].cancelHP<289 && state.enemyBullets[0].cancelHP>0'));
 });
+test('Compresión calcula el daño hasta el primer punto de contacto dentro del paso',()=>{
+ const run=game();
+ run("const p=state.player;p.compression=1;const e=createEnemy('tank',30,0);e.size=20;e.hp=100;state.enemies=[e];const b={x:0,y:0,r:4,damage:10,vx:300,vy:0,distance:120,life:3};state.bullets=[b];advanceBullet(b,p,.2);update_projectileHits(.2)");
+ assert.equal(run('b.distance'),136);assert.equal(run('e.hp'),90);
+});
 test('Las cuatro especiales del acto consumen su carga y terminan, sin dejar redes ni arcos',()=>{
  const run=game();
  run("for(const [i,[id]] of ACT_SPECIALS.entries()){applyCard(SPECIAL_CARDS.find(c=>c.id===id));state.slots[i]=id;useSlot(i);useSlot(i);}");assert.equal(run('state.player.actCasts.length'),4);
@@ -912,4 +917,40 @@ test('Diario UTC reproducible, duelo con final y persecución con puertas y cuat
 test('Bot experto compara rutas con giro sin alterar las estadísticas del jugador',()=>{
  const run=game();run("playMode='rush';rules.botSkill='Experto';rules.botVision=true;beginRush(true);const health=state.halfHearts;spawnEncounter(['beacon','prism']);for(let i=0;i<45;i++)updateRushFrame(1/60)");
  assert.ok(run("state.rush.routes.length===4 && state.rush.intent.fire && state.player.speed===320 && state.halfHearts<=health"));
+});
+
+test('La colisión continua incluye el movimiento relativo y excluye saltos de teletransporte',()=>{
+  const run=game();
+  assert.equal(run("bulletEntry({prevX:0,prevY:0,x:30,y:0},{x:15,y:30},5)"),Infinity);
+  assert.ok(run("sweptTargetEntry({prevX:0,prevY:0,x:30,y:0},{x:15,y:-30},{x:15,y:30},5)<1"));
+  assert.equal(run("sweptTargetEntry({prevX:0,prevY:0,x:30,y:0},{x:15,y:-300},{x:15,y:300},5)"),Infinity);
+  assert.equal(run("const body={x:0,y:0};rememberPosition(body,0);body.x=200;rememberPosition(body,.1);state.time=.2;combatPosition(body,.2).x"),200);
+});
+test('El historial de actos y las preferencias toleran el bloqueo del almacenamiento',()=>{
+  const run=game();assert.ok(run('ACTS.length>=1 && ACTS.at(-1).version==="1.0.0"'));
+  assert.equal(run("writeLocal('a',123);readLocal('a',5)"),5);
+});
+
+test('Diario conserva la secuencia en escritorio, móvil y diferentes tasas de refresco',()=>{
+ const first=game(),second=game(),scenario="playMode='daily';beginExtra('daily');state.player.invuln=1000;";
+ first(scenario+"W=1200;H=800;for(let i=0;i<360;i++)advanceDaily(1/60)");
+ second(scenario+"W=390;H=844;for(let i=0;i<720;i++)advanceDaily(1/120)");
+ const signature='JSON.stringify([state.time,randomState,state.enemies.map(q=>[q.type,q.x,q.y]),state.extra.day])';
+ assert.equal(first(signature),second(signature));assert.equal(second('W'),390);assert.equal(second('H'),844);
+});
+test('Cartas del Acto I acumulables, retorno de un solo recorrido y saturación por jefe',()=>{
+ const run=game();run("playMode='sandbox';const p=state.player;spawnEncounter(['twins']);const boss=state.boss;Object.assign(boss,{x:0,y:0});for(const e of boss.parts)Object.assign(e,{x:20,y:0});");
+ for(const total of [1,10,50,100,1000]){
+   run("for(const row of ACT_NORMALS){const c=CARD_TYPES.find(c=>c.id===row[0]);while((p[c.id]||0)<"+total+")applyCard(c);}p.nextScan=0;updateActCards(p,0);");
+   assert.equal(run('p.nearby'),1);assert.ok(run('Number.isFinite(attackMultiplier())'));
+ }
+ run("const b={x:100,y:0,damage:3,r:4};");assert.equal(run('beginReturn(b,p)'),true);assert.equal(run('beginReturn(b,p)'),false);
+ assert.ok(run('Number.isFinite(b.damage)&&b.damage>3'));
+});
+
+test('Confirmación WebSocket adelanta el daño autoritativo y una instantánea antigua no lo deshace',()=>{
+ const run=game();run("state.selfId=4;const enemy=createEnemy('tank',50,0);enemy.netId=91;state.enemies=[enemy];const q={x:0,y:0,r:5,volley:3,lane:0,shooterId:4};state.bullets=[q];previewShots=[{...q}];const result={seq:1,time:1,shooterId:4,targetId:91,volley:3,lane:0,contact:1,hp:2,damage:5,x:40,y:0,ended:true};presentConfirmedContacts([result],15,state)");
+ assert.ok(run('enemy.hp===2&&q.occluded&&previewShots[0].occluded&&confirmedDamage.length===1'));
+ run("const old={time:.95,bullets:[{...q,occluded:false}],enemies:[{netId:91,hp:7}]};reconcileContacts(old,30);reconcileContacts({time:1,bullets:[],impacts:[result]},60)");
+ assert.ok(run('old.enemies[0].hp===2&&old.bullets[0].occluded&&confirmedDamage.length===1&&!earlyContacts.size'));
 });

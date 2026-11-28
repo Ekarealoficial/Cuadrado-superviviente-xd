@@ -174,6 +174,7 @@ function killBoss(b = state.boss, completed = false) {
     state.cardRelics.push(rewardSpot(loot.x+48*Math.cos(angle),loot.y+24+48*Math.sin(angle)));
   }
   if(state.rush)state.rush.defeated++;
+  state.totalDefeats=(state.totalDefeats||0)+1;
   if(state.extra)state.extra.bosses++;
   addFloat(b.x, b.y - 60, '¡JEFE DERROTADO!', '#ffd54a');
   Sfx.play('bossdie');

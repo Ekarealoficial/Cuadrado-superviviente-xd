@@ -20,7 +20,7 @@ function getWorldMouse() {
 }
 
 window.addEventListener('keydown', e => {
-  if (state.rush?.bot || ((state.rush||state.extra) && state.over) || playMode === 'menu' || (playMode === 'online' && handleNetKey(e))) return;
+  if (launchDialog || state.rush?.bot || ((state.rush||state.extra) && state.over) || playMode === 'menu' || (playMode === 'online' && handleNetKey(e))) return;
   ensureAudio();
   const k = e.key.toLowerCase();
 
@@ -65,7 +65,7 @@ window.addEventListener('keydown', e => {
   }
 
   keys[k] = true;
-  if (k === 'r' && state.over && state.overTimer > 0.3) restart();
+  if (k === 'r' && state.over && state.overTimer > 0.3) retryLocalRun();
   if (['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' '].includes(k)) e.preventDefault();
 });
 window.addEventListener('keyup', e => { keys[e.key.toLowerCase()] = false; });
@@ -75,7 +75,7 @@ canvas.addEventListener('mousemove', e => {
   mouse.x = e.clientX - r.left; mouse.y = e.clientY - r.top;
 });
 canvas.addEventListener('mousedown', e => {
-  if (state.rush?.bot || ((state.rush||state.extra) && state.over) || playMode === 'menu' || (mobileDevice && e.sourceCapabilities?.firesTouchEvents)) return;
+  if (launchDialog || state.rush?.bot || ((state.rush||state.extra) && state.over) || playMode === 'menu' || (mobileDevice && e.sourceCapabilities?.firesTouchEvents)) return;
   if (playMode === 'sandbox' && e.button===2 && !state.inventoryOpen){
     const rect=canvas.getBoundingClientRect();
     mouse.x=(e.clientX-rect.left)*W/rect.width;mouse.y=(e.clientY-rect.top)*H/rect.height;
@@ -85,7 +85,7 @@ canvas.addEventListener('mousedown', e => {
   updateUILayout();
   ensureAudio();
   if (e.button === 0) {
-    if (state.over) { if (state.overTimer > 0.4) restart(); return; }
+    if (state.over) { if (state.overTimer > 0.4) retryLocalRun(); return; }
     if (state.cardChoices) {
       if (state.cardRects) {
         for (let i = 0; i < state.cardRects.length; i++) {
@@ -137,7 +137,9 @@ window.addEventListener('mouseup', e => { if (e.button === 0 && !e.sourceCapabil
 window.addEventListener('blur', () => { mouse.down = false; for (const k in keys) keys[k] = false; });
 canvas.addEventListener('contextmenu', e => e.preventDefault());
 
+function retryLocalRun(){checkpointActivity(true);restart();if(playMode==='solo')applyStartingDeck();startActivity();}
 function restart() {
+
   randomState=rules.seed??(new URLSearchParams(location.search).has('seed')?initialSeed:Math.floor(Math.random()*4294967296));
   state=newState();
   localLens.target=localLens.value=1;

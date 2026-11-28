@@ -142,7 +142,7 @@ function extraResults(m){
   if(m.id==='chaos')rows.unshift(['Modificadores superados',m.modifiers]);
   if(m.id==='trial'){
     rows.unshift(['Resultado',m.won?'Tiempo completado':'Derrota']);
-    try{const key='cs.trial.best',best=Math.max(Number(localStorage.getItem(key))||0,state.score);localStorage.setItem(key,String(best));rows.push(['Récord local',best]);}catch{}
+    try{const key=m.duration===600||!m.duration?'cs.trial.best':'cs.trial.best.'+m.duration,best=Math.max(Number(localStorage.getItem(key))||0,state.score);localStorage.setItem(key,String(best));rows.push(['Récord local',best]);}catch{}
   }
   return actModeResults(m,rows);
 }

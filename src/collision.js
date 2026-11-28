@@ -73,6 +73,11 @@ function bulletEntry(b,target,radius){
   const t=(-dot-Math.sqrt(disc))/length2;
   return t<=1?t:Infinity;
 }
+// Move into the target's frame of reference for this simulation step.
+function sweptTargetEntry(shot,start,end,radius){
+  if(start===end || Math.hypot(end.x-start.x,end.y-start.y)>80)return bulletEntry(shot,end,radius);
+  return bulletEntry({prevX:(shot.prevX??shot.x)+end.x-start.x,prevY:(shot.prevY??shot.y)+end.y-start.y,x:shot.x,y:shot.y},end,radius);
+}
 const combatHistory=new WeakMap();
 function rememberPosition(e,time){
   const points=combatHistory.get(e)||[];
@@ -88,8 +93,8 @@ function combatPosition(e,delay){
   let end=e,endTime=state.time;
   for(let i=points.length-1;i>=0;i--){
     const start=points[i];
+    if(Math.hypot(end.x-start.x,end.y-start.y)>80)return e;
     if(start.time<=time){
-      if(Math.hypot(end.x-start.x,end.y-start.y)>80)return e;
       const t=clamp((time-start.time)/(endTime-start.time||1),0,1);
       return {x:start.x+(end.x-start.x)*t,y:start.y+(end.y-start.y)*t};
     }

@@ -4,14 +4,15 @@
   randomState=settings.seed??initialSeed;
   configureCardUpgrades();
   const world = newState();
-  const shared = 'encounterTiers threat encounterRoster nextBossId groupSize bossCues bossCueId cardRelics remnants cosmicZones extraBosses completedEncounters unlockTimes firstBossDefeatAt iceZones stopStarted stopUntil time enemies enemyBullets enemyDarts orbs potions spawnTimer potionTimer boss bossEncounters bossActive arena bossBombs bossLasers bossLaserActive bossLaserTimer bossSpawnTimer bossCycle bossOmen enemyHpMult spawnRateMult adaptiveCheckTimer'.split(' ');
+  const shared = 'totalDefeats encounterTiers threat encounterRoster nextBossId groupSize bossCues bossCueId cardRelics remnants cosmicZones extraBosses completedEncounters unlockTimes firstBossDefeatAt iceZones stopStarted stopUntil time enemies enemyBullets enemyDarts orbs potions spawnTimer potionTimer boss bossEncounters bossActive arena bossBombs bossLasers bossLaserActive bossLaserTimer bossSpawnTimer bossCycle bossOmen enemyHpMult spawnRateMult adaptiveCheckTimer'.split(' ');
   const party = new Map();
   let impactSerial=0;
   const impacts=[];
-  onRoomImpact=(shot,target,damage)=>{
+  onRoomImpact=(shot,target,damage,at,ended)=>{
+    target.netId=wireId(target);
     shot.contacts=(shot.contacts||0)+1;
     impacts.push({seq:++impactSerial,time:world.time,shooterId:state.ownerId,volley:shot.volley,lane:shot.lane,batch:shot.batch,
-      netId:wireId(shot),targetId:wireId(target),contact:shot.contacts,x:shot.x,y:shot.y,color:target.color,damage});
+      netId:wireId(shot),targetId:target.netId,hp:Math.max(0,target.hp),ended,critical:shot.criticalHit||undefined,contact:shot.contacts,x:at.x,y:at.y,color:target.color,damage});
   };
   function add(id, profile) {
     const personal = newState();
@@ -153,7 +154,7 @@
           laserCharging:s.laserCharging,laserChargeTime:s.laserChargeTime,lasersFiring:s.lasersFiring,over:s.over};
       })};
   }
-  return {add,tick,snapshot,remove:id=>party.delete(id),input(id,input,actions){
+  return {add,tick,snapshot,impactsSince:seq=>impactSerial>seq?impacts.filter(h=>h.seq>seq):[],remove:id=>party.delete(id),input(id,input,actions){
     const member=party.get(id);
     if (Number.isFinite(input.stamp) && input.stamp <= (member.input.stamp ?? -1)) return;
     let lastAction=member.actions.at(-1)?.id||member.actionAck;

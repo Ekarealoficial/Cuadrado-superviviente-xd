@@ -8,6 +8,14 @@ function dailyChallenge(date=new Date()){
   return {day,seed,duration:10,disabled:Object.keys(ENEMY_NAMES).filter(id=>!bosses.includes(id)&&!enemies.includes(id)),chaosPool:modifiers,
     description:day+' UTC · '+bosses.map(id=>BOSS_NAMES[id]).join(' / ')+' · '+modifiers.map(k=>CHAOS_RULES[k]).join(', ')};
 }
+function advanceDaily(elapsed){
+  const m=state.extra;m.remainder=(m.remainder||0)+elapsed;
+  const width=W,height=H,dx=(1280-W)/2,dy=(800-H)/2;
+  W=1280;H=800;mouse.x+=dx;mouse.y+=dy;
+  try{
+    while(m.remainder+1e-10>=1/60){m.remainder=Math.max(0,m.remainder-1/60);update(1/60);}
+  }finally{W=width;H=height;mouse.x-=dx;mouse.y-=dy;}
+}
 function startPursuit(m){
   state.arena={x:-350,y:-290,w:1500,h:580,chase:-1};layoutCorridor(state.arena);
   const b=m.wall={id:-1,x:state.arena.x+58,y:0,kind:'frontier',state:'gates',size:100,hp:1,maxHp:1,color:'#74e5dc',chasing:true,parts:[],balls:[],clock:0,age:0};
@@ -43,12 +51,13 @@ function drawPursuit(m){
 function duelMedal(seconds,lost){return seconds<=100&&lost<=2?'Oro':seconds<=210&&lost<=6?'Plata':'Bronce';}
 function actModeResults(m,rows){
   let key,score,label;
+  if(m.id==='daily')rows.unshift(['Resultado',m.won?'Desafío completado':'Derrota']);
   if(m.id==='daily'){key='daily.'+m.day;score=state.score;label='Mejor puntuación del día';}
   if(m.id==='pursuit'){key='pursuit.best';score=m.distance;label='Récord de distancia';rows.unshift(['Distancia',score+' px']);}
   if(m.id==='duel'){
     const id=rules.boss,key='duel.'+id+'.'+rules.difficulty,damage=state.damageTaken||0;
     rows.unshift(['Jefe',BOSS_NAMES[id]],['Resultado',m.won?duelMedal(state.time,damage):'Derrota'],['Daño recibido',damage/2+' ♥']);
-    let best=readLocal(key,null);
+    let best=readLocal(key,null);if(![best?.cost,best?.time,best?.damage].every(Number.isFinite))best=null;
     if(m.won&&(!best||best.cost>state.time+10*damage)){best={cost:state.time+10*damage,time:state.time,damage};writeLocal(key,best);}
     if(best)rows.push(['Mejor duelo',clockText(best.time)+' · '+best.damage/2+' ♥']);
   }

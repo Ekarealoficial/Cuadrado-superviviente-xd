@@ -4,7 +4,7 @@ function render() {
   ctx.setTransform(1, 0, 0, 1, 0, 0);
   ctx.fillStyle = '#08080f';
   ctx.fillRect(0, 0, W, H);
-  const shake=Math.max(state.shake,fractureShake());
+  const shake=Math.max(state.shake,fractureShake())*visualPrefs.shake;
   let sx = 0, sy = 0;
   if (shake > 0.2) {
     sx = (Math.random() * 2 - 1) * shake;
@@ -153,7 +153,9 @@ function render() {
     ctx.font = 'bold 15px system-ui';
     ctx.fillText(other.name, other.x, other.y-24);
   }
+  let particleIndex=0;
   for (const pt of state.particles) {
+    if((++particleIndex%10)>=Math.ceil(visualPrefs.particles*10))continue;
     const a = clamp(pt.life / pt.maxLife, 0, 1);
     ctx.globalAlpha = a;
     ctx.fillStyle = pt.color;
@@ -182,7 +184,7 @@ function render() {
   ctx.restore();
 
   if (state.flash > 0) {
-    ctx.fillStyle = `rgba(${state.flashRGB},${state.flash * 0.35})`;
+    ctx.fillStyle = `rgba(${state.flashRGB},${state.flash * 0.35 * visualPrefs.flash})`;
     ctx.fillRect(0, 0, W, H);
   }
   if (!state.over && state.halfHearts <= 2) {
@@ -567,7 +569,7 @@ function renderEntities2() {
     if(b.occluded)continue;
     if(b.energized){strokeRing(b.x,b.y,b.r+2,'#fff3bc',2);}
     if(b.style==='omega'){ctx.save();ctx.translate(b.x,b.y);etchedSquare(b.r,state.time*6,'#ffab92',4);ctx.restore();}
-    if(b.style||b.persist){const t=.012+.004*Math.log1p(b.persist||0);ctx.strokeStyle=SHOT_INK[b.style]||'#8faeda';ctx.lineWidth=Math.max(1,b.r*.8);ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.lineTo(b.x-b.vx*t,b.y-b.vy*t);ctx.stroke();}
+    if(b.energized||b.style||b.persist){const t=.012+.004*Math.log1p(b.persist||0);ctx.strokeStyle=b.energized?'#fff6ca':SHOT_INK[b.style]||'#8faeda';ctx.lineWidth=Math.max(1,b.r*.8);ctx.beginPath();ctx.moveTo(b.x,b.y);ctx.lineTo(b.x-b.vx*t,b.y-b.vy*t);ctx.stroke();}
     if (b.dupli > 0) { ctx.shadowColor = '#ff4dd2'; ctx.shadowBlur = 16; ctx.fillStyle = '#ffd1f0'; }
     else if (b.homing) { ctx.shadowColor = '#a855f7'; ctx.shadowBlur = 16; ctx.fillStyle = '#e9d5ff'; }
     else if (b.drone) { ctx.shadowColor = '#4dff88'; ctx.shadowBlur = 14; ctx.fillStyle = '#d9ffe3'; }

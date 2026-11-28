@@ -63,7 +63,8 @@ function encounterDifficulty(group){
   const stage=labSettings?.stage||Math.max(state.groupSize,group.length);
   const pace=(state.rush?1.45:rules.difficulty)*(rules.progression||1);
   const deck=Math.log1p(state.upgrades||0);
-  const progress=Math.log1p(encounters*pace)*(.8+.065*groupRating(group))+
+  const opening=playMode==='duel'?Math.log1p(rules.difficulty)*.9:0;
+  const progress=opening+Math.log1p(encounters*pace)*(.8+.065*groupRating(group))+
     .64*(stage-1)+.12*Math.min(deck,Math.log1p(encounters*8));
   const pressure=labSettings?.threat?(labSettings.threat-1)*.65:
     Math.max(labSettings?0:(state.threat-1)*.65,progress);
@@ -77,7 +78,7 @@ function threatLabel(level){
 }
 function bossLaserReach(){return state.arena?Math.hypot(state.arena.w,state.arena.h)+80:3000;}
 function encounterProfile(group){
-  if(!weightedModes()&&!(playMode==='sandbox'&&state.labDifficulty))return null;
+  if(!weightedModes()&&!(playMode==='sandbox'&&(state.labDifficulty||rules.intensity>1)))return null;
   const profile=encounterDifficulty(group),level=profile.threat;
   if(level>(state.threat||1)){
     addFloat(state.player.x,state.player.y-60,threatLabel(level),'#f59adb');

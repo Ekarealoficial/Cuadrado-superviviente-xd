@@ -1,6 +1,11 @@
 'use strict';
 function readLocal(key,fallback=null){
-  try{return JSON.parse(localStorage.getItem('cs.'+key))??fallback;}catch{return fallback;}
+  try{
+    const value=JSON.parse(localStorage.getItem('cs.'+key));
+    if(value==null)return fallback;
+    if(fallback!==null&&(typeof value!==typeof fallback||Array.isArray(value)!==Array.isArray(fallback)))return fallback;
+    return value;
+  }catch{return fallback;}
 }
 function writeLocal(key,value){try{localStorage.setItem('cs.'+key,JSON.stringify(value));}catch{}}
 function applyStartingDeck(){
@@ -75,6 +80,18 @@ function createLaunchOptions(el){
       else if(input.type==='checkbox')input.checked=v===true;
       else if(input.type==='number'){if(Number.isInteger(v)&&v>=0&&v<=4294967295)input.value=v;}
       else if(Array.from(input.options||[]).some(o=>o.value===String(v)))input.value=v;
+    }
+    const groups=[
+      ['Dificultad y reglas',['intensity','progression','bossFrequency','difficulty','wave','duration','chaosPeriod','chaosDuration','doubleChaos']],
+      ['Enemigos y modificadores',['boss','enemyPool','chaosPool']],
+      ['Opciones avanzadas',['seed','starters']]
+    ];
+    for(const [name,list] of groups){
+      const inputs=list.map(k=>fields.get(k)).filter(Boolean);
+      if(inputs.length&&(keys.length>3||inputs.some(i=>i.multiple))){
+        const details=document.createElement('details'),title=document.createElement('summary');title.textContent=name;details.append(title);
+        for(const i of inputs)details.append(i.parentElement);panel.append(details);
+      }
     }
     const resetBtn=document.createElement('button');resetBtn.type='button';resetBtn.textContent='Restaurar valores predeterminados';resetBtn.onclick=()=>open(id,target,true);panel.append(resetBtn,summary);
     target.insertBefore(panel,target.querySelector('button:not([type])'));

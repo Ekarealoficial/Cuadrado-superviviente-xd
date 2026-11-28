@@ -24,9 +24,10 @@ function prepareMotion(old,next,now){
     if(dt<0 || dt>.45 || (group!=='bullets' && Math.hypot(dx,dy)>Math.max(80,1800*dt)))return;
     let vx=e.vx,vy=e.vy;
     if(group==='enemies'&&dt>0){vx=dx/dt;vy=dy/dt;}
+    if(group==='bullets' && !e.blendFrom && prior?.shot?.blendAt+100>now){e.blendFrom=prior.shot.blendFrom;e.blendAt=prior.shot.blendAt;}
     if(group==='bullets'&&prior?.shot?.rejectedUntil>now){e.rejectedUntil=prior.shot.rejectedUntil;e.blendFrom=prior.shot.blendFrom;e.blendAt=prior.shot.blendAt;}
     if(group==='bullets')positions.get(id).shot=e;
-    if(group==='ball' && e.state!=='flying'){vx=undefined;vy=undefined;}
+    if(group.endsWith('ball') && e.state!=='flying'){vx=undefined;vy=undefined;}
     if(!Number.isFinite(vx)||!Number.isFinite(vy)){
       if(dt<=0)return;
       vx=dx/dt;vy=dy/dt;
@@ -76,7 +77,7 @@ let inputHistory=[], correction={x:0,y:0}, previewShots=[], unconfirmedTime=0;
 let previewLasers=[],localCharge=0;
 let commandNumber=0, previewCooldown=0, pendingTap=false, previewTap=false;
 function resetPresentation(){
-  lastProvisional.clear();visualFrame=-1;pendingContacts.clear();impactLights.length=0;seenImpact=0;
+  earlyContacts.clear();confirmedDamage.length=0;lastProvisional.clear();visualFrame=-1;pendingContacts.clear();impactLights.length=0;seenImpact=0;
   previewLasers=[];localCharge=0;netPingMs=null;lastPositions.clear();motion=[];patternClocks=[]; receivedAt=0; inputHistory=[]; correction={x:0,y:0};
   previewShots=[]; commandNumber=0; previewCooldown=0; pendingTap=false; previewTap=false;
   unconfirmedTime=0;

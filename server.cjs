@@ -2,37 +2,25 @@ const http=require('node:http');
 const fs=require('node:fs');
 const path=require('node:path');
 const crypto=require('node:crypto');
-const engine=require('./room-engine.cjs');
-const {packHostileShots}=require('./src/shot-wire.js');
+const roomWorker=require('./room-worker.cjs');
 function clientSnapshot(room,token,compact){
-  const snapshot=room.game.snapshot(token);
-  if(!room.started)snapshot.waiting={host:room.host===token,ready:room.ready.has(token),
+  const waiting=room.started?null:{host:room.host===token,ready:room.ready.has(token),
     participants:Array.from(room.members.keys(),id=>({name:room.names.get(id),ready:room.ready.has(id),host:room.host===id}))};
-  if(compact&&snapshot.enemyBullets.length>=64){
-    if(room.shotTime!==snapshot.time){
-      room.packedShots=packHostileShots(snapshot.enemyBullets);room.shotTime=snapshot.time;
-    }
-    snapshot.shotTable=room.packedShots;delete snapshot.enemyBullets;
-  }
-  return snapshot;
+  return room.game.snapshot(token,compact,waiting);
 }
 const {WebSocketServer,WebSocket}=require('ws');
 const rooms=new Map();
 const sockets=new Map();
 const streams=new Map();
 const allowedOrigins=new Set((process.env.ALLOWED_ORIGINS||'https://ekarealoficial.github.io,http://localhost:3000').split(',').map(origin=>origin.trim()).filter(Boolean));
-// Entity references and simulation-only choreography need not cross the wire.
-function gameWire(key,value){
-  if(['owner','target','prevX','prevY','tracks'].includes(key))return;
-  if(key==='events' && Array.isArray(value))return value.filter(e=>e.kind!=='volley' && e.start<=this.age+.1 && e.end>=this.age);
-  return value;
-}
 const types='pulseRing erratic twinCannon rebound tackler splitter cannon frostMage normal fast tank shooter invoker teleporter kamikaze dardante juggernaut boss worm singular fractal clock crown beacon twins heart monolith dawn prism sovereign channel general frontier'.split(' ');
 const rates=[0.5,1,1.5,2,3];
 function requireValue(ok,message,status=400){if(!ok)throw Object.assign(new Error(message),{status});}
 function validated(value,valid){requireValue(valid(value),'Ajuste de sala inválido');return value;}
 function settings(s) {
   requireValue(s && rates.includes(s.xp) && rates.includes(s.difficulty) && Array.isArray(s.disabled),'Ajustes inválidos');
+  for(const key of ['pvp','private','lateJoin','manualStart'])if(s[key]!==undefined)validated(s[key],v=>typeof v==='boolean');
+  requireValue(s.disabled.every(t=>typeof t==='string'&&types.includes(t)),'Familia de enemigos desconocida');
   requireValue(Number.isInteger(s.max) && s.max>=2 && s.max<=12 && typeof s.name==='string' && s.name.trim(),'Revisa el nombre y el límite de jugadores');
   return {name:s.name.trim().slice(0,40),max:s.max,pvp:s.pvp===true,private:s.private===true,
     seed:s.seed==null?crypto.randomBytes(4).readUInt32BE():validated(s.seed,v=>Number.isInteger(v)&&v>=0&&v<=4294967295),
@@ -42,26 +30,14 @@ function settings(s) {
 }
 function leave(room,token){
   sockets.get(token)?.close(1000);streams.get(token)?.end();
-  room.members.delete(token);room.names.delete(token);room.ready.delete(token);room.game.remove(token);
+  room.members.delete(token);room.names.delete(token);room.httpBudget.delete(token);room.ready.delete(token);room.game.remove(token);
   if(room.host===token)room.host=room.members.keys().next().value;
-  if(!room.members.size)rooms.delete(room.code);
+  if(!room.members.size){room.game.close();rooms.delete(room.code);}
 }
-const stepMs=1000/30;
-let lastTick=performance.now(), debt=0;
+const maxRooms=Math.max(1,Number(process.env.MAX_ROOMS)||8);
 setInterval(()=>{
-  const now=performance.now();
-  debt=Math.min(4*stepMs,debt+now-lastTick);
-  lastTick=now;
-  const steps=Math.floor(debt/stepMs);
-  debt-=steps*stepMs;
-  for(const r of rooms.values()){
-    for(const [token,seen] of r.members)if(Date.now()-seen>20000)leave(r,token);
-    if(r.members.size&&r.started){
-      try{for(let i=0;i<steps;i++)r.game.tick(1/30);}
-      catch(error){console.error('Error de simulación',r.code,error.message);for(const token of r.members.keys())leave(r,token);}
-    }
-  }
-},1000/30).unref();
+  for(const r of rooms.values())for(const [token,seen] of r.members)if(Date.now()-seen>20000)leave(r,token);
+},1000).unref();
 async function body(req){
   let raw='',size=0;
   for await(const part of req){size+=part.length;raw+=part;requireValue(size<=16384,'Solicitud demasiado grande',413);}
@@ -80,35 +56,40 @@ const server=http.createServer(async(req,res)=>{
     if(origin && !allowedOrigins.has(origin)){res.writeHead(403);return res.end();}
     res.writeHead(204);return res.end();
   }
-  function json(status,data){
+  function json(status,data,encoded=false){
     res.writeHead(status,{'Content-Type':'application/json','Cache-Control':'no-store'});
-    res.end(JSON.stringify(data,gameWire));
+    res.end(encoded?data:JSON.stringify(data));
   }
   try{
     const url=new URL(req.url,'http://localhost');
-    if(url.pathname==='/health')return json(200,{ok:true,rooms:rooms.size});
+    if(url.pathname==='/health')return json(200,{ok:true,version:require('./package.json').version,rooms:rooms.size});
     if(!url.pathname.startsWith('/api/')){
       const file=url.pathname==='/'?'index.html':url.pathname.slice(1);
-      requireValue(req.method==='GET' && /^(index\.html|menu\.css|src\/[\w-]+\.js)$/.test(file),'No encontrado',404);
+      requireValue(req.method==='GET' && /^(index\.html|menu\.css|favicon\.svg|portada\.png|src\/[\w-]+\.js)$/.test(file),'No encontrado',404);
       const content=await fs.promises.readFile(path.join(__dirname,file));
-      res.setHeader('Content-Type',file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':'text/html');
+      res.setHeader('Content-Type',file.endsWith('.svg')?'image/svg+xml':file.endsWith('.png')?'image/png':file.endsWith('.js')?'application/javascript':file.endsWith('.css')?'text/css':'text/html');
       return res.end(content);
     }
     if(req.method==='GET' && url.pathname==='/api/rooms'){
       return json(200,[...rooms.values()].filter(r=>!r.settings.private).map(r=>({...r.settings,code:r.code,opened:r.opened,started:r.started,count:r.members.size})));
     }
     requireValue(req.method==='POST','Método inválido',405);
-    const data=await body(req);
+    const data=await body(req);requireValue(data&&typeof data==='object'&&!Array.isArray(data),'Solicitud inválida');
     const action=url.pathname.slice(5);
     let room=rooms.get(String(data.code).toUpperCase());
     if(action==='create'||action==='join'){
       const p=data.profile;
       requireValue(typeof p?.name==='string'&&p.name.trim()&&/^#[0-9a-f]{6}$/i.test(p.color),'Elige nombre y color');
       if(action==='create'){
-        requireValue(rooms.size<100,'Servidor lleno',503);
+        requireValue(rooms.size<maxRooms,'Servidor lleno',503);
         const s=settings(data.settings);
         let code;do{code=crypto.randomBytes(4).toString('hex').toUpperCase();}while(rooms.has(code));
-        room={settings:s,code,opened:Date.now(),members:new Map(),names:new Map(),ready:new Set(),started:!s.manualStart,game:engine(s)};
+        room={settings:s,code,opened:Date.now(),members:new Map(),names:new Map(),ready:new Set(),started:!s.manualStart,httpBudget:new Map(),game:roomWorker(s,err=>{console.error('Sala cerrada',code,err.message);for(const id of room.members.keys())leave(room,id);},packet=>{
+          for(const id of room.members.keys()){
+            const ws=sockets.get(id);
+            if(ws?.impactFormat===1&&ws.readyState===WebSocket.OPEN&&ws.bufferedAmount<32768)ws.send(packet);
+          }
+        })};
         rooms.set(code,room);
       }
       requireValue(room,'Código desconocido o sala cerrada',404);
@@ -118,12 +99,15 @@ const server=http.createServer(async(req,res)=>{
       room.host??=token;room.names.set(token,p.name.trim().slice(0,24));
       room.game.add(token,{name:p.name.trim().slice(0,24),color:p.color});
       room.members.set(token,Date.now());
-      return json(200,{code:room.code,token,settings:room.settings,state:clientSnapshot(room,token,false)});
+      return json(200,{code:room.code,token,settings:room.settings,state:JSON.parse(await clientSnapshot(room,token,false))});
     }
     requireValue(room?.members.has(data.token),'Sesión terminada',403);
+    const now=performance.now(),budget=room.httpBudget.get(data.token)||{at:now,left:64};
+    budget.left=Math.min(64,budget.left+(now-budget.at)*.04);budget.at=now;room.httpBudget.set(data.token,budget);
+    requireValue(--budget.left>=0,'Demasiadas solicitudes. Intenta de nuevo en un momento.',429);
     if(action==='ready'||action==='start'){
       if(action==='ready'){if(data.ready===true)room.ready.add(data.token);else room.ready.delete(data.token);}
-      else {requireValue(data.token===room.host,'Solo el anfitrión puede iniciar',403);room.started=true;}
+      else {requireValue(data.token===room.host,'Solo el anfitrión puede iniciar',403);room.started=true;room.game.start();}
       return json(200,{started:room.started});
     }
     if(action==='leave'){leave(room,data.token);return json(200,{});}
@@ -132,11 +116,12 @@ const server=http.createServer(async(req,res)=>{
       streams.get(data.token)?.end();
       streams.set(data.token,res);
       res.flushHeaders();
-      const timer=setInterval(()=>{
+      let sending=false;
+      const timer=setInterval(async()=>{
         if(!room.members.has(data.token)||!rooms.has(room.code)){res.end();return;}
-        if(res.writableNeedDrain)return;
-        const snapshot=room.game.snapshot(data.token);
-        res.write(JSON.stringify(snapshot,gameWire)+'\n');
+        if(res.writableNeedDrain||sending)return;sending=true;
+        try{const packet=await clientSnapshot(room,data.token,false);if(!res.destroyed)res.write(packet+'\n');}
+        catch{res.end();}finally{sending=false;}
       },50);
       res.on('close',()=>{clearInterval(timer);if(streams.get(data.token)===res)streams.delete(data.token);});
       return;
@@ -144,7 +129,8 @@ const server=http.createServer(async(req,res)=>{
     requireValue(action==='input'||action==='step','No encontrado',404);
     room.members.set(data.token,Date.now());
     submitInput(room,data.token,data);
-    return json(200,action==='input'?{}:clientSnapshot(room,data.token,data.shotFormat===1));
+    if(action==='input')return json(200,{});
+    return json(200,await clientSnapshot(room,data.token,data.shotFormat===1),true);
   }catch(e){json(e.status||500,{error:e.status?e.message:'Error del servidor'});}
 });
 function submitInput(room,token,data){
@@ -181,17 +167,20 @@ wsServer.on('connection',ws=>{
       if(--budget<0){ws.close(1008,'Demasiados mensajes');return;}
       const data=JSON.parse(raw);
       if(!room){
-        room=rooms.get(data.code);token=data.token;compact=data.shotFormat===1;
+        room=rooms.get(data.code);token=data.token;compact=data.shotFormat===1;ws.impactFormat=data.impactFormat;
         if(!room?.members.has(token)){ws.close(1008);return;}
         clearTimeout(authTimer);
         sockets.get(token)?.close(1000);streams.get(token)?.end();
         sockets.set(token,ws);
         ws.send(JSON.stringify({type:'ready'}));
-        timer=setInterval(()=>{
+        let sending=false;
+        timer=setInterval(async()=>{
           if(!room.members.has(token)||!rooms.has(room.code)){ws.close(1000);return;}
           if(ws.readyState!==WebSocket.OPEN || ws.bufferedAmount>32768 || serial-seen>=8)return;
-          const state=clientSnapshot(room,token,compact);
-          ws.send(JSON.stringify({type:'state',serial:++serial,state},gameWire));
+          if(sending)return;sending=true;
+          try{const packet=await clientSnapshot(room,token,compact);
+            if(ws.readyState===WebSocket.OPEN)ws.send('{"type":"state","serial":'+(++serial)+',"state":'+packet+'}');
+          }catch{ws.close();}finally{sending=false;}
         },40);
         return;
       }
