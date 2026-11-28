@@ -6,7 +6,7 @@ function game() {
  const sandbox={console,URLSearchParams,location:{search:'?seed=42'},performance:{now:()=>0},setTimeout:()=>{},requestAnimationFrame:()=>{},window:{innerWidth:1200,innerHeight:800,addEventListener:()=>{}},document:{createElement:()=>({getContext:()=>ctx}),getElementById:()=>({getContext:()=>ctx,addEventListener:()=>{}})}};
  vm.createContext(sandbox);
  const html=fs.readFileSync('index.html','utf8');
- for(const [,file] of html.matchAll(/src="([^"]+)"/g)) vm.runInContext(fs.readFileSync(file,'utf8'),sandbox,{filename:file});
+ for(const [,file] of html.matchAll(/src="([^"]+)"/g)) vm.runInContext(fs.readFileSync(file.split('?')[0],'utf8'),sandbox,{filename:file});
  return code=>vm.runInContext(code,sandbox);
 }
 test('una sala anterior a Velocista permite dibujar y abrir el inventario',()=>{
@@ -953,4 +953,11 @@ test('Confirmación WebSocket adelanta el daño autoritativo y una instantánea 
  assert.ok(run('enemy.hp===2&&q.occluded&&previewShots[0].occluded&&confirmedDamage.length===1'));
  run("const old={time:.95,bullets:[{...q,occluded:false}],enemies:[{netId:91,hp:7}]};reconcileContacts(old,30);reconcileContacts({time:1,bullets:[],impacts:[result]},60)");
  assert.ok(run('old.enemies[0].hp===2&&old.bullets[0].occluded&&confirmedDamage.length===1&&!earlyContacts.size'));
+});
+
+test('Todos los recursos de código del menú solicitan la misma versión publicada',()=>{
+ const html=fs.readFileSync('index.html','utf8'),version=require('../package.json').version;
+ const files=Array.from(html.matchAll(/(?:src|href)="((?:src\/[^"]+\.js|menu\.css)[^"]*)"/g),match=>match[1]);
+ assert.ok(files.length>1);
+ for(const file of files)assert.ok(file.endsWith('?v='+version),file);
 });

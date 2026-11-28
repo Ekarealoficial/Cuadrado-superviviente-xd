@@ -56,7 +56,7 @@ La partida admite interrupciones breves en la misma pestaña. Una sesión caduca
 
 ## Organización y créditos
 
-La lógica compartida vive en `src/`. `room-engine.cjs` carga la simulación en Node, `room-tick.js` organiza participantes y propiedad de proyectiles, `room-worker.cjs` aísla las salas y `server.cjs` sirve HTTP y WebSocket. Para ampliar el tablón, añade una entrada al final del arreglo `ACTS` en `src/launch-ui.js` con número, versión, fecha, descripción y cambios.
+La lógica compartida vive en `src/`. `room-engine.cjs` carga la simulación en Node, `room-tick.js` organiza participantes y propiedad de proyectiles, `room-worker.cjs` aísla las salas y `server.cjs` sirve HTTP y WebSocket. Al cambiar la versión, actualiza también el parámetro de versión de los scripts y la hoja de estilos en `index.html` para renovar la caché de Pages. Para ampliar el tablón, añade una entrada al final del arreglo `ACTS` en `src/launch-ui.js` con número, versión, fecha, descripción y cambios.
 
 Proyecto de Ekarealoficial. El dibujo utiliza Canvas 2D y formas geométricas. El audio se sintetiza con Web Audio. Gracias a quienes prueban las peleas y comunican fallos.
 
